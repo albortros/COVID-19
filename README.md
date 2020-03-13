@@ -6,8 +6,8 @@ Models of COVID-19 spread in Italy.
 
 ### Data
 
-A clone of the [official Civil Protection repository]
-(https://github.com/pcm-dpc/COVID-19) in `pcm-dpc-COVID-19`.
+A clone of the [official Civil Protection
+repository](https://github.com/pcm-dpc/COVID-19) in `pcm-dpc-COVID-19`.
 
 ### Models
   

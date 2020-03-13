@@ -56,6 +56,11 @@ a comparison with simpler/older models is possible at any point.
 In case someone is not used to git: probably the simplest way to use it is the
 application "Github desktop".
 
+Since we are depending on an external repository as a submodule, when cloning
+remember to use the recursive option: `git clone --recursive`. You may need to
+update with `git submodule update`, I don't know if Guthub desktop does this
+automatically. Also, ask others before updating the external repository.
+
 In general it is advisable not to modify the same file that someone else is
 working on. If you plan to do that, either reach an agreement with the relevant
 members, or make a new branch.

@@ -1,13 +1,13 @@
 # COVID-19
 
-Models of COVID-19 spread.
+Models of COVID-19 spread in Italy.
 
-## Directory structure
+## Structure
 
 ### Data
 
 A clone of the [official Civil Protection repository]
-(https://github.com/pcm-dpc/COVID-19).
+(https://github.com/pcm-dpc/COVID-19) in `pcm-dpc-COVID-19`.
 
 ### Models
   
@@ -15,13 +15,30 @@ A directory for each model with name starting with `model`. In practice
 different people will work on different models and will mess in their own
 directory without causing merge problems to other teams.
 
+Models should be briefly described in the list in this README. Eventual
+detailed documentation can be written in a per-model README.
+
+We should try to keep older models up and running so we can keep track of
+progress and regressions. In practice: when you have a working model, and you
+make a substantial modification, make a new directory and keep also the older
+version.
+
+We want to reach a state in which every day we run all the models in all their
+versions. It is not fundamental that your code can be executed by someone else,
+as long as you can run it with new data every day and have the output in the
+same format as the others.
+
+#### Model list
+
+Still empty :(
+
 ### Predictions
   
 A directory `predictions` for model prediction output in a common format.
 
 Inside this, there is one directory for each day, which contains model output
 for each model and for each subsequent day (file naming conventions still to be
-defined). So, the directory day is the day in which the models where run, i.e.
+defined). So, the directory day is the day in which the models were run, i.e.
 it represents the data date, while inside there is one file for each model and
 for each future date the model makes a prediction for.
 

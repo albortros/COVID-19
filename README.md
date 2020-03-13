@@ -42,8 +42,8 @@ defined). So, the directory day is the day in which the models were run, i.e.
 it represents the data date, while inside there is one file for each model and
 for each future date the model makes a prediction for.
 
-The file format is the same as used by the [official data]
-(https://github.com/pcm-dpc/COVID-19). It is columnar so additional
+The file format is the same as used by the [official
+data](https://github.com/pcm-dpc/COVID-19). It is columnar so additional
 information, e.g. uncertainties, can be added in additional columns.
 
 Probably more sofisticated models will give information which can not be easily

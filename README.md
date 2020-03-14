@@ -7,7 +7,7 @@ Models of COVID-19 spread in Italy.
 ### Data
 
 We dispose of a clone of the [official Civil Protection
-repository](https://github.com/pcm-dpc/COVID-19) in `pcm-dpc-COVID-19` reporting the italian data region-wise and a clone of the [Johns Hopkins University CSSE repository](https://github.com/CSSEGISandData/COVID-19) in `jhu-csse-COVID-19`.
+repository](https://github.com/pcm-dpc/COVID-19) in `pcm-dpc-COVID-19` reporting the italian data region-wise and a clone of the [Johns Hopkins University CSSE repository](https://github.com/CSSEGISandData/COVID-19) in `jhu-csse-COVID-19` reporting the worldwide data and, expecially useful, the region-wise Chinese data.
 
 ### Models
   

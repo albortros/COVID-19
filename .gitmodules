@@ -1,3 +1,6 @@
 [submodule "pcm-dpc-COVID-19"]
 	path = pcm-dpc-COVID-19
 	url = https://github.com/pcm-dpc/COVID-19
+[submodule "jhu-csse-COVID-19"]
+	path = jhu-csse-COVID-19
+	url = https://github.com/CSSEGISandData/COVID-19

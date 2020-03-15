@@ -71,9 +71,7 @@ In case someone is not used to git: probably the simplest way to use it is the
 application "Github desktop".
 
 Since we are depending on external repositories as submodules, when cloning
-remember to use the recursive option: `git clone --recursive`. You may need to
-update with `git submodule update`, I don't know if Guthub desktop does this
-automatically. Also, maybe ask others before updating the external repository.
+remember to use the recursive option: `git clone --recursive`. You will also need to update with `git submodule update --recursive` or `git pull --recurse-submodules`. I don't know if Guthub desktop does this automatically. Also, maybe ask others before updating the external repository.
 
 In general it is advisable not to modify the same file that someone else is
 working on. If you plan to do that, either reach an agreement with the relevant

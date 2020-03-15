@@ -55,6 +55,11 @@ cast in this format so we will extend this by adding more files as needed. In
 any case, the models must always also output the "simple" prediction so that
 a comparison with simpler/older models is possible at any point.
 
+### Outreach
+
+A list of platforms to publish our findings on:
+1. [Physicists Against SARSCov2](https://www.facebook.com/groups/PhysicistsAgainstSARSCoV2/) is a facebook group of about 2500 people.
+
 ## Git
 
 In case someone is not used to git: probably the simplest way to use it is the

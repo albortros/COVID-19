@@ -92,5 +92,5 @@ git commit -a
 
 ### Outreach
 
-A list of media to publish our findings on:
-1. [Physicists Against SARSCov2](https://www.facebook.com/groups/PhysicistsAgainstSARSCoV2/)
+A list of platforms to publish our findings on:
+1. [Physicists Against SARSCov2](https://www.facebook.com/groups/PhysicistsAgainstSARSCoV2/) is a facebook group of about 2500 people.

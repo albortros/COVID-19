@@ -55,10 +55,15 @@ cast in this format so we will extend this by adding more files as needed. In
 any case, the models must always also output the "simple" prediction so that
 a comparison with simpler/older models is possible at any point.
 
-### Outreach
+## Links
 
-A list of platforms to publish our findings on:
-1. [Physicists Against SARSCov2](https://www.facebook.com/groups/PhysicistsAgainstSARSCoV2/) is a facebook group of about 2500 people.
+1. [Physicists Against
+SARSCov2](https://www.facebook.com/groups/PhysicistsAgainstSARSCoV2/) is a
+facebook group of about 2500 people. We may publish any results here.
+
+2. [OSMnx](https://github.com/gboeing/osmnx) library for downloading street
+networks from openstreetmap. I have not tried it. It may be useful to have
+information on connectivity.
 
 ## Git
 

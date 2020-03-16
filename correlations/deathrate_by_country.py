@@ -14,8 +14,9 @@ MIN_CASES = 100
 MIN_DAYS = 10
 
 ###Input and removal of useless features
-infected = pd.read_csv("time_series_19-covid-Confirmed.csv")
-deaths = pd.read_csv("time_series_19-covid-Deaths.csv")
+path = "../jhu-csse-COVID-19/csse_covid_19_data/csse_covid_19_time_series/"
+infected = pd.read_csv(path + "time_series_19-covid-Confirmed.csv")
+deaths = pd.read_csv(path + "time_series_19-covid-Deaths.csv")
 
 infected.drop(['Province/State', 'Lat', 'Long'], axis = 1, inplace = True)
 deaths.drop(['Province/State', 'Lat', 'Long'], axis = 1, inplace = True)

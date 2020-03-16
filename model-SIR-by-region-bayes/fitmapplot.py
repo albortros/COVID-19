@@ -42,7 +42,7 @@ for label in 'I', 'R':
     else:
         y = table['totale_casi'] - table['totale_attualmente_positivi']
     line, = ax.plot(x, y.values, '.', label=label) # data
-    ax.plot(x, mp[label], '-', color=line.get_color()) # fit
+    ax.plot(x, mp[label] * mp['population'], '-', color=line.get_color()) # fit
 
 ax.legend(loc='best')
 

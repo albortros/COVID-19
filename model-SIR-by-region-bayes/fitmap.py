@@ -54,15 +54,16 @@ with model:
     
     popdistr = pm.Bound(pm.Lognormal, lower=np.max(R_data + I_data))
     population = popdistr('population', mu=np.log(1e6), sigma=np.log(20))
-    I0 = pm.Lognormal('I0', mu=np.log(1e2), sigma=1)
-    S0 = pm.Deterministic('S0', population - I0)
+    I0_pop = pm.Lognormal('I0_pop', mu=np.log(1e2), sigma=1)
+    I0 = pm.Deterministic('I0', I0_pop / population)
+    S0 = pm.Deterministic('S0', 1 - I0)
 
     SI = sir_model(y0=[S0, I0], theta=[R0, lamda])
     S = pm.Deterministic('S', SI[:, 0])
     I = pm.Deterministic('I', SI[:, 1])
-    R = pm.Deterministic('R', population - S - I)
-    pm.Poisson('I_data', mu=I, observed=I_data)
-    pm.Poisson('R_data', mu=R, observed=R_data)
+    R = pm.Deterministic('R', 1 - S - I)
+    pm.Poisson('I_data', mu=I * population, observed=I_data)
+    pm.Poisson('R_data', mu=R * population, observed=R_data)
 
     mp = pm.find_MAP()
 

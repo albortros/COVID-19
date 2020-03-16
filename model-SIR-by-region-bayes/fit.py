@@ -16,8 +16,6 @@ data = pd.read_csv(
 gdata = data.groupby('denominazione_regione')
 # use the name to group because problems with south tirol
 
-# Get times.
-
 # Fit.
 def SIR(y, t, p):
     S = y[0]
@@ -40,11 +38,11 @@ sir_model = pm.ode.DifferentialEquation(
     times=times,
     n_states=2,
     n_theta=2,
-    t0=0
+    t0=-1
 )
 
-I_data = table['totale_attualmente_positivi']
-R_data = table['totale_casi'] - I_data
+I_data = table['totale_attualmente_positivi'].values
+R_data = table['totale_casi'].values - I_data
 
 model = pm.Model()
 with model:

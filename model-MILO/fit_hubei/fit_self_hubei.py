@@ -35,8 +35,8 @@ def integrate_ode(x, tempo_totale, quarantine):
             if I[step] > 1000:
                 alpha = 5
         # calcolo delta SE
-        delta_SE.append((1-(1-s/(alpha*h))**(I[step]/alpha))*S[step])
-        qua   = (1-(1-s/(alpha*h))**(I[step]/alpha))*S[step]
+        delta_SE.append((1-(1-s/h)**(I[step]/alpha))*S[step])
+        qua   = (1-(1-s/h)**(I[step]/alpha))*S[step]
         noqua = (1-(1-s/h)**(I[step]))*S[step]
         print("alpha "+str(alpha)+" qua "+str(qua)+ " noqua "+str(noqua))
         # calcolo delta EI
@@ -131,4 +131,4 @@ def calc_least_squares(x, tempo_totale):
    # return sum_squares
 
 #print(calc_least_squares(np.array([3,1]),tuple(ref)))
-calc_least_squares(np.array([1.1,1]),2000)
+calc_least_squares(np.array([1.1,1]),400)

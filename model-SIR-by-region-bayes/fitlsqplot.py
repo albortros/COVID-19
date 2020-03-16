@@ -26,7 +26,9 @@ fig.clf()
 ax = fig.subplots(1, 1)
 
 x = fit['table']['data']
-xfit = pd.to_datetime(np.linspace(np.min(x).value, np.max(x).value, 100))
+left = np.min(x).value
+right = np.max(x).value
+xfit = pd.to_datetime(np.linspace(left, right + (right - left), 100))
 xfit_num = fitlsqdefs.time_to_number(xfit)
 yfit = fitlsqdefs.fcn(dict(times=xfit_num, min_pop=fit['min_pop']), fit['p'])
 for label in 'I', 'R':
@@ -39,7 +41,7 @@ for label in 'I', 'R':
     ym, ys = gvar.mean(yfit[label]), gvar.sdev(yfit[label])
     ax.fill_between(xfit, ym - ys, ym + ys, color=color)
 
-ax.legend(loc='best')
+ax.legend(loc='upper left')
 
 fig.autofmt_xdate()
 fig.tight_layout()

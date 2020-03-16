@@ -6,6 +6,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 import pickle
 import namedate
+import fitlsqdefs
 
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
@@ -21,9 +22,7 @@ gdata = data.groupby('denominazione_regione')
 
 # Times.
 table = gdata.get_group('Lombardia')
-times = np.array(pd.to_numeric(table['data']).values, dtype=float)
-times -= times[0]
-times /= 1e9 * 60 * 60 * 24 # ns -> days
+times = fitlsqdefs.time_to_number(table['data'])
 
 # Data.
 I_data = table['totale_attualmente_positivi'].values
@@ -41,50 +40,23 @@ prior = gvar.BufferDict({
 })
 min_pop = np.max(gvar.mean(R_data + I_data))
 
-# Differential equation.
-def SIR(SI, t, p):
-    S = SI[0]
-    I = SI[1]
-    
-    R0 = p[0]
-    lamda = p[1]
-    beta = R0 * lamda
-    
-    dS = -beta * S * I
-    dI = -dS - lamda * I
-    return [dS, dI]
-
-# Model function.
-def fcn(p):
-    pop = min_pop + p['_population']
-    
-    I0 = p['I0_pop'] / pop
-    S0 = 1 - I0
-
-    def deriv(t, SI):
-        return np.array(SIR(SI, t, [p['R0'], p['lambda']]))
-    integrator = gvar.ode.Integrator(deriv=deriv, tol=1e-4)
-    SIfun = integrator.solution(-1, [S0, I0])
-    
-    SI = [SIfun(t) for t in times]
-    R = np.array([1 - si[0] - si[1] for si in SI])
-    I = np.array([si[1] for si in SI])
-    return gvar.BufferDict(R=R * pop, I=I * pop)
-
 # Run fit.
-fit = lsqfit.nonlinear_fit(data=fitdata, prior=prior, fcn=fcn)
+args = dict(times=times, min_pop=min_pop)
+fit = lsqfit.nonlinear_fit(data=(args, fitdata), prior=prior, fcn=fitlsqdefs.fcn)
 fitlog = fit.format(maxline=True)
 print(fitlog)
 
 # Save results.
 pickle_dict = dict(
-    data=fitdata,
+    y=fitdata,
     p=fit.p,
     prior=prior,
     log=fitlog,
     chi2=fit.chi2,
     dof=fit.dof,
-    pvalue=fit.Q
+    pvalue=fit.Q,
+    table=table,
+    min_pop=min_pop
 )
 pickle_file = 'fitlsq_' + namedate.file_timestamp() + '.pickle'
 print(f'Saving to {pickle_file}...')

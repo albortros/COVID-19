@@ -7,6 +7,10 @@ Italian region.
 
   * `fitlsq.py`: regularized least squares fit. A sort of approximate bayesian
     fit.
+
+  * `fitlsqplot.py`: plot `fitlsq.py` output.
+  
+  * `fitlsqdefs.py`: common stuff for `fitlsq*`.
     
   * `fitmap.py`: maximum a posteriori fit.
     

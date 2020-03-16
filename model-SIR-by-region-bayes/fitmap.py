@@ -51,8 +51,9 @@ with model:
     R0 = pm.InverseGamma('R0', alpha=1, beta=1)
     lamda = pm.Lognormal('lambda', mu=0, sigma=2)
     beta = pm.Deterministic('beta', lamda * R0)
-
-    population = pm.Lognormal('population', mu=np.log(1e6), sigma=np.log(1e2))
+    
+    popdistr = pm.Bound(pm.Lognormal, lower=np.max(R_data + I_data))
+    population = popdistr('population', mu=np.log(1e6), sigma=np.log(20))
     I0 = pm.Lognormal('I0', mu=np.log(1e2), sigma=1)
     S0 = pm.Deterministic('S0', population - I0)
 
@@ -69,7 +70,8 @@ pickle_file = 'fitmap_' + namedate.file_timestamp() + '.pickle'
 pickle_dict = dict(
     model=model,
     mp=mp,
-    table=table
+    table=table,
+    sir_model=sir_model
 )
 print(f'Saving to {pickle_file}...')
 pickle.dump(pickle_dict, open(pickle_file, 'wb'))

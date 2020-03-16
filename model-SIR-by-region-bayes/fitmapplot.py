@@ -30,6 +30,12 @@ table = fit['table']
 mp = fit['mp']
 model = fit['model']
 
+# Print report.
+print(f'population = {mp["population"]:.0f}')
+print(f'I0_pop = {mp["I0_pop"]:.1f}')
+print(f'R0 = {mp["R0"]:.2f}')
+print(f'lambda = {mp["lambda"]:.3g}')
+
 # Plot data and fit.
 fig = plt.figure('fitmapplot')
 fig.clf()
@@ -47,23 +53,24 @@ for label in 'I', 'R':
 ax.legend(loc='best')
 
 fig.autofmt_xdate()
+fig.tight_layout()
 
 # Plot priors.
-fig = plt.figure('fitmapplot-priors')
-fig.clf()
-var_names = ['R0', 'lambda', 'I0', 'population']
-axs = fig.subplots(len(var_names), 1)
-
-with model:
-    samples = pm.sample_prior_predictive(var_names=var_names, samples=1000)
-
-for i, ax in enumerate(axs):
-    sample = samples[var_names[i]]
-    bins = np.logspace(np.log10(np.min(sample)), np.log10(np.max(sample)), int(np.ceil(np.sqrt(len(sample)))))
-    ax.hist(sample, bins=bins, density=True, histtype='stepfilled')
-    ax.set_title(var_names[i])
-    ax.set_xscale('log')
-
-fig.tight_layout()
+# fig = plt.figure('fitmapplot-priors')
+# fig.clf()
+# var_names = ['R0', 'lambda', 'I0', 'population']
+# axs = fig.subplots(len(var_names), 1)
+#
+# with model:
+#     samples = pm.sample_prior_predictive(var_names=var_names, samples=1000)
+#
+# for i, ax in enumerate(axs):
+#     sample = samples[var_names[i]]
+#     bins = np.logspace(np.log10(np.min(sample)), np.log10(np.max(sample)), int(np.ceil(np.sqrt(len(sample)))))
+#     ax.hist(sample, bins=bins, density=True, histtype='stepfilled')
+#     ax.set_title(var_names[i])
+#     ax.set_xscale('log')
+#
+# fig.tight_layout()
 
 plt.show()

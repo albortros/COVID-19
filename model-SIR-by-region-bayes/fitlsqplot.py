@@ -12,7 +12,13 @@ register_matplotlib_converters()
 # Load fit result.
 fit = pickle.load(open(sys.argv[1], 'rb'))
 
-# Extract data.
+# Print report.
+p = fit['p']
+population = p['_population'] + fit['min_pop']
+print(f'population = {population}')
+print(f'I0_pop = {p["I0_pop"]}')
+print(f'R0 = {p["R0"]}')
+print(f'lambda = {p["lambda"]}')
 
 # Plot data and fit.
 fig = plt.figure('fitlsqplot')

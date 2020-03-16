@@ -55,10 +55,15 @@ cast in this format so we will extend this by adding more files as needed. In
 any case, the models must always also output the "simple" prediction so that
 a comparison with simpler/older models is possible at any point.
 
-### Outreach
+## Links
 
-A list of platforms to publish our findings on:
-1. [Physicists Against SARSCov2](https://www.facebook.com/groups/PhysicistsAgainstSARSCoV2/) is a facebook group of about 2500 people.
+1. [Physicists Against
+SARSCov2](https://www.facebook.com/groups/PhysicistsAgainstSARSCoV2/) is a
+facebook group of about 2500 people. We may publish any results here.
+
+2. [OSMnx](https://github.com/gboeing/osmnx) library for downloading street
+networks from openstreetmap. I have not tried it. It may be useful to have
+information on connectivity.
 
 ## Git
 
@@ -66,9 +71,7 @@ In case someone is not used to git: probably the simplest way to use it is the
 application "Github desktop".
 
 Since we are depending on external repositories as submodules, when cloning
-remember to use the recursive option: `git clone --recursive`. You may need to
-update with `git submodule update`, I don't know if Guthub desktop does this
-automatically. Also, maybe ask others before updating the external repository.
+remember to use the recursive option: `git clone --recursive`. You will also need to update with `git submodule update --recursive` or `git pull --recurse-submodules`. I don't know if Guthub desktop does this automatically. Also, maybe ask others before updating the external repository.
 
 In general it is advisable not to modify the same file that someone else is
 working on. If you plan to do that, either reach an agreement with the relevant

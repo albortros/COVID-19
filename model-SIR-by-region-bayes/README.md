@@ -5,8 +5,8 @@ Italian region.
 
 ## Programs
 
-  * `fitlsq.py`: regularized least squares fit. A sort of approximate
-    bayesian fit. Does not work, the parameters diverge.
+  * `fitlsq.py`: regularized least squares fit. A sort of approximate bayesian
+    fit.
     
   * `fitmap.py`: maximum a posteriori fit.
     

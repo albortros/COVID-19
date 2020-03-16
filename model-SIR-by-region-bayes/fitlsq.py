@@ -36,9 +36,10 @@ fitdata = gvar.BufferDict(I=I_data, R=R_data)
 prior = gvar.BufferDict({
     'log(R0)': gvar.gvar('0(2)'),
     'log(lambda)': gvar.gvar('0(2)'),
-    'log(population)': gvar.gvar(np.log(1e6), np.log(1e2)),
-    'log(I0)': gvar.gvar(np.log(1e2), 1)
+    'log(_population)': gvar.gvar(np.log(1e6), np.log(20)),
+    'log(I0_pop)': gvar.gvar(np.log(1e2), 1)
 })
+min_pop = np.max(gvar.mean(R_data + I_data))
 
 # Differential equation.
 def SIR(SI, t, p):
@@ -55,16 +56,20 @@ def SIR(SI, t, p):
 
 # Model function.
 def fcn(p):
+    pop = min_pop + p['_population']
+    
+    I0 = p['I0_pop'] / pop
+    S0 = 1 - I0
+
     def deriv(t, SI):
         return np.array(SIR(SI, t, [p['R0'], p['lambda']]))
     integrator = gvar.ode.Integrator(deriv=deriv, tol=1e-4)
-    S0 = p['population'] - p['I0']
-    SIfun = integrator.solution(-1, [S0, p['I0']])
+    SIfun = integrator.solution(-1, [S0, I0])
     
     SI = [SIfun(t) for t in times]
-    R = np.array([p['population'] - si[0] - si[1] for si in SI])
+    R = np.array([1 - si[0] - si[1] for si in SI])
     I = np.array([si[1] for si in SI])
-    return gvar.BufferDict(R=R, I=I)
+    return gvar.BufferDict(R=R * pop, I=I * pop)
 
 # Run fit.
 fit = lsqfit.nonlinear_fit(data=fitdata, prior=prior, fcn=fcn)
@@ -73,7 +78,7 @@ print(fitlog)
 
 # Save results.
 pickle_dict = dict(
-    data=fit_data,
+    data=fitdata,
     p=fit.p,
     prior=prior,
     log=fitlog,

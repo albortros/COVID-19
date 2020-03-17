@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 def integrate_ode(x, tempo_totale, quarantine_time):
     # variabili importanti
     h = 5.85*(10**7) # numero di abitanti
-    r = 74 # 18.5*4 # tempo medio di guarigione, per 4 perche' aggiorniamo ogni 6 ore
-    t = 22 #5.5*4 # tempo medio di incubazione, per 4 perche' aggiorniamo ogni 6 ore
+    r = 18 # 18.5*4 # tempo medio di guarigione, per 4 perche' aggiorniamo ogni 6 ore
+    t = 5 #5.5*4 # tempo medio di incubazione, per 4 perche' aggiorniamo ogni 6 ore
     E = [] # lista degli esposti
     I = [] # lista degli infetti
     R = [] # lista dei guariti
@@ -19,17 +19,17 @@ def integrate_ode(x, tempo_totale, quarantine_time):
     alpha = 1 # si inizia senza quarantena
     # condizione iniziale
     E.append(0)   # nessun esposto
-    I.append(1)   # l'infetto bastardo
+    I.append(x[2])   # l'infetti bastardi
     R.append(0)   # nessun guarito per ora fra
-    S.append(h-1) # numero di sani
+    S.append(h-x[2]) # numero di sani
     # inizia l'integrazione numerica
     for step in range(tempo_totale):
         # controlliamo se e' partita la quarantena
         if step > quarantine_time:
             alpha = x[1]
-        # calcolo delta SE
-        delta_SE.append((1-(1-s/h)**(I[step]/alpha))*S[step])
-        # calcolo delta EI
+        # calcolo delta SE 
+        delta_SE.append((s*I[step]*S[step])/(alpha*h))
+        # calcolo delta EI-
         if step - t < 0: # se non e' passato un ciclo di incubazione e' uguale a zero
             delta_EI.append(0)
         else:
@@ -49,21 +49,18 @@ def integrate_ode(x, tempo_totale, quarantine_time):
     return S, E, I, R
 
 def calc_resid(x, *args):
-    S = []
-    E = []
-    I = []
-    R = []
     total_time = args[0] # tempo totale dell'evoluzione
     time_shift = args[1] # shift oltre il quale iniziare a confrontare i dati
     reference  = args[2] # lista degli infetti confermati
     S, E, I, R = integrate_ode(x, total_time, time_shift+1) # la quarantena inizia dal 23, quindi un giorno dopo
-    ref_I = [int(item) for item in I[time_shift+1:]]
+    ref_I = I[time_shift+1:]
+    ref_R = R[time_shift+1:]
     print("INPUT : "+str(x))
     print("calcolated : "+str(ref_I))
     print("reference  : "+str(reference))
     cost_function = 0
     for i in range(len(ref_I)):
-        cost_function = cost_function+((reference[i]-ref_I[i])/reference[i])**2
+        cost_function = cost_function+((reference[i]-ref_I[i]-ref_R[i])/reference[i])**2
     return cost_function
 
 with open("../../jhu-csse-COVID-19/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Confirmed.csv","r") as data:
@@ -75,26 +72,27 @@ with open("../../jhu-csse-COVID-19/csse_covid_19_data/csse_covid_19_time_series/
 
 time_shift = 22
 total_time = time_shift + len(reference)
-x0 = np.array([2,100])
+x0 = np.array([2,100, 40])
 
 fitting = minimize(calc_resid, x0, args=(total_time,time_shift,reference),method="Nelder-Mead")
 print(fitting)
 
-S = []
-E = []
-I = []
-R = []
-S, E, I, R = integrate_ode(fitting.x,total_time,time_shift+1)
+S, E, I, R = integrate_ode(fitting.x,total_time+1000,time_shift+1)
 
 t = np.linspace(1,len(reference),len(reference))
-fig = plt.figure(facecolor='w')
-plt.plot(t, I[time_shift+1:], 'r', alpha=0.5, lw=2, label='MILO')
+t2= np.linspace(1,len(reference)+1000, len(reference)+1000)
+fig = plt.figure('dario', facecolor='w')
+plt.clf()
+plt.plot(t2, E[time_shift+1:], alpha=0.5, lw=2, label='esposti')
+plt.plot(t2, np.array(I[time_shift+1:])+np.array(R[time_shift+1:]), 'r', alpha=0.5, lw=2, label='MILO')
 plt.plot(t, reference, 'b', alpha=0.5, lw=2, label='Hubei')
 plt.xlabel('Time [days]')
 plt.ylabel('Total')
 legend = plt.legend()
 plt.title ('MILO Fitting')
 plt.show()
+
+
 
 #t = np.linspace(1,len(S),len(S))
 #fig = plt.figure(facecolor='w')

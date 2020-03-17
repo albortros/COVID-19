@@ -2,14 +2,8 @@ import numpy as np
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 
-def check_boundary(data, abitanti):
-    if data < 0:
-        data = 0
-    if data > abitanti:
-        data = abitanti
-    return data
 
-def integrate_ode(x, tempo_totale, quarantine):
+def integrate_ode(x, tempo_totale, quarantine_time):
     # variabili importanti
     h = 5.85*(10**7) # numero di abitanti
     r = 74 # 18.5*4 # tempo medio di guarigione, per 4 perche' aggiorniamo ogni 6 ore
@@ -22,7 +16,7 @@ def integrate_ode(x, tempo_totale, quarantine):
     delta_EI = []
     delta_IR = []
     s = x[0] # parametro s
-    alpha = x[1]
+    alpha = 1 # si inizia senza quarantena
     # condizione iniziale
     E.append(0)   # nessun esposto
     I.append(1)   # l'infetto bastardo
@@ -30,15 +24,11 @@ def integrate_ode(x, tempo_totale, quarantine):
     S.append(h-1) # numero di sani
     # inizia l'integrazione numerica
     for step in range(tempo_totale):
-        print("SITUA: "+str(S[step])+" "+str(E[step])+" "+str(I[step])+" "+str(R[step]))
-        if quarantine:
-            if I[step] > 1000:
-                alpha = 5
+        # controlliamo se e' partita la quarantena
+        if step > quarantine_time:
+            alpha = x[1]
         # calcolo delta SE
         delta_SE.append((1-(1-s/h)**(I[step]/alpha))*S[step])
-        qua   = (1-(1-s/h)**(I[step]/alpha))*S[step]
-        noqua = (1-(1-s/h)**(I[step]))*S[step]
-        print("alpha "+str(alpha)+" qua "+str(qua)+ " noqua "+str(noqua))
         # calcolo delta EI
         if step - t < 0: # se non e' passato un ciclo di incubazione e' uguale a zero
             delta_EI.append(0)
@@ -49,9 +39,6 @@ def integrate_ode(x, tempo_totale, quarantine):
             delta_IR.append(0)
         else:
             delta_IR.append(delta_EI[step-r])
-        # print
-        #print("stampa dei delta")
-        #print("DELTA "+str(alpha)+" "+str(delta_SE[step])+" "+str(delta_EI[step])+" "+str(delta_IR[step]))
         # aggiorno le quantita
         S.append(S[step]-delta_SE[step])
         E.append(E[step]-delta_EI[step]+delta_SE[step])
@@ -59,76 +46,65 @@ def integrate_ode(x, tempo_totale, quarantine):
         R.append(R[step]+delta_IR[step])
 
     # fine integrazione numerica
-    return E, I, R, S
+    return S, E, I, R
 
-#def calc_least_squares(x, reference):
-def calc_least_squares(x, tempo_totale):
+def calc_resid(x, *args):
+    S = []
     E = []
     I = []
     R = []
-    S = []
-    E, I, R, S = integrate_ode(x, tempo_totale, False)
-    h = 5.85*(10**7) # numero di abitanti
-    #print(E)
-    #print(I)
-    #print(R)
-    fig = plt.figure(facecolor='w')
-    t = np.linspace(0, tempo_totale, tempo_totale+1)
-    #ax = fig.add_subplot(111, axis_bgcolor='#dddddd', axisbelow=True)
-    plt.plot(t, np.array(S)/h, 'b', alpha=0.5, lw=2, label='Fraz. Sani')
-    plt.plot(t, np.array(E)/h, 'r', alpha=0.5, lw=2, label='Fraz. Esposti')
-    plt.plot(t, np.array(I)/h, 'g', alpha=0.5, lw=2, label='Fraz. Infetti')
-    plt.plot(t, np.array(R)/h, 'y', alpha=0.5, lw=2, label='Fraz. Guariti')
-    plt.xlabel('Tempo [6 ore]')
-    plt.ylabel('Frazione')
-    #plt.ylim(0,1.2)
-    #ax.yaxis.set_tick_params(length=0)
-    #ax.xaxis.set_tick_params(length=0)
-    #ax.grid(b=True, which='major', c='w', lw=2, ls='-')
-    legend = plt.legend()
-    legend.get_frame().set_alpha(0.8)
-    #for spine in ('top', 'right', 'bottom', 'left'):
-    #    ax.spines[spine].set_visible(False)
-    
-    plt.title ('MILO - no quarantine')
-#    plt.savefig('model_SIR.png', dpi = 300)
-    plt.show()
-    E = []
-    I = []
-    R = []
-    S = []
-    E, I, R, S = integrate_ode(x, tempo_totale, True)
-    h = 5.85*(10**7) # numero di abitanti
-    #print(E)
-    #print(I)
-    #print(R)
-    fig = plt.figure(facecolor='w')
-    t = np.linspace(0, tempo_totale, tempo_totale+1)
-    #ax = fig.add_subplot(111, axis_bgcolor='#dddddd', axisbelow=True)
-    plt.plot(t, np.array(S)/h, 'b', alpha=0.5, lw=2, label='Fraz. Sani')
-    plt.plot(t, np.array(E)/h, 'r', alpha=0.5, lw=2, label='Fraz. Esposti')
-    plt.plot(t, np.array(I)/h, 'g', alpha=0.5, lw=2, label='Fraz. Infetti')
-    plt.plot(t, np.array(R)/h, 'y', alpha=0.5, lw=2, label='Fraz. Guariti')
-    plt.xlabel('Tempo [6 ore]')
-    plt.ylabel('Frazione')
-    #plt.ylim(0,1.2)
-    #ax.yaxis.set_tick_params(length=0)
-    #ax.xaxis.set_tick_params(length=0)
-    #ax.grid(b=True, which='major', c='w', lw=2, ls='-')
-    legend = plt.legend()
-    legend.get_frame().set_alpha(0.8)
-    #for spine in ('top', 'right', 'bottom', 'left'):
-    #    ax.spines[spine].set_visible(False)
-    
-    plt.title ('MILO - quarantine')
-#    plt.savefig('model_SIR.png', dpi = 300)
-    plt.show()
+    total_time = args[0] # tempo totale dell'evoluzione
+    time_shift = args[1] # shift oltre il quale iniziare a confrontare i dati
+    reference  = args[2] # lista degli infetti confermati
+    S, E, I, R = integrate_ode(x, total_time, time_shift+1) # la quarantena inizia dal 23, quindi un giorno dopo
+    ref_I = [int(item) for item in I[time_shift+1:]]
+    print("INPUT : "+str(x))
+    print("calcolated : "+str(ref_I))
+    print("reference  : "+str(reference))
+    cost_function = 0
+    for i in range(len(ref_I)):
+        cost_function = cost_function+((reference[i]-ref_I[i])/reference[i])**2
+    return cost_function
 
-   # sum_squares = 0.0
-   # # reference e' una tupla di lunghezza numero di campionamenti (cioe' giorni per 4)
-   # for i in range(len(reference)):
-   #     sum_squares = sum_squares + (I[i]-reference[i])**2
-   # return sum_squares
+with open("../../jhu-csse-COVID-19/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Confirmed.csv","r") as data:
+    for line in data:
+        if line.split(",")[0] == 'Province/State':
+            giorni = [str(item).rstrip("\n") for item in line.split(",")[4:]]
+        if line.split(",")[0] == 'Hubei':
+            reference = [int(str(item).rstrip("\n")) for item in line.split(",")[4:]]
 
-#print(calc_least_squares(np.array([3,1]),tuple(ref)))
-calc_least_squares(np.array([1.1,1]),400)
+time_shift = 22
+total_time = time_shift + len(reference)
+x0 = np.array([2,100])
+
+fitting = minimize(calc_resid, x0, args=(total_time,time_shift,reference),method="Nelder-Mead")
+print(fitting)
+
+S = []
+E = []
+I = []
+R = []
+S, E, I, R = integrate_ode(fitting.x,total_time,time_shift+1)
+
+t = np.linspace(1,len(reference),len(reference))
+fig = plt.figure(facecolor='w')
+plt.plot(t, I[time_shift+1:], 'r', alpha=0.5, lw=2, label='MILO')
+plt.plot(t, reference, 'b', alpha=0.5, lw=2, label='Hubei')
+plt.xlabel('Time [days]')
+plt.ylabel('Total')
+legend = plt.legend()
+plt.title ('MILO Fitting')
+plt.show()
+
+#t = np.linspace(1,len(S),len(S))
+#fig = plt.figure(facecolor='w')
+##plt.plot(t, S, 'r', alpha=0.5, lw=2, label='Sani')
+#plt.plot(t, E, 'b', alpha=0.5, lw=2, label='Exposed')
+#plt.plot(t, I, 'g', alpha=0.5, lw=2, label='Infetti')
+#plt.plot(t, R, 'y', alpha=0.5, lw=2, label='Guariti')
+#plt.xlabel('Time [days]')
+#plt.ylabel('Total')
+#legend = plt.legend()
+#plt.title ('MILO Fitting')
+#plt.show()
+

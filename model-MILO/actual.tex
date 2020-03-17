@@ -1,0 +1,209 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[a4paper]{geometry}                % See geometry.pdf to learn the layout options. There are lots.
+\geometry{letterpaper}                   % ... or a4paper or a5paper or ... 
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{epstopdf}
+\usepackage{amsmath} 
+\usepackage{latexsym}
+\usepackage{amsthm} 
+\usepackage{eucal} 
+%\usepackage{eufrak} 
+\usepackage{float}	
+\usepackage{subfig}	
+\usepackage{physics}
+\usepackage{wrapfig}
+ \usepackage{amsbsy}
+ %\usepackage{mathrsfs}
+ \usepackage{bbold}
+\usepackage{floatflt,epsfig}
+%\usepackage[latin1]{inputenc}
+\usepackage{caption}
+\usepackage{braket}
+\usepackage{quoting} %citazioni
+\quotingsetup{font=small}
+\usepackage[english]{babel}
+\usepackage{cancel}
+\theoremstyle{definition}
+%\newtheorem{definizione}{Definizione}[chapter]
+\theoremstyle{plain}
+%\newtheorem{teorema}{Teorema}[chapter]
+\theoremstyle{plain}
+%\newtheorem{proposizione}{Proposizione}[chapter]
+
+\usepackage{cite}
+
+\usepackage{amscd}
+\usepackage{slashed}
+\usepackage{mathtools}
+\usepackage{centernot}
+
+\usepackage{verbatim}
+
+
+\usepackage[pdfa]{hyperref}
+\hypersetup{
+colorlinks,
+citecolor=black,
+filecolor=black,
+linkcolor=black,
+urlcolor=black}
+%\usepackage[english]{varioref}
+\usepackage{newlfont}
+\usepackage{color}
+
+
+\providecommand{\abstract}{} 
+ %\providecommand{\abstractname}{Abstract} 
+\usepackage{abstract}
+
+\newcommand{\dang}{\mathfrak{d}}
+\newcommand{\exv}[1]{\mathbb{E}[#1]}
+
+\title{The MILO model}
+\author{Cristoforo Iossa \\ Andrea Marino \\ Piero Lafiosca \\ Alessandro Marco Oliva }
+\date{}
+
+
+\begin{document}
+
+
+\maketitle
+\begin{center}
+\today
+\end{center}
+
+\begin{abstract}
+    Our aim is trying to build a model that describes the COVID-19 epidemic and makes possible to forecast some data in the upcoming days.
+\end{abstract}
+
+\section{The main ideas}
+The main idea is that la mamma di piero è puttana
+
+\section{A Hubei model}
+Here we take into account saturation effects combined with lockdown measures. The region is considered as a unique area.
+
+\subsection{Variables}
+
+\begin{itemize}
+\item $h= 5.85 \cdot 10^7$ is the number of inhabitants;
+\item $r= 18$ or $19$ is the average time of recovery;
+\item $t= 5$ or $6$ is the average time of incubation;
+\item $E(n)$ is the number of "exposed" (incubati) at time $n$;
+\item $I(n)$ is the number of infected at time $n$;
+\item $R(n)$ is the number of recovered at time $n$;
+\item $s$ is the diffusion parameter (the growth rate of the exponential at the beginning);
+\item $\alpha$ is the lockdown parameter;
+\item $S(n)$ is the auxiliary variable of "susceptibles", i.e. everyone minus exposed, infected, recovered. In future the derivative of $S(n)$ could be negative due to deaths.
+
+\end{itemize}
+
+\subsection{Formula}
+The model for the evolution is then given by
+
+\begin{align}
+    E(n+1)  = & E(n)-I(n) + \left [ 1-\left (1-\frac{s\alpha}{h} \right )^{I(n) / \alpha}  \right ]( h- E(n) - I(n) - R(n) ] \\
+    I(n+1) = & E(n+1-t)- R(n) \\
+    R(n+1) = & I(n+1-r) 
+\end{align}
+
+Beware: data must be MULTIPLIED BY CINQUE PRIMA DE doing the fit, to take into account the discrepancy between (positive tests) $\<--\> $ (actual infected). The phenomenon is NOT LINEAR PORCA TROIA QUINDI NUN commute.
+
+Also, maybe the parameter $s$ could be fitted oon the initial days of diffusion, where the evolution is exponential. In this case formula (1) simplifies to
+
+$$     E(n+1)  = (1+s) E(n)-I(n)   $$
+
+\section{Correction of the Formula}
+Here we settle a rough continous model for transition among states to correct the formula.
+
+\begin{itemize}
+    \item $\delta_{SE}(t)$: susceptibles that turns exposed in the interval $t, t+dt$.
+    \item $\delta_{EI}(t)$: exposed that turns infected in the interval $t, t+dt$.
+    \item $\delta_{IR}(t) $: infected turn recovered in teh interval bla.
+    \item $ \delta I (t) = I(t+dt) - I(t)$ and similarly;
+\end{itemize}
+
+Now we note that
+\begin{align}
+    \delta S(t) & = - \delta_{SE}(t) \\
+    \delta E(t) & = - \delta_{EI}(t) + \delta_{SE}(t) \\
+    \delta I (t) & = - \delta_{IR}(t) + \delta_{EI}(t) \\
+    \delta R(t) & = \delta_{IR}(t) 
+\end{align}
+Also, we have that:
+\begin{align}
+    \int_{n}^{n+1} \delta_{SE}(t) & \simeq \left ( 1- \frac{s\alpha}{h} \right )^{I(n) / \alpha} S(n)  \\
+    \delta_{EI}(t) & = \delta_{SE}(t- t_0) \\
+    \delta_{IR}(t) & = \delta_{EI}(t-r_0)
+\end{align}
+Set now
+\begin{align}
+\Delta_{SE}(n) & = \int_{n}^{n+1}  \delta_{SE}(t) dt = \left ( 1- \frac{s\alpha}{h} \right )^{I(n) / \alpha} S(n) \\
+   \Delta_{EI}(n) & = \int_{n}^{n+1}  \delta_{EI}(t) dt  = \int_{n}^{n+1} \delta_{SE}(t-t_0) dt = \Delta_{SE}(n-t_0)\\
+   \Delta_{IR}(n) & = \int_{n}^{n+1} \delta_{IR} (t) dt = \int_{n}^{n+1} \delta_{EI} (t-r_0) dt = \Delta_{EI}(n-r_0) 
+\end{align}
+Integrating between $n$ and $n+1$ equalities 4-7 we get
+\begin{align}
+    S(n+1) - S(n) & = - \Delta_{SE}(n) \\
+    E(n+1) - E(n) & = - \Delta_{EI}(n) + \Delta_{SE}(n) \\
+    I(n+1)-I(n) & = - \Delta_{IR}(n) + \Delta_{EI}(n) \\
+    R(n+1)-R(n) & = \Delta_{IR}(n) 
+\end{align}
+
+The program can be implemented by firstly calculating $\Delta$'s with equations 11-13, then computing 14-17. It is pleasantly manifest from these equations that the number of inhabitants (S+E+I+R) is costant, cause variations simplify.
+
+\section{Corrections on lockdown}
+
+We analyze here the hidden dynamics of infection in the parameter $s$. Set
+$$ \delta s = \text{ number of wannabe infected from a single person in the interval } t, t+dt $$
+
+Suppose there is a number $N_{\dang}$ of dangerous situations one can go through. Every situation $x$ has a danger $\dang(x)$ that the infection vada a buon fine. Each situation occurs with probability $p(x)$ in an average day of an average citizen of an average LA MAMMA DI PIERO. We set
+$$ \dang = N_{\dang} \exv{\dang} = \sum_{x\  SITUA} \dang(x) p(x)  $$
+as the \textit{cumulated risk} of infection in a day.
+Finally, we set $\rho$ the infectivity of coronavirus, which encodes the probability that a dangerous situation results in an effective infection. We have that 
+
+$$ \delta s = \sum_{x \in \text{SITUE} } \rho \dang(x) p(x) = \rho \dang  $$
+
+When lockdown switch on, the probabilites go down. This results in a new $\dang_{ld} < \dang$. We set $$\beta = \dang / \dang_{ld} > 1 $$
+as the \textit{lockdown safety factor}. We then have that
+
+$$ \delta s_{ld} = \rho \dang_{ld} = \frac{\delta s}{\beta} $$
+
+Now we want to better understand how $\beta$ varies wrt $\alpha$, which is the number of virtual meeting points. The following is a rough model that can give an idea. \newline
+
+Suppose our city has $N$ meeting points. Each person normally attend $k$ of these meeting points for an average amount of time T. When the city is locked down, there are two main consequences:
+\begin{itemize}
+    \item $k$ decreases: we don't go to work, we don't go to CUT THE FUCKING HAIRS.. This results in a $k'$
+    \item $T$ decreases: most of the time we are at home;
+    \item $N$ becomes $N/\alpha$, where $\alpha$ is the number of virtual cities; we can no more go to a supermarket dall'altra parte della città.
+\end{itemize}
+
+Let's calculate the probability of getting in 
+
+E cazzo fra questo giustifica l'alpha sotto. Comunque è uguale metterlo all'esponente o dentro basta che sta al denominatore. Infatti siamo nell'approssimazione logistica perchè il parametro è piccolino e donc
+
+$$ \left ( 1- \frac{s}{h} \right )^{1/\alpha} \simeq  \left (1- \frac{s}{h \alpha} \right ) $$
+
+Questo ci dice pure che possiamo pisciare questo fattore buffo e seccare tutto al logistico. Ahimè. E' così. Ma intanto è la VERITA
+
+Formmule aggiornate:
+
+\textbf{Variations}
+
+\begin{align}
+\Delta_{SE}(n) & =  \left ( 1- \frac{s I(n)}{h \alpha}  \right ) S(n) \\
+   \Delta_{EI}(n) & =  \Delta_{SE}(n-t_0)\\
+   \Delta_{IR}(n) & =  \Delta_{EI}(n-r_0) 
+\end{align}
+
+\textbf{States}
+
+\begin{align}
+    S(n+1) - S(n) & = - \Delta_{SE}(n) \\
+    E(n+1) - E(n) & = - \Delta_{EI}(n) + \Delta_{SE}(n) \\
+    I(n+1)-I(n) & = - \Delta_{IR}(n) + \Delta_{EI}(n) \\
+    R(n+1)-R(n) & = \Delta_{IR}(n) 
+\end{align}
+
+\end{document}

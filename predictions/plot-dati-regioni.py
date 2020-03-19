@@ -9,9 +9,6 @@ import os
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
 
-# Get list of directories with a date format and which contain `dati-regioni`.
-directories = glob.glob('????-??-??/dati-regioni')
-
 # Read region data.
 data = pd.read_csv(
     '../pcm-dpc-COVID-19/dati-regioni/dpc-covid19-ita-regioni.csv',
@@ -23,8 +20,10 @@ regions = data['denominazione_regione'].unique()
 # Prepare figure.
 fig = plt.figure('predictions-plot')
 fig.clf()
-ax = fig.subplots(1, 1)
+axs = fig.subplots(1, 2, sharex=True, sharey=True)
 
+# Iterate over directories with a date format and which contain `dati-regioni`.
+directories = glob.glob('????-??-??/dati-regioni')
 for directory in directories:
     print(f'--------- Predictions made on {directory} ---------')
     
@@ -40,10 +39,13 @@ for directory in directories:
     print('Iterating over regions...')
     for region in tqdm.tqdm(regions):
         
-        # Clear plot.
-        ax.cla()
-        ax.set_yscale('symlog', linthreshy=1)
-        ax.set_title(region)
+        # Prepare plot.
+        labels = ['total', 'infected']
+        for ax, label in zip(axs, labels):
+            ax.cla()
+            ax.grid(linestyle=':')
+            ax.set_yscale('symlog', linthreshy=1)
+            ax.set_title(f'{region} ({label})')
         
         # Plot data.
         condition = data['denominazione_regione'] == region
@@ -53,10 +55,10 @@ for directory in directories:
             'total': regiondata['totale_casi'],
             'infected': regiondata['totale_attualmente_positivi']
         }
-        for label in ys:
+        for ax, label in zip(axs, ys):
             y = ys[label].values
             yerr = np.where(y > 0, np.sqrt(y), 1)
-            ax.errorbar(x, y, yerr=yerr, label=label + ' (data)', marker='.', capsize=0)
+            ax.errorbar(x, y, yerr=yerr, label='data', marker='.', capsize=0)
         
         # Plot predictions.
         for filename, table in zip(files, tables):
@@ -71,14 +73,15 @@ for directory in directories:
                 'total': regiontable['std_totale_casi'],
                 'infected': regiontable['std_totale_attualmente_positivi']
             }
-            for label in ys:
+            for ax, label in zip(axs, ys):
                 y = ys[label].values
                 yerr = yserr[label].values
-                ax.errorbar(x, y, yerr=yerr, label=label + f' {filename}', marker='', capsize=2)
+                nicename = os.path.splitext(os.path.split(filename)[-1])[0]
+                ax.errorbar(x, y, yerr=yerr, label=nicename, marker='', capsize=2)
         
         # Embellishments.
-        ax.grid(linestyle=':')
-        ax.legend(loc='upper left')
+        axs[1].legend(loc='lower right', fontsize='small')
+        axs[0].set_ylabel('people')
         fig.autofmt_xdate()
         fig.tight_layout()
         

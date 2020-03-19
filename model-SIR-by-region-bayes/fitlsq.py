@@ -6,9 +6,13 @@ import pickle
 import namedate
 import fitlsqdefs
 import tqdm
+import sys
 
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
+
+# Read command line.
+regions = sys.argv[1:]
 
 # Read region data.
 data = pd.read_csv(
@@ -19,11 +23,14 @@ data = pd.read_csv(
 gdata = data.groupby('denominazione_regione')
 # use the name to group because problems with south tirol
 
+# Read additional csv to know the population of each region.
+regioninfo = pd.read_csv('../shared_data/dati_regioni.csv')
+
 # This dictionary will be saved on file at the end.
 pickle_dict = dict()
 
 print('Iterating over regions...')
-for region in tqdm.tqdm(data['denominazione_regione'].unique()):
+for region in regions if regions else tqdm.tqdm(data['denominazione_regione'].unique()):
     table = gdata.get_group(region)
 
     # Times.
@@ -35,15 +42,19 @@ for region in tqdm.tqdm(data['denominazione_regione'].unique()):
     I_data = fitlsqdefs.make_poisson_data(I_data)
     R_data = fitlsqdefs.make_poisson_data(R_data)
     fitdata = gvar.BufferDict(I=I_data, R=R_data)
+    
+    # Population prior.
+    totpop = regioninfo[regioninfo['denominazione_regione'] == region]['popolazione'].values[0]
+    min_pop = np.max(gvar.mean(R_data + I_data))
+    _totpop = totpop - min_pop
 
     # Prior.
     prior = gvar.BufferDict({
-        'log(R0)': gvar.gvar('0(2)'),
-        'log(lambda)': gvar.gvar('0(2)'),
-        'log(_population)': gvar.gvar(np.log(1e6), np.log(20)),
-        'log(I0_pop)': gvar.gvar(np.log(1e2), 1)
+        'log(R0)': gvar.gvar(np.log(1), np.log(10)),
+        'log(lambda)': gvar.gvar(np.log(1), np.log(10)),
+        'log(_population)': gvar.gvar(np.log(_totpop), np.log(20)),
+        'log(I0_pop)': gvar.gvar(np.log(10), np.log(100))
     })
-    min_pop = np.max(gvar.mean(R_data + I_data))
 
     # Run fit.
     args = dict(times=times, min_pop=min_pop)

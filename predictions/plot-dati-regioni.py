@@ -17,7 +17,7 @@ data = pd.read_csv(
     infer_datetime_format=True
 )
 regions = data['denominazione_regione'].unique()
-# regions = ['Basilicata', 'Valle d\'Aosta', 'Lombardia']
+# regions = ['Emilia Romagna', 'Basilicata', 'Valle d\'Aosta']
 
 # Prepare figure.
 fig = plt.figure('predictions-plot')
@@ -46,7 +46,6 @@ for directory in directories:
         labels = ['total', 'infected']
         for ax, label in zip(axs, labels):
             ax.cla()
-            ax.grid(linestyle=':')
             ax.set_title(f'{region} ({label})')
         
         # Plot data.
@@ -78,7 +77,7 @@ for directory in directories:
             for ax, label in zip(axs, ys):
                 y = ys[label].values
                 yerr = yserr[label].values
-                nicename = os.path.splitext(os.path.split(filename)[-1])[0]
+                nicename = os.path.splitext(os.path.split(filename)[-1])[0].replace('model-', '')
                 ax.errorbar(x, y, yerr=yerr, label=nicename, marker='', capsize=2, linestyle='')
         
         # Set smart logarithmic scale.
@@ -86,15 +85,19 @@ for directory in directories:
             regiondata[label].max()
             for label in ['totale_casi', 'totale_attualmente_positivi']
         ])
-        top = 10 ** np.floor(np.log10(top))
+        # top = 10 ** np.floor(np.log10(top))
         top = max(1, top)
         axs[0].set_yscale('symlog', linthreshy=top)
-        axs[0].yaxis.set_minor_locator(symloglocator.MinorSymLogLocator(linthresh=top))
-        # for ax in axs:
-        #     ax.axhline(top, linestyle='--', color='black', zorder=-1)
+        axs[0].yaxis.set_minor_locator(
+            symloglocator.MinorSymLogLocator(linthresh=top)
+        )
+        for ax in axs:
+            ax.axhline(top, linestyle='--', color='black', zorder=-1, label='logscale boundary')
         
         # Embellishments.
-        axs[0].legend(loc='best')
+        for ax in axs:
+            ax.grid(linestyle=':')
+        axs[0].legend(loc='best', fontsize='small')
         axs[0].set_ylabel('people')
         fig.autofmt_xdate()
         fig.tight_layout()

@@ -38,7 +38,6 @@ def time_to_number(times):
     except TypeError:
         pass
     times = np.array(times, dtype=float)
-    times -= times[0]
     times /= 1e9 * 60 * 60 * 24 # ns -> days
     return times
 

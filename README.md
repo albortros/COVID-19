@@ -43,10 +43,10 @@ Still empty :(
 A directory `predictions` for model prediction output in a common format.
 
 Inside this, there is one directory for each day, which contains model output
-for each model and for each subsequent day (file naming conventions still to be
-defined). So, the directory day is the day in which the models were run, i.e.
-it represents the data date, while inside there is one file for each model and
-for each future date the model makes a prediction for.
+for each model and for each subsequent day. So, the directory day is the day in
+which the models were run, i.e. it represents the data date, while inside there
+are files for each model and for each future date the model makes a prediction
+for.
 
 The file format is the same as used by the [official
 data](https://github.com/pcm-dpc/COVID-19). It is columnar so additional

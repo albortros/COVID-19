@@ -6,6 +6,7 @@ import numpy as np
 import gvar
 import fitlsqdefs
 import os
+import tqdm
 
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
@@ -26,29 +27,25 @@ def log10(x):
     return gvar.log(x) / gvar.log(10)
 
 # Iterate over regions.
-for i, region in enumerate(fits):
-    print(f'\n------------- {region} --------------')
-    fit = fits[region]
+print(f'Writing plots in {savedir}/...')
+for region, fit in tqdm.tqdm(fits.items()):
     
-    # Print results.
-    p = fit['p']
-    population = p['_population'] + fit['min_pop']
-    print(f'population = {population}')
-    print(f'log10(population) = {log10(population)}')
-    print(f'I0_pop = {p["I0_pop"]}')
-    print(f'R0 = {p["R0"]}')
-    print(f'lambda = {p["lambda"]}')
-    
+    # Prepare plot.
     ax.cla()
     ax.set_yscale('symlog', linthreshy=1)
     ax.set_title(region)
     
+    # Compute times sequence to plot curve.
     x = fit['table']['data']
     left = np.min(x).value
     right = np.max(x).value
     xfit = pd.to_datetime(np.linspace(left, right + (right - left), 100))
-    xfit_num = fitlsqdefs.time_to_number(xfit)
+    xfit_num = fitlsqdefs.time_to_number(xfit) - fit['time_zero']
+    
+    # Compute I, R at given times.
     yfit = fitlsqdefs.fcn(dict(times=xfit_num, min_pop=fit['min_pop']), fit['p'])
+    
+    # Plot.
     for label in 'I', 'R':
         # data
         y = fit['y'][label]
@@ -59,9 +56,35 @@ for i, region in enumerate(fits):
         ym, ys = gvar.mean(yfit[label]), gvar.sdev(yfit[label])
         ax.fill_between(xfit, ym - ys, ym + ys, color=color)
 
+    # Embellishments.
     ax.legend(loc='upper left')
     ax.grid(linestyle=':')
+    
+    # Box with fit results.
+    p = fit['p']
+    population = p['_population'] + fit['min_pop']
+    brief = f"""population = {population}
+$log_{{10}}$(population) = {log10(population)}
+initial I = {p["I0_pop"]}
+$R_0$ = {p["R0"]}
+$\\gamma$ = {p["lambda"]}
+$\\sqrt{{\\chi^2 / \\mathrm{{dof}}}}$ = {np.sqrt(fit["chi2"] / fit["dof"]):.1f}"""
+    ax.annotate(
+        brief, (1, 0), xytext=(-8, 8),
+        va='bottom',
+        ha='right',
+        fontsize='small',
+        xycoords='axes fraction',
+        textcoords='offset points',
+        bbox=dict(
+            facecolor='white',
+            alpha=0.8,
+            edgecolor='gray',
+            boxstyle='round'
+        )
+    )
 
+    # Save figure.
     fig.autofmt_xdate()
     fig.tight_layout()
     fig.savefig(f'{savedir}/{region}.pdf')

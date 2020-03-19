@@ -70,6 +70,8 @@ information on connectivity.
 3. [Tests map](https://covid19map.tech) map of how many tests have been done in
 each country.
 
+4. [Official Italian data visualization](http://opendatadpc.maps.arcgis.com/apps/opsdashboard/index.html#/b0c68bce2cce478eaac82fe38d4138b1).
+
 ## Git
 
 In case someone is not used to git: probably the simplest way to use it is the

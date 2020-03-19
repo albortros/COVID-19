@@ -34,8 +34,8 @@ for region, fit in tqdm.tqdm(fits.items()):
     totale_attualmente_positivi = y['I']
     output['totale_casi'] += list(gvar.mean(totale_casi))
     output['totale_attualmente_positivi'] += list(gvar.mean(totale_attualmente_positivi))
-    output['sdev_totale_casi'] += list(gvar.sdev(totale_casi))
-    output['sdev_totale_attualmente_positivi'] += list(gvar.sdev(totale_attualmente_positivi))
+    output['std_totale_casi'] += list(gvar.sdev(totale_casi))
+    output['std_totale_attualmente_positivi'] += list(gvar.sdev(totale_attualmente_positivi))
 
 # Make directory where file has to be saved.
 directory = f'../predictions/{lastdate.year:04d}-{lastdate.month:02d}-{lastdate.day:02d}/dati-regioni'

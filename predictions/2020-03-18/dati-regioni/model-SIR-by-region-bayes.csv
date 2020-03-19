@@ -1,4 +1,4 @@
-denominazione_regione,data,totale_casi,totale_attualmente_positivi,sdev_totale_casi,sdev_totale_attualmente_positivi
+denominazione_regione,data,totale_casi,totale_attualmente_positivi,std_totale_casi,std_totale_attualmente_positivi
 Abruzzo,2020-03-19 17:00:00,377.3809810021753,357.9783396397519,15.827160487427529,15.198773475501246
 Abruzzo,2020-03-20 17:00:00,492.60580461813885,467.2705156775099,23.604530910678108,22.60765701837337
 Abruzzo,2020-03-21 17:00:00,642.9912431453623,609.9121596662618,34.94125076188752,33.3999279691433

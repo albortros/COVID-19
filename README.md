@@ -67,6 +67,9 @@ facebook group of about 2500 people. We may publish any results here.
 networks from openstreetmap. I have not tried it. It may be useful to have
 information on connectivity.
 
+3. [Tests map](https://covid19map.tech) map of how many tests have been done in
+each country.
+
 ## Git
 
 In case someone is not used to git: probably the simplest way to use it is the

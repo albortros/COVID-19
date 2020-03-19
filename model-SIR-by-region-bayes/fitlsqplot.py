@@ -73,7 +73,6 @@ $\\sqrt{{\\chi^2 / \\mathrm{{dof}}}}$ = {np.sqrt(fit["chi2"] / fit["dof"]):.1f}"
         brief, (1, 0), xytext=(-8, 8),
         va='bottom',
         ha='right',
-        fontsize='small',
         xycoords='axes fraction',
         textcoords='offset points',
         bbox=dict(

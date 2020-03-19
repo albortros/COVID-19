@@ -41,3 +41,9 @@ def time_to_number(times):
     times -= times[0]
     times /= 1e9 * 60 * 60 * 24 # ns -> days
     return times
+
+def make_poisson_data(v):
+    v = np.asarray(v)
+    assert len(v.shape) <= 1
+    assert np.all(v >= 0)
+    return gvar.gvar(v, np.where(v > 0, np.sqrt(v), 1))

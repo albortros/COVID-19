@@ -13,6 +13,8 @@ Hopkins University CSSE repository](https://github.com/CSSEGISandData/COVID-19)
 in `jhu-csse-COVID-19` reporting the worldwide data and, especially useful, the
 region-wise Chinese data.
 
+Other data shared by different models is in `shared_data/`.
+
 ### Models
   
 A directory for each model with name starting with `model`. In practice

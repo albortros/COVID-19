@@ -4,6 +4,7 @@ import pandas as pd
 import tqdm
 import numpy as np
 import os
+import symloglocator
 
 # yes
 from pandas.plotting import register_matplotlib_converters
@@ -16,10 +17,12 @@ data = pd.read_csv(
     infer_datetime_format=True
 )
 regions = data['denominazione_regione'].unique()
+# regions = ['Basilicata', 'Valle d\'Aosta', 'Lombardia']
 
 # Prepare figure.
 fig = plt.figure('predictions-plot')
 fig.clf()
+fig.set_size_inches((8, 4))
 axs = fig.subplots(1, 2, sharex=True, sharey=True)
 
 # Iterate over directories with a date format and which contain `dati-regioni`.
@@ -44,7 +47,6 @@ for directory in directories:
         for ax, label in zip(axs, labels):
             ax.cla()
             ax.grid(linestyle=':')
-            ax.set_yscale('symlog', linthreshy=1)
             ax.set_title(f'{region} ({label})')
         
         # Plot data.
@@ -58,7 +60,7 @@ for directory in directories:
         for ax, label in zip(axs, ys):
             y = ys[label].values
             yerr = np.where(y > 0, np.sqrt(y), 1)
-            ax.errorbar(x, y, yerr=yerr, label='data', marker='.', capsize=0)
+            ax.errorbar(x, y, yerr=yerr, label='data', marker='.', capsize=0, linestyle='')
         
         # Plot predictions.
         for filename, table in zip(files, tables):
@@ -77,10 +79,22 @@ for directory in directories:
                 y = ys[label].values
                 yerr = yserr[label].values
                 nicename = os.path.splitext(os.path.split(filename)[-1])[0]
-                ax.errorbar(x, y, yerr=yerr, label=nicename, marker='', capsize=2)
+                ax.errorbar(x, y, yerr=yerr, label=nicename, marker='', capsize=2, linestyle='')
+        
+        # Set smart logarithmic scale.
+        top = max([
+            regiondata[label].max()
+            for label in ['totale_casi', 'totale_attualmente_positivi']
+        ])
+        top = 10 ** np.floor(np.log10(top))
+        top = max(1, top)
+        axs[0].set_yscale('symlog', linthreshy=top)
+        axs[0].yaxis.set_minor_locator(symloglocator.MinorSymLogLocator(linthresh=top))
+        # for ax in axs:
+        #     ax.axhline(top, linestyle='--', color='black', zorder=-1)
         
         # Embellishments.
-        axs[1].legend(loc='lower right', fontsize='small')
+        axs[0].legend(loc='best')
         axs[0].set_ylabel('people')
         fig.autofmt_xdate()
         fig.tight_layout()

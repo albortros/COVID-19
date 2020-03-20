@@ -86,6 +86,6 @@ $\\sqrt{{\\chi^2 / \\mathrm{{dof}}}}$ = {np.sqrt(fit["chi2"] / fit["dof"]):.1f}"
     # Save figure.
     fig.autofmt_xdate()
     fig.tight_layout()
-    fig.savefig(f'{savedir}/{region}.pdf')
+    fig.savefig(f'{savedir}/{region}.png')
 
 del fig, ax

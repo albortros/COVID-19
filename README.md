@@ -36,7 +36,8 @@ same format as the others.
 
 #### Model list
 
-Still empty :(
+  * `model-SIR-by-region-bayes`: least squares SIR per region, poisson errors,
+    weak prior on the population.
 
 ### Predictions
   
@@ -70,7 +71,7 @@ information on connectivity.
 3. [Tests map](https://covid19map.tech) map of how many tests have been done in
 each country.
 
-4. [Official Italian data visualization](http://opendatadpc.maps.arcgis.com/apps/opsdashboard/index.html#/b0c68bce2cce478eaac82fe38d4138b1).
+4. [Official Italian data visualization](http://arcg.is/C1unv).
 
 ## Git
 
@@ -103,4 +104,10 @@ cd pcm-dpc-COVID-19
 git pull
 cd ..
 git commit -a
+```
+
+If it says `You are not currently on a branch.` etc., try this:
+
+```sh
+git pull origin master
 ```

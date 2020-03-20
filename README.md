@@ -39,6 +39,9 @@ same format as the others.
   * `model-SIR-by-region-bayes`: least squares SIR per region, poisson errors,
     weak prior on the population.
 
+  * `model-SIR-region-truepop`: like the former, but the population is fixed to
+    the true known population, and the errors are rescaled with sqrt(chi^2/dof).
+
 ### Predictions
   
 A directory `predictions` for model prediction output in a common format.
@@ -117,6 +120,8 @@ git pull
 cd ..
 git commit -a
 ```
+
+### Troubleshoot
 
 If it says `You are not currently on a branch.` etc., try this:
 

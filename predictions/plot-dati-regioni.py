@@ -5,6 +5,7 @@ import tqdm
 import numpy as np
 import os
 import symloglocator
+import sys
 
 # yes
 from pandas.plotting import register_matplotlib_converters
@@ -28,12 +29,19 @@ labels = ['total', 'infected', 'removed']
 axsl = {l: a for l, a in zip(labels, axs)}
 
 # Iterate over directories with a date format and which contain `dati-regioni`.
-directories = glob.glob('????-??-??/dati-regioni')
+cmdline = sys.argv[1:]
+if cmdline:
+    directories = [f'{d}/dati-regioni' for d in cmdline]
+else:
+    directories = glob.glob('????-??-??/dati-regioni')
 for directory in directories:
     print(f'--------- Predictions made on {directory} ---------')
     
     # Read all csv files.
     files = glob.glob(f'{directory}/*.csv')
+    if not files:
+        print('No csv files here.')
+        continue
     tables = [pd.read_csv(file, parse_dates=['data']) for file in files]
     
     # Make directory for saving figures.

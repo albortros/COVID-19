@@ -32,7 +32,6 @@ for region, fit in tqdm.tqdm(fits.items()):
     
     # Prepare plot.
     ax.cla()
-    ax.set_yscale('symlog', linthreshy=1)
     ax.set_title(region)
     
     # Compute times sequence to plot curve.
@@ -57,6 +56,11 @@ for region, fit in tqdm.tqdm(fits.items()):
         ax.fill_between(xfit, ym - ys, ym + ys, color=color)
 
     # Embellishments.
+    top = max(np.max(gvar.mean(fit['y'][label])) for label in ['I', 'R'])
+    top *= 1.2
+    top = max(1, top)
+    ax.set_yscale('symlog', linthreshy=top)
+    ax.axhline(top, color='black', linestyle='--', label='logscale boundary')
     ax.legend(loc='upper left')
     ax.grid(linestyle=':')
     

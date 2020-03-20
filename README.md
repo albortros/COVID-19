@@ -82,6 +82,9 @@ each country.
 
 4. [Official Italian data visualization](http://arcg.is/C1unv).
 
+5. [stopCOVID19](https://stopcovid19.neocities.org/index.html) a student group
+from Pisa.
+
 ## Git
 
 In case someone is not used to git: probably the simplest way to use it is the

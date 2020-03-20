@@ -181,7 +181,7 @@ Ypredicted=[logistic(ii,Par) for ii in Xpredicted]
 plt.figure('Predictions')
 # plt.scatter(x,y,label="Real data",color="red",linestyle="None")
 plt.errorbar(x, y, yerr=YERR, fmt='o',color="red", alpha=0.75,label="Data" )
-plt.scatter(Xpredicted, Ypredicted, color='orange', alpha=1,label="Predictions" )
+plt.scatter(Xpredicted, Ypredicted, color='orange', alpha=1,label="Predictions ({} days)".format(NumberOfDaysPredicted) )
 # Predicted logistic curve
 plt.fill_between(x+pred_x, [logistic_model(i,fitMAX[0][0],fitMAX[0][1],fitMAX[0][2]) for i in x+pred_x],[logistic_model(i,fitMIN[0][0],fitMIN[0][1],fitMIN[0][2]) for i in x+pred_x],facecolor='blue', alpha = 0.3 )
 plt.plot(x+pred_x, [logistic_model(i,fit[0][0],fit[0][1],fit[0][2]) for i in x+pred_x], 'r',label="Logistic model" )

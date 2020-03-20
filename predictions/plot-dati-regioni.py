@@ -103,4 +103,4 @@ for directory in directories:
         fig.tight_layout()
         
         # Save figure
-        fig.savefig(f'{savedir}/{region}.pdf')
+        fig.savefig(f'{savedir}/{region}.png')

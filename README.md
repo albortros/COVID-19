@@ -49,14 +49,23 @@ which the models were run, i.e. it represents the data date, while inside there
 are files for each model and for each future date the model makes a prediction
 for.
 
-The file format is the same as used by the [official
-data](https://github.com/pcm-dpc/COVID-19). It is columnar so additional
-information, e.g. uncertainties, can be added in additional columns.
+Currently, we have in each date directory a directory `dati-regioni` which
+contains one `csv` file for each model with regional data (Trento and Bolzano
+are treated as separate regions). There is a script `plot-dati-regioni.py`
+which plots the data, using the following fields of the csv:
 
-Probably more sofisticated models will give information which can not be easily
-cast in this format so we will extend this by adding more files as needed. In
-any case, the models must always also output the "simple" prediction so that
-a comparison with simpler/older models is possible at any point.
+  * `totale_casi`, `std_totale_casi`,
+  
+  * `totale_attualmente_positivi`, `std_totale_attualmente_positivi`,
+  
+  * `guariti_o_deceduti`, `std_guariti_o_deceduti`.
+  
+The fields starting with `std_` represent the standard deviation of the
+corresponding field.
+  
+If the fields `*guariti_or_deceduti` are missing it tries to deduce it from
+other fields, the last fallback is using `totale_casi` and
+`totale_attualmente_positivi`.
 
 ## Links
 

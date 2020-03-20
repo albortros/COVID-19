@@ -35,6 +35,8 @@ for region in regions if regions else tqdm.tqdm(data['denominazione_regione'].un
 
     # Times.
     times = fitlsqdefs.time_to_number(table['data'])
+    time_zero = times[0]
+    times -= time_zero
 
     # Data.
     I_data = table['totale_attualmente_positivi'].values
@@ -70,7 +72,8 @@ for region in regions if regions else tqdm.tqdm(data['denominazione_regione'].un
         dof=fit.dof,
         pvalue=fit.Q,
         table=table,
-        min_pop=min_pop
+        min_pop=min_pop,
+        time_zero=time_zero
     )
 
 # Save results on file.

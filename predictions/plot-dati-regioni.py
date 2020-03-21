@@ -7,6 +7,9 @@ import os
 import symloglocator
 import sys
 
+symlog_scale = False
+plot_total = False
+
 # yes
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
@@ -23,9 +26,11 @@ regions = data['denominazione_regione'].unique()
 # Prepare figure.
 fig = plt.figure('predictions-plot')
 fig.clf()
-fig.set_size_inches((12, 4))
-axs = fig.subplots(1, 3, sharex=True)
-labels = ['total', 'infected', 'removed']
+fig.set_size_inches((12, 7))
+labels = ['infected', 'removed']
+if plot_total:
+    labels = ['total'] + labels
+axs = fig.subplots(1, len(labels), sharex=True)
 axsl = {l: a for l, a in zip(labels, axs)}
 
 # Iterate over directories with a date format and which contain `dati-regioni`.
@@ -34,6 +39,7 @@ if cmdline:
     directories = [f'{d}/dati-regioni' for d in cmdline]
 else:
     directories = glob.glob('????-??-??/dati-regioni')
+    directories.sort()
 for directory in directories:
     print(f'--------- Predictions made on {directory} ---------')
     
@@ -110,19 +116,23 @@ for directory in directories:
         
         # Set smart logarithmic scale.
         for label, ax in axsl.items():
-            top = ys_data[label].max()
-            # top = 10 ** np.floor(np.log10(top))
-            top = max(1, top)
-            ax.set_yscale('symlog', linthreshy=top)
-            ax.yaxis.set_minor_locator(
-                symloglocator.MinorSymLogLocator(linthresh=top)
-            )
-            ax.axhline(top, linestyle='--', color='black', zorder=-1, label='logscale boundary')
+            if symlog_scale:
+                top = ys_data[label].max()
+                top *= 1.1
+                # top = 10 ** np.floor(np.log10(top))
+                top = max(1, top)
+                ax.set_yscale('symlog', linthreshy=top)
+                ax.yaxis.set_minor_locator(
+                    symloglocator.MinorSymLogLocator(linthresh=top)
+                )
+                ax.axhline(top, linestyle='--', color='black', zorder=-1, label='logscale boundary')
+            else:
+                ax.set_yscale('symlog', linthreshy=1, linscaley=0.3, subsy=np.arange(2, 9 + 1))
         
         # Embellishments.
         for ax in axs:
             ax.grid(linestyle=':')
-        axs[0].legend(loc='best', fontsize='small')
+        axs[0].legend(loc='best')
         axs[0].set_ylabel('people')
         fig.autofmt_xdate()
         fig.tight_layout()

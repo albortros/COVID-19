@@ -39,20 +39,30 @@ class GP:
         # since we are diagonalizing, maybe save the transformation and apply
         # it so that lsqfit does not diagonalize it again for the fit.
         
-        # create prior
-        prior = gvar.gvar(np.zeros(len(x)), cov)
-        
         # assign instance variables
         self._datarange = len(xdata)
-        self._prior = prior
+        self._prior = None
         self._cov = cov
     
+    def _makeprior(self):
+        if self._prior is None:
+            self._prior = gvar.gvar(np.zeros(len(self._cov)), self._cov)
+    
     def prior(self):
+        self._makeprior()
         return self._prior[:self._datarange]
     
+    def predprior(self):
+        self._makeprior()
+        return self._prior[self._datarange:]
+    
     def pred(self, fxdata):
+        # check the prior was retrieved, because this function assumes
+        # a fit was done with the prior to obtain fxdata
+        assert not (self._prior is None)
+
         # check there are x to predict
-        assert self._datarange < len(self._prior)
+        assert self._datarange < len(self._cov)
         
         # check fxdata
         y = np.asarray(fxdata)
@@ -69,7 +79,7 @@ class GP:
     
     def predraw(self, fxdata_mean, fxdata_cov=None):
         # check there are x to predict
-        assert self._datarange < len(self._prior)
+        assert self._datarange < len(self._cov)
         
         # check fxdata_mean
         y = np.asarray(fxdata_mean)
@@ -100,6 +110,31 @@ class GP:
         mean, cov = self.predraw(fxdata_mean, fxdata_cov)
         return gvar.gvar(mean, cov)
         
+    def fitpredraw(self, y, sigma=0):
+        # check there are x to predict
+        assert self._datarange < len(self._cov)
+        
+        # check y
+        y = np.asarray(y)
+        assert len(y.shape) == 1
+        assert len(y) == self._datarange
+        
+        # check sigma
+        assert np.isscalar(sigma)
+        assert np.isfinite(sigma)
+        assert sigma >= 0
+        
+        # compute things
+        Kxxs = self._cov[:self._datarange, self._datarange:]
+        Kxx = self._cov[:self._datarange, :self._datarange]
+        Kxsxs = self._cov[self._datarange:, self._datarange:]
+        Kxx[np.diag_indices(len(y))] += sigma ** 2
+        A = linalg.solve(Kxx, Kxxs, assume_a='pos').T
+        cov = Kxsxs - Kxxs.T @ A.T
+        mean = A @ y
+        
+        return mean, cov
+
 class Kernel:
     
     def __init__(self, kernel, *, scale=1, ampl=1, loc=0, **kw):

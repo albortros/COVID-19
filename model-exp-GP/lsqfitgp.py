@@ -32,7 +32,7 @@ class GP:
         assert np.issubdtype(cov.dtype, np.floating)
         assert cov.shape == (len(x), len(x))
         eigv = linalg.eigvalsh(cov)
-        assert np.all(eigv > -len(cov) * np.finfo(float).eps)
+        assert np.all(eigv > -len(cov) * np.finfo(float).eps * np.max(eigv))
         # since we are diagonalizing, maybe instead do cholesky and apply
         # automatically the transformation, so that lsqfit does not do it
         # again. the problem I have to do a cholesky on something which is not
@@ -67,24 +67,37 @@ class GP:
         
         return Kxsx @ gvar.linalg.solve(Kxx, y - yp) + ysp
     
-    def predalt(self, fxdata):
+    def predraw(self, fxdata_mean, fxdata_cov=None):
         # check there are x to predict
         assert self._datarange < len(self._prior)
         
-        # check fxdata
-        y = np.asarray(fxdata)
+        # check fxdata_mean
+        y = np.asarray(fxdata_mean)
         assert len(y.shape) == 1
         assert len(y) == self._datarange
         
+        # check fxdata_cov
+        if fxdata_cov is None:
+            C = 0
+        else:
+            C = np.asarray(fxdata_cov)
+            assert C.shape == (len(y), len(y))
+            assert np.allclose(C, C.T)
+        
         # compute things
-        C = gvar.evalcov(gvar.gvar(y))
         Kxxs = self._cov[:self._datarange, self._datarange:]
         Kxx = self._cov[:self._datarange, :self._datarange]
         Kxsxs = self._cov[self._datarange:, self._datarange:]
         A = linalg.solve(Kxx, Kxxs, assume_a='pos').T
         cov = Kxsxs + A @ (C - Kxx) @ A.T
-        mean = A @ gvar.mean(y)
+        mean = A @ y
         
+        return mean, cov
+
+    def predalt(self, fxdata):
+        fxdata_mean = gvar.mean(fxdata)
+        fxdata_cov = gvar.evalcov(gvar.gvar(fxdata))
+        mean, cov = self.predraw(fxdata_mean, fxdata_cov)
         return gvar.gvar(mean, cov)
         
 class IsotropicKernel:
@@ -102,6 +115,7 @@ class IsotropicKernel:
     def __call__(self, x, y):
         x = np.asarray(x)
         y = np.asarray(y)
+        np.broadcast(x, y)
         return self._ampl * self._kernel(np.abs(x - y) / self._scale, **self._kw)
 
 class Kernel(IsotropicKernel):
@@ -115,6 +129,7 @@ class Kernel(IsotropicKernel):
     def __call__(self, x, y):
         x = np.asarray(x)
         y = np.asarray(y)
+        np.broadcast(x, y)
         return self._ampl * self._kernel((x - self._loc) / self._scale, (y - self._loc) / self._scale, **self._kw)
 
 def makekernel(kernel, superclass):
@@ -127,7 +142,15 @@ def makekernel(kernel, superclass):
 isotropickernel = lambda kernel: makekernel(kernel, IsotropicKernel)
 kernel = lambda kernel: makekernel(kernel, Kernel)
 
+Linear = kernel(lambda x, y: x * y)
 ExpQuad = isotropickernel(lambda r: np.exp(-1/2 * r ** 2))
+
+@kernel
+def Polynomial(x, y, exponent=None, sigma=None):
+    for p in exponent, sigma:
+        assert np.isscalar(p)
+        assert p > 0
+    return (x * y + sigma ** 2) ** exponent
 
 Matern12 = isotropickernel(lambda r: np.exp(-r))
 Matern32 = isotropickernel(lambda r: (1 + np.sqrt(3) * r) * np.exp(-np.sqrt(3) * r))
@@ -152,3 +175,17 @@ def NNKernel(x, y, q=None):
     assert q >= 1
     q2 = q ** 2
     return 2/np.pi * np.arcsin(2 * (q2 + x * y) / ((1 + 2 * (q2 + x**2)) * (1 + 2 * (q2 + y**2))))
+
+@kernel
+def Wiener(x, y):
+    assert np.all(x >= 0)
+    assert np.all(y >= 0)
+    return np.minimum(x, y)
+
+@kernel
+def VarScale(x, y, scalefun=None):
+    sx = scalefun(x)
+    sy = scalefun(y)
+    denom = sx ** 2 + sy ** 2
+    factor = np.sqrt(2 * sx * sy / denom)
+    return factor * np.exp(-(x - y) ** 2 / denom)

@@ -1,7 +1,7 @@
 from __future__ import division
 
 import gvar
-from scipy import linalg
+from scipy import linalg, special
 import numpy as np
 
 __doc__ = """Tools to fit gaussian processes with lsqfit."""
@@ -151,6 +151,15 @@ def Polynomial(x, y, exponent=None, sigma=None):
         assert np.isscalar(p)
         assert p > 0
     return (x * y + sigma ** 2) ** exponent
+    
+@isotropickernel
+def Matern(r, nu=None):
+    assert np.isscalar(nu)
+    x = np.sqrt(2 * nu) * r
+    xpos = x > 0
+    out = np.ones_like(x, dtype=float)
+    out[xpos] = 2 ** (1 - nu) / special.gamma(nu) * x[xpos] ** nu * special.kv(nu, x[xpos])
+    return out
 
 Matern12 = isotropickernel(lambda r: np.exp(-r))
 Matern32 = isotropickernel(lambda r: (1 + np.sqrt(3) * r) * np.exp(-np.sqrt(3) * r))

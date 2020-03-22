@@ -4,15 +4,15 @@ import pandas as pd
 import tqdm
 import numpy as np
 import os
-import symloglocator
 import sys
-
-symlog_scale = False
-plot_total = False
 
 # yes
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
+
+# Set the labels to be plotted. You can use the following: `total`, `infected`,
+# `removed`, `deceased`
+labels = ['infected', 'removed']
 
 # Read region data.
 data = pd.read_csv(
@@ -24,12 +24,9 @@ regions = data['denominazione_regione'].unique()
 # regions = ['Emilia Romagna', 'Basilicata', 'Valle d\'Aosta']
 
 # Prepare figure.
-fig = plt.figure('predictions-plot')
+fig = plt.figure('plot-dati-regioni')
 fig.clf()
 fig.set_size_inches((12, 7))
-labels = ['infected', 'removed']
-if plot_total:
-    labels = ['total'] + labels
 axs = fig.subplots(1, len(labels), sharex=True)
 axsl = {l: a for l, a in zip(labels, axs)}
 
@@ -70,7 +67,8 @@ for directory in directories:
         ys_data = {
             'total': regiondata['totale_casi'],
             'infected': regiondata['totale_attualmente_positivi'],
-            'removed': regiondata['totale_casi'] - regiondata['totale_attualmente_positivi']
+            'removed': regiondata['totale_casi'] - regiondata['totale_attualmente_positivi'],
+            'deceased': regiondata['deceduti']
         }
         for label, ax in axsl.items():
             y = ys_data[label].values
@@ -107,34 +105,35 @@ for directory in directories:
                     ys['removed'] = ys['total'] - ys['infected']
                     yserr['removed'] = np.hypot(yserr['total'], yserr['infected'])
             
+            # deceased
+            try:
+                ys['deceased'] = regiontable['deceduti']
+                yserr['deceased'] = regiontable['std_deceduti']
+            except KeyError:
+                try:
+                    ys['deceased'] = regiontable['guariti_o_deceduti'] - regiontable['dimessi_guariti']
+                    yserr['deceased'] = np.hypot(regiontable['std_guariti_o_deceduti'], regiontable['std_dimessi_guariti'])
+                except:
+                    pass
+        
             # plot
             for label, ax in axsl.items():
-                y = ys[label].values
-                yerr = yserr[label].values
-                nicename = os.path.splitext(os.path.split(filename)[-1])[0].replace('model-', '')
-                ax.errorbar(x, y, yerr=yerr, label=nicename, marker='', capsize=2, linestyle='')
+                if label in ys:
+                    y = ys[label].values
+                    yerr = yserr[label].values
+                    nicename = os.path.splitext(os.path.split(filename)[-1])[0].replace('model-', '')
+                    ax.errorbar(x, y, yerr=yerr, label=nicename, marker='', capsize=2, linestyle='')
         
-        # Set smart logarithmic scale.
-        for label, ax in axsl.items():
-            if symlog_scale:
-                top = ys_data[label].max()
-                top *= 1.1
-                # top = 10 ** np.floor(np.log10(top))
-                top = max(1, top)
-                ax.set_yscale('symlog', linthreshy=top)
-                ax.yaxis.set_minor_locator(
-                    symloglocator.MinorSymLogLocator(linthresh=top)
-                )
-                ax.axhline(top, linestyle='--', color='black', zorder=-1, label='logscale boundary')
-            else:
-                ax.set_yscale('symlog', linthreshy=1, linscaley=0.3, subsy=np.arange(2, 9 + 1))
         
         # Embellishments.
         for ax in axs:
+            ax.set_yscale('symlog', linthreshy=1, linscaley=0.3, subsy=np.arange(2, 9 + 1))
             ax.grid(linestyle=':')
+            if ax.get_ylim()[0] < 0:
+                ax.set_ylim(0, ax.get_ylim()[1])
         axs[0].legend(loc='best')
         axs[0].set_ylabel('people')
-        fig.autofmt_xdate()
+        fig.autofmt_xdate(rotation=70)
         fig.tight_layout()
         
         # Save figure

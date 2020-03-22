@@ -67,8 +67,8 @@ for region, fit in tqdm.tqdm(fits.items()):
     # Box with fit results.
     p = fit['p']
     population = p['_population'] + fit['min_pop']
-    brief = f"""population = {population}
-$log_{{10}}$(population) = {log10(population)}
+    brief = f"""population (true) = {fit["true_pop"]:.0f}
+population (fit) = {population}
 initial I = {p["I0_pop"]}
 $R_0$ = {p["R0"]}
 $\\gamma$ = {p["lambda"]}

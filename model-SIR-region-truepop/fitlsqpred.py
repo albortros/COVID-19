@@ -62,6 +62,6 @@ for df, subdir in [(regional, 'dati-regioni'), (national, 'dati-andamento-nazion
     os.makedirs(directory, exist_ok=True)
 
     # Save to file.
-    filepath = f'{directory}/model-SIR-by-region-bayes.csv'
+    filepath = f'{directory}/model-SIR-region-truepop.csv'
     print(f'Saving to {filepath}...')
     df.to_csv(filepath, index=False)

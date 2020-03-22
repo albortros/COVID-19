@@ -4,11 +4,15 @@ import pandas as pd
 import tqdm
 import numpy as np
 import os
-import symloglocator
+import sys
 
 # yes
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
+
+# Set the labels to be plotted. You can use the following: `total`, `infected`,
+# `removed`, `deceased`
+labels = ['infected', 'removed']
 
 # Read region data.
 data = pd.read_csv(
@@ -20,21 +24,32 @@ regions = data['denominazione_regione'].unique()
 # regions = ['Emilia Romagna', 'Basilicata', 'Valle d\'Aosta']
 
 # Prepare figure.
-fig = plt.figure('predictions-plot')
+fig = plt.figure('plot-dati-regioni')
 fig.clf()
-fig.set_size_inches((12, 4))
-axs = fig.subplots(1, 3, sharex=True)
-labels = ['total', 'infected', 'removed']
+fig.set_size_inches((12, 7))
+axs = fig.subplots(1, len(labels), sharex=True)
 axsl = {l: a for l, a in zip(labels, axs)}
 
 # Iterate over directories with a date format and which contain `dati-regioni`.
-directories = glob.glob('????-??-??/dati-regioni')
+cmdline = sys.argv[1:]
+if cmdline:
+    directories = [f'{d}/dati-regioni' for d in cmdline]
+else:
+    directories = glob.glob('????-??-??/dati-regioni')
+    directories.sort()
 for directory in directories:
     print(f'--------- Predictions made on {directory} ---------')
     
     # Read all csv files.
     files = glob.glob(f'{directory}/*.csv')
-    tables = [pd.read_csv(file, parse_dates=['data']) for file in files]
+    files.sort()
+    if not files:
+        print('No csv files here.')
+        continue
+    tables = []
+    for file in files:
+        print(f'Reading {file}...')
+        tables.append(pd.read_csv(file, parse_dates=['data']))
     
     # Make directory for saving figures.
     savedir = f'{directory}/plots'
@@ -42,7 +57,7 @@ for directory in directories:
     
     # Iterate over regions.
     print('Iterating over regions...')
-    for region in tqdm.tqdm(regions):
+    for region in regions:
         
         # Prepare plot.
         for label, ax in axsl.items():
@@ -56,7 +71,8 @@ for directory in directories:
         ys_data = {
             'total': regiondata['totale_casi'],
             'infected': regiondata['totale_attualmente_positivi'],
-            'removed': regiondata['totale_casi'] - regiondata['totale_attualmente_positivi']
+            'removed': regiondata['totale_casi'] - regiondata['totale_attualmente_positivi'],
+            'deceased': regiondata['deceduti']
         }
         for label, ax in axsl.items():
             y = ys_data[label].values
@@ -93,31 +109,38 @@ for directory in directories:
                     ys['removed'] = ys['total'] - ys['infected']
                     yserr['removed'] = np.hypot(yserr['total'], yserr['infected'])
             
+            # deceased
+            try:
+                ys['deceased'] = regiontable['deceduti']
+                yserr['deceased'] = regiontable['std_deceduti']
+            except KeyError:
+                try:
+                    ys['deceased'] = regiontable['guariti_o_deceduti'] - regiontable['dimessi_guariti']
+                    yserr['deceased'] = np.hypot(regiontable['std_guariti_o_deceduti'], regiontable['std_dimessi_guariti'])
+                except:
+                    pass
+        
             # plot
             for label, ax in axsl.items():
-                y = ys[label].values
-                yerr = yserr[label].values
-                nicename = os.path.splitext(os.path.split(filename)[-1])[0].replace('model-', '')
-                ax.errorbar(x, y, yerr=yerr, label=nicename, marker='', capsize=2, linestyle='')
+                if label in ys:
+                    y = ys[label].values
+                    yerr = yserr[label].values
+                    nicename = os.path.splitext(os.path.split(filename)[-1])[0].replace('model-', '')
+                    ax.errorbar(x, y, yerr=yerr, label=nicename, marker='', capsize=2, linestyle='')
         
-        # Set smart logarithmic scale.
-        for label, ax in axsl.items():
-            top = ys_data[label].max()
-            # top = 10 ** np.floor(np.log10(top))
-            top = max(1, top)
-            ax.set_yscale('symlog', linthreshy=top)
-            ax.yaxis.set_minor_locator(
-                symloglocator.MinorSymLogLocator(linthresh=top)
-            )
-            ax.axhline(top, linestyle='--', color='black', zorder=-1, label='logscale boundary')
         
         # Embellishments.
         for ax in axs:
+            ax.set_yscale('symlog', linthreshy=1, linscaley=0.3, subsy=np.arange(2, 9 + 1))
             ax.grid(linestyle=':')
-        axs[0].legend(loc='best', fontsize='small')
+            if ax.get_ylim()[0] < 0:
+                ax.set_ylim(0, ax.get_ylim()[1])
+        axs[0].legend(loc='best')
         axs[0].set_ylabel('people')
-        fig.autofmt_xdate()
+        fig.autofmt_xdate(rotation=70)
         fig.tight_layout()
         
         # Save figure
-        fig.savefig(f'{savedir}/{region}.png')
+        plotfile = f'{savedir}/{region}.png'
+        print(f'Saving plot in {plotfile}...')
+        fig.savefig(plotfile)

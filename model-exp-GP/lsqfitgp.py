@@ -110,7 +110,7 @@ class GP:
         mean, cov = self.predraw(fxdata_mean, fxdata_cov)
         return gvar.gvar(mean, cov)
         
-    def fitpredraw(self, y, sigma=0):
+    def fitpredraw(self, y, yerr=None):
         # check there are x to predict
         assert self._datarange < len(self._cov)
         
@@ -119,16 +119,24 @@ class GP:
         assert len(y.shape) == 1
         assert len(y) == self._datarange
         
-        # check sigma
-        assert np.isscalar(sigma)
-        assert np.isfinite(sigma)
-        assert sigma >= 0
+        # check yerr
+        if yerr is None:
+            S = 0
+        else:
+            yerr = np.asarray(yerr)
+            assert len(yerr.shape) <= 2
+            if len(yerr.shape) <= 1:
+                S = np.diag(yerr ** 2 * np.ones(len(y)))
+            else:
+                assert yerr.shape == (len(y), len(y))
+                assert np.allclose(yerr, yerr.T)
+                S = yerr
         
         # compute things
         Kxxs = self._cov[:self._datarange, self._datarange:]
         Kxx = self._cov[:self._datarange, :self._datarange]
         Kxsxs = self._cov[self._datarange:, self._datarange:]
-        Kxx[np.diag_indices(len(y))] += sigma ** 2
+        Kxx += S
         A = linalg.solve(Kxx, Kxxs, assume_a='pos').T
         cov = Kxsxs - Kxxs.T @ A.T
         mean = A @ y

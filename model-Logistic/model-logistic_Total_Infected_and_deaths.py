@@ -649,12 +649,12 @@ startingDate=737425
 Dates=[datetime.fromordinal(startingDate+ii) for ii in Xpredicted]
 for ii in range(len(Dates)):
     Dates[ii]= Dates[ii].replace(minute=00, hour=18,second=00)
-FirstLine=['denominazione_regione','data','totale_casi','std_totale_casi','totale_attualmente_positivi','std_totale_attualmente_positivi','deceduti','std_deceduti']
+FirstLine=['denominazione_regione','data','totale_casi','std_totale_casi','totale_attualmente_positivi','std_totale_attualmente_positivi','deceduti','std_deceduti','dimessi_guariti','std_dimessi_guariti']
 with open('model-logistic-national.csv', 'w',newline='') as pred_logistic_file:
     wr = csv.writer(pred_logistic_file, quoting=csv.QUOTE_ALL)
     wr.writerow(FirstLine)
     for ii in range(len(Xpredicted)):
-        wr.writerow(['Italia',Dates[ii],Ypredicted_logistic_infected[ii],YPERR_logistic_infected[ii],totale_attualmente_positivi[ii],std_totale_attualmente_positivi[ii],Ypredicted_logistic_deaths[ii],YPERR_logistic_deaths[ii]])
+        wr.writerow(['Italia',Dates[ii],Ypredicted_logistic_infected[ii],YPERR_logistic_infected[ii],totale_attualmente_positivi[ii],std_totale_attualmente_positivi[ii],Ypredicted_logistic_deaths[ii],YPERR_logistic_deaths[ii],Ypredicted_logistic_recovered[ii],YPERR_logistic_recovered[ii]])
 
 
 

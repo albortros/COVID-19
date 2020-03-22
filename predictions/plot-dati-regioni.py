@@ -42,6 +42,7 @@ for directory in directories:
     
     # Read all csv files.
     files = glob.glob(f'{directory}/*.csv')
+    files.sort()
     if not files:
         print('No csv files here.')
         continue

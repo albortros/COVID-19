@@ -27,29 +27,41 @@ for region, fit in tqdm.tqdm(fits.items()):
     # Compute prediction.
     y = fitlsqdefs.fcn(dict(times=x, min_pop=fit['min_pop']), fit['p'])
     
-    # Compute uncertainty rescaling factor.
-    factor = np.sqrt(fit['chi2'] / fit['dof'])
-    
     # Write prediction in table.
     output['denominazione_regione'] += [region] * len(futuredates)
     output['data'] += list(futuredates)
     
     totale_casi = y['R'] + y['I']
     output['totale_casi'] += list(gvar.mean(totale_casi))
-    output['std_totale_casi'] += list(gvar.sdev(totale_casi) * factor)
+    output['std_totale_casi'] += list(gvar.sdev(totale_casi))
 
     output['totale_attualmente_positivi'] += list(gvar.mean(y['I']))
-    output['std_totale_attualmente_positivi'] += list(gvar.sdev(y['I']) * factor)
+    output['std_totale_attualmente_positivi'] += list(gvar.sdev(y['I']))
     
     output['guariti_o_deceduti'] += list(gvar.mean(y['R']))
-    output['std_guariti_o_deceduti'] += list(gvar.sdev(y['R']) * factor)
+    output['std_guariti_o_deceduti'] += list(gvar.sdev(y['R']))
 
-# Make directory where file has to be saved.
-directory = f'../predictions/{lastdate.year:04d}-{lastdate.month:02d}-{lastdate.day:02d}/dati-regioni'
-os.makedirs(directory, exist_ok=True)
+# Convert to dataframe.
+regional = pd.DataFrame(output)
 
-# Save to file.
-filepath = f'{directory}/model-SIR-region-truepop.csv'
-dataframe = pd.DataFrame(output)
-print(f'Saving to {filepath}...')
-dataframe.to_csv(filepath, index=False)
+# Sum predictions to make national forecast.
+output = collections.defaultdict(list)
+grouped_by_date = regional.groupby('data')
+for date in regional['data'].unique():
+    table = grouped_by_date.get_group(date)
+    output['data'].append(date)
+    for label in 'totale_casi', 'totale_attualmente_positivi', 'guariti_o_deceduti':
+        output[label].append(np.sum(table[label]))
+        stdlabel = 'std_' + label
+        output[stdlabel].append(np.sqrt(np.sum(table[stdlabel] ** 2)))
+national = pd.DataFrame(output)
+
+for df, subdir in [(regional, 'dati-regioni'), (national, 'dati-andamento-nazionale')]:
+    # Make directory where file has to be saved.
+    directory = f'../predictions/{lastdate.year:04d}-{lastdate.month:02d}-{lastdate.day:02d}/{subdir}'
+    os.makedirs(directory, exist_ok=True)
+
+    # Save to file.
+    filepath = f'{directory}/model-SIR-region-truepop.csv'
+    print(f'Saving to {filepath}...')
+    df.to_csv(filepath, index=False)

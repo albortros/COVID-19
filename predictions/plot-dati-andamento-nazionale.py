@@ -4,7 +4,6 @@ import pandas as pd
 import tqdm
 import numpy as np
 import os
-import symloglocator
 import sys
 
 # yes
@@ -13,7 +12,7 @@ register_matplotlib_converters()
 
 # Set the labels to be plotted. You can use the following: `total`, `infected`,
 # `removed`, `deceased`
-labels = ['infected', 'deceased']
+labels = ['infected', 'removed', 'deceased']
 
 # Read region data.
 data = pd.read_csv(
@@ -42,6 +41,7 @@ for directory in directories:
     
     # Read all csv files.
     files = glob.glob(f'{directory}/*.csv')
+    files.sort()
     if not files:
         print('No csv files here.')
         continue
@@ -66,6 +66,7 @@ for directory in directories:
         ax.errorbar(x, y, yerr=yerr, label='data', marker='.', capsize=0, linestyle='')
     
     # Plot predictions.
+    fit_colors = dict()
     for filename, table in zip(files, tables):
         # times
         x = table['data']
@@ -107,9 +108,17 @@ for directory in directories:
         for label, ax in axsl.items():
             if label in ys:
                 y = ys[label].values
-                yerr = yserr[label].values
-                nicename = os.path.splitext(os.path.split(filename)[-1])[0].replace('model-', '')
-                ax.errorbar(x, y, yerr=yerr, label=nicename, marker='', capsize=2, linestyle='')
+                arguments = dict(
+                    yerr=yserr[label].values,
+                    label=os.path.splitext(os.path.split(filename)[-1])[0].replace('model-', ''),
+                    marker='',
+                    capsize=2,
+                    linestyle=''
+                )
+                if filename in fit_colors:
+                    arguments['color'] = fit_colors[filename]
+                rt = ax.errorbar(x, y, **arguments)
+                fit_colors[filename] = rt[0].get_color()
     
     # Set logarithmic scale.
     axs[0].set_yscale('symlog', linthreshy=1, linscaley=0.3, subsy=np.arange(2, 9 + 1))

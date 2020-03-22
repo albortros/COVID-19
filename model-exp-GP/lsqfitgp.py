@@ -32,12 +32,12 @@ class GP:
         assert np.issubdtype(cov.dtype, np.floating)
         assert cov.shape == (len(x), len(x))
         eigv = linalg.eigvalsh(cov)
-        assert np.all(eigv > -len(cov) * np.finfo(float).eps * np.max(eigv))
-        # since we are diagonalizing, maybe instead do cholesky and apply
-        # automatically the transformation, so that lsqfit does not do it
-        # again. the problem I have to do a cholesky on something which is not
-        # exactly positive definite due to roundoff. eigenvalue cut then?
-        # or can I do something with an LU?
+        mineigv = np.min(eigv)
+        if mineigv < 0:
+            assert mineigv > -len(cov) * np.finfo(float).eps * np.max(eigv)
+            cov[np.diag_indices(len(cov))] += -mineigv
+        # since we are diagonalizing, maybe save the transformation and apply
+        # it so that lsqfit does not diagonalize it again for the fit.
         
         # create prior
         prior = gvar.gvar(np.zeros(len(x)), cov)
@@ -100,38 +100,57 @@ class GP:
         mean, cov = self.predraw(fxdata_mean, fxdata_cov)
         return gvar.gvar(mean, cov)
         
-class IsotropicKernel:
+class Kernel:
+    
+    def __init__(self, kernel, *, scale=1, ampl=1, loc=0, **kw):
+        assert np.isscalar(scale)
+        assert np.isscalar(ampl)
+        assert np.isscalar(loc)
+        assert np.isfinite(scale)
+        assert np.isfinite(ampl)
+        assert np.isfinite(loc)
+        assert scale > 0
+        assert ampl > 0
+        self._kernel = lambda x, y: ampl * kernel((x - loc) / scale, (y - loc) / scale, **kw)
+    
+    def __call__(self, x, y):
+        x = np.asarray(x)
+        y = np.asarray(y)
+        np.broadcast(x, y)
+        return self._kernel(x, y)
+    
+    def __add__(self, value):
+        if isinstance(value, Kernel):
+            return Kernel(lambda x, y: self._kernel(x, y) + value._kernel(x, y))
+        elif np.isscalar(value):
+            return Kernel(lambda x, y: self._kernel(x, y) + value)
+        else:
+            return NotImplemented
+    
+    __radd__ = __add__
+    
+    def __mul__(self, value):
+        if isinstance(value, Kernel):
+            return Kernel(lambda x, y: self._kernel(x, y) * value._kernel(x, y))
+        elif np.isscalar(value):
+            return Kernel(lambda x, y: self._kernel(x, y) * value)
+        else:
+            return NotImplemented
+    
+    __rmul__ = __mul__
+    
+    def __pow__(self, value):
+        if np.isscalar(value):
+            assert np.isnan(value) or value >= 0
+            return Kernel(lambda x, y: self._kernel(x, y) ** value)
+        else:
+            return NotImplemented
+
+class IsotropicKernel(Kernel):
     
     def __init__(self, kernel, *, scale=1, ampl=1, **kw):
-        for p in scale, ampl:
-            assert np.isscalar(p)
-            assert np.isfinite(p)
-            assert p > 0
-        self._kw = kw
-        self._scale = scale
-        self._ampl = ampl
-        self._kernel = kernel
+        super().__init__(lambda x, y: kernel(np.abs(x - y), **kw), scale=scale, ampl=ampl)
     
-    def __call__(self, x, y):
-        x = np.asarray(x)
-        y = np.asarray(y)
-        np.broadcast(x, y)
-        return self._ampl * self._kernel(np.abs(x - y) / self._scale, **self._kw)
-
-class Kernel(IsotropicKernel):
-    
-    def __init__(self, *args, loc=0, **kw):
-        assert np.isscalar(loc)
-        assert np.isfinite(loc)
-        self._loc = loc
-        super().__init__(*args, **kw)
-    
-    def __call__(self, x, y):
-        x = np.asarray(x)
-        y = np.asarray(y)
-        np.broadcast(x, y)
-        return self._ampl * self._kernel((x - self._loc) / self._scale, (y - self._loc) / self._scale, **self._kw)
-
 def makekernel(kernel, superclass):
     name = 'Specific' + superclass.__name__
     return type(name, (superclass,), dict(
@@ -142,15 +161,17 @@ def makekernel(kernel, superclass):
 isotropickernel = lambda kernel: makekernel(kernel, IsotropicKernel)
 kernel = lambda kernel: makekernel(kernel, Kernel)
 
+Constant = isotropickernel(lambda r: np.ones_like(r))
+White = isotropickernel(lambda r: np.where(r == 0, 1, 0))
 Linear = kernel(lambda x, y: x * y)
 ExpQuad = isotropickernel(lambda r: np.exp(-1/2 * r ** 2))
 
 @kernel
-def Polynomial(x, y, exponent=None, sigma=None):
+def Polynomial(x, y, exponent=None, sigma0=1):
     for p in exponent, sigma:
         assert np.isscalar(p)
-        assert p > 0
-    return (x * y + sigma ** 2) ** exponent
+        assert p >= 0
+    return (x * y + sigma0 ** 2) ** exponent
     
 @isotropickernel
 def Matern(r, nu=None):

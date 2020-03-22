@@ -18,11 +18,11 @@ Other data shared by different models is in `shared_data/`.
 ### Models
   
 A directory for each model with name starting with `model`. In practice
-different people will work on different models and will mess in their own
-directory without causing merge problems to other teams.
+different people work on different models and mess in their own directory
+without causing merge problems to other teams.
 
-Models should be briefly described in the list in this README. Eventual
-detailed documentation can be written in a per-model README.
+Models are briefly described in the list below. Eventual detailed documentation
+can be written in a per-model README.
 
 We should try to keep older models up and running so we can keep track of
 progress and regressions. In practice: when you have a working model, and you
@@ -41,6 +41,10 @@ same format as the others.
 
   * `model-SIR-region-truepop`: like the former, but the population is fixed to
     the true known population, and the errors are rescaled with sqrt(chi^2/dof).
+    
+  * `model-Logistic`: fit the national data with logistic curves.
+  
+  * `model-Gompertz`: fit the national data with Gompertz curves. 
 
 ### Predictions
   
@@ -49,13 +53,14 @@ A directory `predictions` for model prediction output in a common format.
 Inside this, there is one directory for each day, which contains model output
 for each model and for each subsequent day. So, the directory day is the day in
 which the models were run, i.e. it represents the data date, while inside there
-are files for each model and for each future date the model makes a prediction
-for.
+are files for each model with the predictions for future dates.
 
-Currently, we have in each date directory a directory `dati-regioni` which
-contains one `csv` file for each model with regional data (Trento and Bolzano
-are treated as separate regions). There is a script `plot-dati-regioni.py`
-which plots the data, using the following fields of the csv:
+#### dati-regioni
+
+We have in each date directory a directory `dati-regioni` which contains one
+`csv` file for each model with regional data (Trento and Bolzano are treated as
+separate regions). There is a script `plot-dati-regioni.py` which plots the
+data, using the following fields of the csv:
 
   * `totale_casi`, `std_totale_casi`,
   
@@ -69,6 +74,11 @@ corresponding field.
 If the fields `*guariti_or_deceduti` are missing it tries to deduce it from
 other fields, the last fallback is using `totale_casi` and
 `totale_attualmente_positivi`.
+
+#### dati-andamento-nazionale
+
+Much like `dati-regioni`, but uses predictions at national level. The script
+to run is `plot-dati-andamento-nazionale.py`.
 
 ## Links
 
@@ -94,7 +104,10 @@ In case someone is not used to git: probably the simplest way to use it is the
 application "Github desktop".
 
 Since we are depending on external repositories as submodules, when cloning
-remember to use the recursive option: `git clone --recursive`. You will also need to update with `git submodule update --recursive` or `git pull --recurse-submodules`. I don't know if Guthub desktop does this automatically. Also, maybe ask others before updating the external repository.
+remember to use the recursive option: `git clone --recursive`. You will also
+need to update with `git submodule update --recursive` or `git pull
+--recurse-submodules`. I don't know if Guthub desktop does this automatically.
+Also, maybe ask others before updating the external repository.
 
 In general it is advisable not to modify the same file that someone else is
 working on. If you plan to do that, either reach an agreement with the relevant

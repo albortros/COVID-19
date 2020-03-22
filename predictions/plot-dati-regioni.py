@@ -46,7 +46,10 @@ for directory in directories:
     if not files:
         print('No csv files here.')
         continue
-    tables = [pd.read_csv(file, parse_dates=['data']) for file in files]
+    tables = []
+    for file in files:
+        print(f'Reading {file}...')
+        tables.append(pd.read_csv(file, parse_dates=['data']))
     
     # Make directory for saving figures.
     savedir = f'{directory}/plots'
@@ -54,7 +57,7 @@ for directory in directories:
     
     # Iterate over regions.
     print('Iterating over regions...')
-    for region in tqdm.tqdm(regions):
+    for region in regions:
         
         # Prepare plot.
         for label, ax in axsl.items():
@@ -138,4 +141,6 @@ for directory in directories:
         fig.tight_layout()
         
         # Save figure
-        fig.savefig(f'{savedir}/{region}.png')
+        plotfile = f'{savedir}/{region}.png'
+        print(f'Saving plot in {plotfile}...')
+        fig.savefig(plotfile)

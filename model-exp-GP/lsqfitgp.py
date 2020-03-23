@@ -9,6 +9,9 @@ __doc__ = """Tools to fit gaussian processes with lsqfit."""
 class GP:
     
     def __init__(self, xdata, covfun, xpred=None):
+        # check covfun
+        assert isinstance(covfun, Kernel)
+        
         # check xdata
         xdata = np.asarray(xdata)
         assert len(xdata.shape) == 1
@@ -149,16 +152,13 @@ class GP:
 
 class Kernel:
     
-    def __init__(self, kernel, *, scale=1, ampl=1, loc=0, **kw):
+    def __init__(self, kernel, *, scale=1, loc=0, **kw):
         assert np.isscalar(scale)
-        assert np.isscalar(ampl)
         assert np.isscalar(loc)
         assert np.isfinite(scale)
-        assert np.isfinite(ampl)
         assert np.isfinite(loc)
         assert scale > 0
-        assert ampl > 0
-        self._kernel = lambda x, y: ampl * kernel((x - loc) / scale, (y - loc) / scale, **kw)
+        self._kernel = lambda x, y: kernel((x - loc) / scale, (y - loc) / scale, **kw)
     
     def __call__(self, x, y):
         x = np.asarray(x)
@@ -180,7 +180,9 @@ class Kernel:
         if isinstance(value, Kernel):
             return Kernel(lambda x, y: self._kernel(x, y) * value._kernel(x, y))
         elif np.isscalar(value):
-            return Kernel(lambda x, y: self._kernel(x, y) * value)
+            assert np.isfinite(value)
+            assert value >= 0
+            return Kernel(lambda x, y: value * self._kernel(x, y))
         else:
             return NotImplemented
     
@@ -195,8 +197,8 @@ class Kernel:
 
 class IsotropicKernel(Kernel):
     
-    def __init__(self, kernel, *, scale=1, ampl=1, **kw):
-        super().__init__(lambda x, y: kernel(np.abs(x - y), **kw), scale=scale, ampl=ampl)
+    def __init__(self, kernel, *, scale=1, **kw):
+        super().__init__(lambda x, y: kernel(np.abs(x - y), **kw), scale=scale)
     
 def makekernel(kernel, superclass):
     name = 'Specific' + superclass.__name__

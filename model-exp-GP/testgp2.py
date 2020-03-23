@@ -9,7 +9,7 @@ plot_simulated_lines = False
 xdata = np.linspace(0, 10, 10)
 xpred = np.linspace(-5, 15, 300)
 
-gp = lsqfitgp.GP(xdata, lsqfitgp.ExpQuad(scale=3) + 0.05**2 * lsqfitgp.Matern12(), xpred=xpred)
+gp = lsqfitgp.GP(xdata, lsqfitgp.ExpQuad(scale=2.5) + 0.05**2 * lsqfitgp.Matern12(), xpred=xpred)
 
 true_par = dict(
     phi=np.sin(xdata),
@@ -30,7 +30,8 @@ def fcn(data_or_pred, p):
 
 yerr = 0.05
 ysdev = yerr * np.ones(len(xdata))
-ymean = fcn('data', true_par) + ysdev * np.random.randn(len(ysdev))
+true_y = fcn('data', true_par)
+ymean = true_y + ysdev * np.random.randn(len(ysdev))
 y = gvar.gvar(ymean, ysdev)
 
 prior = dict(
@@ -71,8 +72,12 @@ for ax, variable in zip(axs, ['y', 'phi']):
             cov = gvar.evalcov(pred)
             simulated_lines = np.random.multivariate_normal(m, cov, size=5)
             ax.plot(xpred, simulated_lines.T, '-', color=color)
+    
+    if variable == 'phi':
+        ax.plot(xdata, true_par['phi'], 'rx', label='true')
 
 axs[0].errorbar(xdata, gvar.mean(y), yerr=gvar.sdev(y), fmt='k.', label='data')
+axs[0].plot(xdata, true_y, 'rx', label='true')
 
 for ax in axs:
     ax.legend(loc='best')

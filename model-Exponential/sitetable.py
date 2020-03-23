@@ -11,8 +11,8 @@ for code in csv['codice_regione'].unique():
     row = grouped.get_group(code)
     region = row['denominazione_regione'].values[0]
     if code == 4:
-        region = 'trentinoaltoadige'
-    regionid = 'table' + region.replace("'", '').replace(' ','').lower()
+        region = 'Trentino-Alto Adige'
+    regionid = 'table' + region.replace("'", '').replace(' ','').replace('-', '').lower()
     output += f"""
 <div id="{regionid}" class="predtablediv">
     <table>

@@ -104,7 +104,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Total number of infected people")
 plt.ylim((min(y)*0.9,Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('linear_infected.png', dpi=DPI)
+plt.savefig('Plots/linear_infected.png', dpi=DPI)
 #plt.show()
 
 #Log Plot
@@ -123,7 +123,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Total number of infected people")
 plt.ylim((min(y)*0.9,Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('log_infected.png', dpi=DPI)
+plt.savefig('Plots/log_infected.png', dpi=DPI)
 
 #plt.show()
 
@@ -144,7 +144,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Ratio of infected people respect to the day before")
 plt.ylim((min(Y2/Y1)*0.9,max(Y2/Y1)*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('ratios_infected.png', dpi=DPI)
+plt.savefig('Plots/ratios_infected.png', dpi=DPI)
 #plt.show()
 
 
@@ -191,7 +191,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Increase of infected people")
 plt.ylim((min(Y3)*0.9,max([logistic_derivative(i,fit_derivative[0]) for i in list(X)+pred_x])*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('derivatives_infected.png', dpi=DPI)
+plt.savefig('Plots/derivatives_infected.png', dpi=DPI)
 
 #plt.show()
 
@@ -231,7 +231,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Total number of infected people")
 plt.ylim((min(y)*0.9,Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('predictions_infected.png', dpi=DPI)
+plt.savefig('Plots/predictions_infected.png', dpi=DPI)
 #plt.show()
 
 
@@ -314,7 +314,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Total number of dead people")
 plt.ylim((min(y)*0.9,Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('linear_deaths.png', dpi=DPI)
+plt.savefig('Plots/linear_deaths.png', dpi=DPI)
 plt.show()
 
 #Log Plot
@@ -333,7 +333,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Total number of dead people")
 plt.ylim((min(y)*0.9,Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('log_deaths.png', dpi=DPI)
+plt.savefig('Plots/log_deaths.png', dpi=DPI)
 #plt.show()
 
 
@@ -353,7 +353,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Ratio of dead people respect to the day before")
 plt.ylim((min(Y2/Y1)*0.9,max(Y2/Y1)*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('ratios_deaths.png', dpi=DPI)
+plt.savefig('Plots/ratios_deaths.png', dpi=DPI)
 
 #plt.show()
 
@@ -394,7 +394,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Increase of dead people")
 plt.ylim((min(Y3)*0.9,max([logistic_derivative(i,fit_derivative[0]) for i in list(X)+pred_x])*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('derivatives_deaths.png', dpi=DPI)
+plt.savefig('Plots/derivatives_deaths.png', dpi=DPI)
 
 #plt.show()
 
@@ -423,7 +423,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Total number of dead people")
 plt.ylim((min(y)*0.9,Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('predictions_deaths.png', dpi=DPI)
+plt.savefig('Plots/predictions_deaths.png', dpi=DPI)
 plt.show()
 
 Ypredicted_logistic_deaths=Ypredicted
@@ -504,7 +504,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Total number of recovered people")
 plt.ylim((min(y)*0.9,Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('linear_recovered.png', dpi=DPI)
+plt.savefig('Plots/linear_recovered.png', dpi=DPI)
 #plt.show()
 
 #Log Plot
@@ -523,7 +523,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Total number of recovered people")
 plt.ylim((min(y)*0.9,Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('log_recovered.png', dpi=DPI)
+plt.savefig('Plots/log_recovered.png', dpi=DPI)
 
 #plt.show()
 
@@ -544,7 +544,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Ratio of recovered people respect to the day before")
 plt.ylim((min(Y2/Y1)*0.9,max(Y2/Y1)*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('ratios_recovered.png', dpi=DPI)
+plt.savefig('Plots/ratios_recovered.png', dpi=DPI)
 #plt.show()
 
 
@@ -584,7 +584,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Increase of recovered people")
 plt.ylim((min(Y3)*0.9,max([logistic_derivative(i,fit_derivative[0]) for i in list(X)+pred_x])*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('derivatives_recovered.png', dpi=DPI)
+plt.savefig('Plots/derivatives_recovered.png', dpi=DPI)
 
 #plt.show()
 
@@ -622,7 +622,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Total number of recovered people")
 plt.ylim((min(y)*0.9,Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('predictions_recovered.png', dpi=DPI)
+plt.savefig('Plots/predictions_recovered.png', dpi=DPI)
 #plt.show()
 
 

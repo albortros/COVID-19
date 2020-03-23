@@ -230,10 +230,11 @@ class IsotropicKernel(Kernel):
     
 def makekernel(kernel, superclass):
     name = 'Specific' + superclass.__name__
-    return type(name, (superclass,), dict(
-        __init__=lambda self, *args, **kw: super(self.__class__, self).__init__(kernel, *args, **kw),
+    newclass = type(name, (superclass,), dict(
         __doc__=kernel.__doc__
     ))
+    newclass.__init__ = lambda self, *args, **kw: super(newclass, self).__init__(kernel, *args, **kw)
+    return newclass
 
 isotropickernel = lambda kernel: makekernel(kernel, IsotropicKernel)
 kernel = lambda kernel: makekernel(kernel, Kernel)

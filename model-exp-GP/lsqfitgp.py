@@ -265,20 +265,20 @@ Matern32 = isotropickernel(lambda r: (1 + np.sqrt(3) * r) * np.exp(-np.sqrt(3) *
 Matern52 = isotropickernel(lambda r: (1 + np.sqrt(5) * r + 5/3 * r**3) * np.exp(-np.sqrt(5) * r))
 
 @isotropickernel
-def GammaExp(r, gamma=None):
+def GammaExp(r, gamma=1):
     """Gamma exponential"""
     assert np.isscalar(gamma)
     assert 0 < gamma <= 2
     return np.exp(-(r ** gamma))
 
 @isotropickernel
-def RatQuad(r, alpha=None):
+def RatQuad(r, alpha=2):
     assert np.isscalar(alpha)
     assert alpha > 0
     return (1 + r ** 2 / (2 * alpha)) ** (-alpha)
 
 @kernel
-def NNKernel(x, y, sigma0=None):
+def NNKernel(x, y, sigma0=1):
     assert np.isscalar(sigma0)
     assert sigma0 > 0
     q = sigma0 ** 2
@@ -301,7 +301,7 @@ def VarScale(x, y, scalefun=None):
     return factor * np.exp(-(x - y) ** 2 / denom)
 
 @isotropickernel
-def Periodic(r, outerscale=None):
+def Periodic(r, outerscale=1):
     assert np.isscalar(outerscale)
     assert outerscale > 0
     return np.exp(-2 * np.sin(r / 2) ** 2 / outerscale ** 2)

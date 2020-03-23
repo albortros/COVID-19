@@ -245,7 +245,7 @@ ExpQuad = isotropickernel(lambda r: np.exp(-1/2 * r ** 2))
 
 @kernel
 def Polynomial(x, y, exponent=None, sigma0=1):
-    for p in exponent, sigma:
+    for p in exponent, sigma0:
         assert np.isscalar(p)
         assert p >= 0
     return (x * y + sigma0 ** 2) ** exponent
@@ -277,11 +277,11 @@ def RatQuad(r, alpha=None):
     return (1 + r ** 2 / (2 * alpha)) ** (-alpha)
 
 @kernel
-def NNKernel(x, y, q=None):
-    assert np.isscalar(q)
-    assert q >= 1
-    q2 = q ** 2
-    return 2/np.pi * np.arcsin(2 * (q2 + x * y) / ((1 + 2 * (q2 + x**2)) * (1 + 2 * (q2 + y**2))))
+def NNKernel(x, y, sigma0=None):
+    assert np.isscalar(sigma0)
+    assert sigma0 > 0
+    q = sigma0 ** 2
+    return 2/np.pi * np.arcsin(2 * (q + x * y) / ((1 + 2 * (q + x**2)) * (1 + 2 * (q + y**2))))
 
 @kernel
 def Wiener(x, y):

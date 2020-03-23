@@ -9,6 +9,9 @@ __doc__ = """Tools to fit gaussian processes with lsqfit."""
 class GP:
     
     def __init__(self, xdata, covfun, xpred=None):
+        # check covfun
+        assert isinstance(covfun, Kernel)
+        
         # check xdata
         xdata = np.asarray(xdata)
         assert len(xdata.shape) == 1
@@ -114,6 +117,27 @@ class GP:
         mean, cov = self.predraw(fxdata_mean, fxdata_cov)
         return gvar.gvar(mean, cov)
         
+    def fitpred(self, y):
+        self._makeprior()
+        
+        # check there are x to predict
+        assert self._datarange < len(self._cov)
+        
+        # check y
+        y = np.asarray(y)
+        assert len(y.shape) == 1
+        assert len(y) == self._datarange
+        S = gvar.evalcov(y)
+        
+        # compute things
+        Kxsx = self._cov[self._datarange:, :self._datarange]
+        Kxx = self._cov[:self._datarange, :self._datarange]
+        yp = self._prior[:self._datarange]
+        ysp = self._prior[self._datarange:]
+        U = Kxx + S
+        
+        return Kxsx @ gvar.linalg.solve(U, y - yp) + ysp
+    
     def fitpredraw(self, y, yerr=None):
         # check there are x to predict
         assert self._datarange < len(self._cov)
@@ -140,25 +164,28 @@ class GP:
         Kxxs = self._cov[:self._datarange, self._datarange:]
         Kxx = self._cov[:self._datarange, :self._datarange]
         Kxsxs = self._cov[self._datarange:, self._datarange:]
-        Kxx += S
-        A = linalg.solve(Kxx, Kxxs, assume_a='pos').T
-        cov = Kxsxs - Kxxs.T @ A.T
-        mean = A @ y
+        U = Kxx + S
+        B = linalg.solve(U, Kxxs, assume_a='pos').T
+        cov = Kxsxs - Kxxs.T @ B.T
+        mean = B @ y
         
         return mean, cov
+    
+    def fitpredalt(self, y):
+        y_mean = gvar.mean(y)
+        y_cov = gvar.evalcov(gvar.gvar(y))
+        mean, cov = self.fitpredraw(y_mean, y_cov)
+        return gvar.gvar(mean, cov)
 
 class Kernel:
     
-    def __init__(self, kernel, *, scale=1, ampl=1, loc=0, **kw):
+    def __init__(self, kernel, *, scale=1, loc=0, **kw):
         assert np.isscalar(scale)
-        assert np.isscalar(ampl)
         assert np.isscalar(loc)
         assert np.isfinite(scale)
-        assert np.isfinite(ampl)
         assert np.isfinite(loc)
         assert scale > 0
-        assert ampl > 0
-        self._kernel = lambda x, y: ampl * kernel((x - loc) / scale, (y - loc) / scale, **kw)
+        self._kernel = lambda x, y: kernel((x - loc) / scale, (y - loc) / scale, **kw)
     
     def __call__(self, x, y):
         x = np.asarray(x)
@@ -180,7 +207,9 @@ class Kernel:
         if isinstance(value, Kernel):
             return Kernel(lambda x, y: self._kernel(x, y) * value._kernel(x, y))
         elif np.isscalar(value):
-            return Kernel(lambda x, y: self._kernel(x, y) * value)
+            assert np.isfinite(value)
+            assert value >= 0
+            return Kernel(lambda x, y: value * self._kernel(x, y))
         else:
             return NotImplemented
     
@@ -188,22 +217,24 @@ class Kernel:
     
     def __pow__(self, value):
         if np.isscalar(value):
-            assert np.isnan(value) or value >= 0
+            assert np.isfinite(value)
+            assert value >= 0
             return Kernel(lambda x, y: self._kernel(x, y) ** value)
         else:
             return NotImplemented
 
 class IsotropicKernel(Kernel):
     
-    def __init__(self, kernel, *, scale=1, ampl=1, **kw):
-        super().__init__(lambda x, y: kernel(np.abs(x - y), **kw), scale=scale, ampl=ampl)
+    def __init__(self, kernel, *, scale=1, **kw):
+        super().__init__(lambda x, y: kernel(np.abs(x - y), **kw), scale=scale)
     
 def makekernel(kernel, superclass):
     name = 'Specific' + superclass.__name__
-    return type(name, (superclass,), dict(
-        __init__=lambda self, *args, **kw: super(self.__class__, self).__init__(kernel, *args, **kw),
+    newclass = type(name, (superclass,), dict(
         __doc__=kernel.__doc__
     ))
+    newclass.__init__ = lambda self, *args, **kw: super(newclass, self).__init__(kernel, *args, **kw)
+    return newclass
 
 isotropickernel = lambda kernel: makekernel(kernel, IsotropicKernel)
 kernel = lambda kernel: makekernel(kernel, Kernel)
@@ -215,7 +246,7 @@ ExpQuad = isotropickernel(lambda r: np.exp(-1/2 * r ** 2))
 
 @kernel
 def Polynomial(x, y, exponent=None, sigma0=1):
-    for p in exponent, sigma:
+    for p in exponent, sigma0:
         assert np.isscalar(p)
         assert p >= 0
     return (x * y + sigma0 ** 2) ** exponent
@@ -247,11 +278,11 @@ def RatQuad(r, alpha=None):
     return (1 + r ** 2 / (2 * alpha)) ** (-alpha)
 
 @kernel
-def NNKernel(x, y, q=None):
-    assert np.isscalar(q)
-    assert q >= 1
-    q2 = q ** 2
-    return 2/np.pi * np.arcsin(2 * (q2 + x * y) / ((1 + 2 * (q2 + x**2)) * (1 + 2 * (q2 + y**2))))
+def NNKernel(x, y, sigma0=None):
+    assert np.isscalar(sigma0)
+    assert sigma0 > 0
+    q = sigma0 ** 2
+    return 2/np.pi * np.arcsin(2 * (q + x * y) / ((1 + 2 * (q + x**2)) * (1 + 2 * (q + y**2))))
 
 @kernel
 def Wiener(x, y):
@@ -263,6 +294,14 @@ def Wiener(x, y):
 def VarScale(x, y, scalefun=None):
     sx = scalefun(x)
     sy = scalefun(y)
+    assert np.all(sx > 0)
+    assert np.all(sy > 0)
     denom = sx ** 2 + sy ** 2
     factor = np.sqrt(2 * sx * sy / denom)
     return factor * np.exp(-(x - y) ** 2 / denom)
+
+@isotropickernel
+def Periodic(r, outerscale=None):
+    assert np.isscalar(outerscale)
+    assert outerscale > 0
+    return np.exp(-2 * np.sin(r / 2) ** 2 / outerscale ** 2)

@@ -151,7 +151,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Total number of infected people")
 plt.ylim((min(y)*0.9,gompertz_Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('log_infected.png', dpi=DPI)
+plt.savefig('Plots/log_infected.png', dpi=DPI)
 plt.show()
 
 
@@ -202,7 +202,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Increase of infected people per day")
 plt.ylim((min(Y3)*0.9,3*max([logistic_derivative(i,logistic_ParD) for i in xTOT])*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('derivatives_infected.png', dpi=DPI)
+plt.savefig('Plots/derivatives_infected.png', dpi=DPI)
 plt.show()
 
 
@@ -237,7 +237,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Total number of infected people")
 plt.ylim((min(y)*0.9,gompertz_Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('predictions_infected.png', dpi=DPI)
+plt.savefig('Plots/predictions_infected.png', dpi=DPI)
 plt.show()
 
 
@@ -354,7 +354,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Total number of dead people")
 plt.ylim((min(y)*0.9,gompertz_Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('log_deaths.png', dpi=DPI)
+plt.savefig('Plots/log_deaths.png', dpi=DPI)
 plt.show()
 
 
@@ -406,7 +406,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Increase of dead people per day")
 plt.ylim((min(Y3)*0.9,3*max([logistic_derivative(i,logistic_ParD) for i in xTOT])*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('derivatives_deaths.png', dpi=DPI)
+plt.savefig('Plots/derivatives_deaths.png', dpi=DPI)
 plt.show()
 
 
@@ -441,7 +441,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Total number of dead people")
 plt.ylim((min(y)*0.9,gompertz_Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('predictions_deaths.png', dpi=DPI)
+plt.savefig('Plots/predictions_deaths.png', dpi=DPI)
 plt.show()
 
 
@@ -552,7 +552,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Total number of recovered people")
 plt.ylim((min(y)*0.9,gompertz_Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('log_recovered.png', dpi=DPI)
+plt.savefig('Plots/log_recovered.png', dpi=DPI)
 plt.show()
 
 
@@ -605,7 +605,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Increase of recovered people per day")
 plt.ylim((min(Y3)*0.9,3*max([logistic_derivative(i,logistic_ParD) for i in xTOT])*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('derivatives_recovered.png', dpi=DPI)
+plt.savefig('Plots/derivatives_recovered.png', dpi=DPI)
 plt.show()
 
 
@@ -640,7 +640,7 @@ plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Total number of recovered people")
 plt.ylim((min(y)*0.9,gompertz_Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('predictions_recovered.png', dpi=DPI)
+plt.savefig('Plots/predictions_recovered.png', dpi=DPI)
 plt.show()
 
 

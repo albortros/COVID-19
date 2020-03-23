@@ -57,10 +57,14 @@ class GP:
         return self._prior[self._datarange:]
     
     def pred(self, fxdata):
-        # check the prior was retrieved, because this function assumes
-        # a fit was done with the prior to obtain fxdata
-        assert not (self._prior is None)
-
+        # This function is tipically used when fxdata has been obtained from
+        # a fit using the prior. However, since the prior-posterior
+        # correlations actually cancel in the normal approximation, all this
+        # works even if the posterior was obtained "manually" and is not
+        # keeping track of correlations with the prior. So, it makes sense to
+        # allow the prior gvar to not have been generated explicitly.
+        self._makeprior()
+        
         # check there are x to predict
         assert self._datarange < len(self._cov)
         

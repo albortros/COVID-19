@@ -5,13 +5,18 @@ import numpy as np
 import gvar
 
 xdata = np.linspace(0, 10, 10)
-xpred = np.linspace(-15, 25, 1000)
+xpred = np.linspace(-15, 25, 300)
 y = np.sin(xdata)
 yerr = 0.05
 gp = lsqfitgp.GP(xdata, lsqfitgp.ExpQuad(scale=3), xpred=xpred)
 
 m, cov = gp.fitpredraw(y, yerr)
 s = np.sqrt(np.diag(cov))
+
+# ypred = gp.fitpred(gvar.gvar(y, yerr * np.ones(len(y))))
+# m = gvar.mean(ypred)
+# cov = gvar.evalcov(ypred)
+# s = gvar.sdev(ypred)
 
 fig = plt.figure('testgp')
 fig.clf()

@@ -7,9 +7,9 @@ import gvar
 plot_simulated_lines = False
 
 xdata = np.linspace(0, 10, 10)
-xpred = np.linspace(-5, 15, 300)
+xpred = np.linspace(-15, 25, 300)
 
-gp = lsqfitgp.GP(xdata, lsqfitgp.ExpQuad(scale=2.5) + 0.05**2 * lsqfitgp.Matern12(), xpred=xpred)
+gp = lsqfitgp.GP(xdata, lsqfitgp.Periodic(outerscale=1) + 0.05**2 * lsqfitgp.Matern12(), xpred=xpred)
 
 true_par = dict(
     phi=np.sin(xdata),

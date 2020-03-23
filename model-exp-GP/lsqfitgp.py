@@ -117,6 +117,27 @@ class GP:
         mean, cov = self.predraw(fxdata_mean, fxdata_cov)
         return gvar.gvar(mean, cov)
         
+    def fitpred(self, y):
+        self._makeprior()
+        
+        # check there are x to predict
+        assert self._datarange < len(self._cov)
+        
+        # check y
+        y = np.asarray(y)
+        assert len(y.shape) == 1
+        assert len(y) == self._datarange
+        S = gvar.evalcov(y)
+        
+        # compute things
+        Kxsx = self._cov[self._datarange:, :self._datarange]
+        Kxx = self._cov[:self._datarange, :self._datarange]
+        yp = self._prior[:self._datarange]
+        ysp = self._prior[self._datarange:]
+        U = Kxx + S
+        
+        return Kxsx @ gvar.linalg.solve(U, y - yp) + ysp
+    
     def fitpredraw(self, y, yerr=None):
         # check there are x to predict
         assert self._datarange < len(self._cov)
@@ -143,12 +164,18 @@ class GP:
         Kxxs = self._cov[:self._datarange, self._datarange:]
         Kxx = self._cov[:self._datarange, :self._datarange]
         Kxsxs = self._cov[self._datarange:, self._datarange:]
-        Kxx += S
-        A = linalg.solve(Kxx, Kxxs, assume_a='pos').T
-        cov = Kxsxs - Kxxs.T @ A.T
-        mean = A @ y
+        U = Kxx + S
+        B = linalg.solve(U, Kxxs, assume_a='pos').T
+        cov = Kxsxs - Kxxs.T @ B.T
+        mean = B @ y
         
         return mean, cov
+    
+    def fitpredalt(self, y):
+        y_mean = gvar.mean(y)
+        y_cov = gvar.evalcov(gvar.gvar(y))
+        mean, cov = self.fitpredraw(y_mean, y_cov)
+        return gvar.gvar(mean, cov)
 
 class Kernel:
     
@@ -190,7 +217,8 @@ class Kernel:
     
     def __pow__(self, value):
         if np.isscalar(value):
-            assert np.isnan(value) or value >= 0
+            assert np.isfinite(value)
+            assert value >= 0
             return Kernel(lambda x, y: self._kernel(x, y) ** value)
         else:
             return NotImplemented
@@ -265,6 +293,14 @@ def Wiener(x, y):
 def VarScale(x, y, scalefun=None):
     sx = scalefun(x)
     sy = scalefun(y)
+    assert np.all(sx > 0)
+    assert np.all(sy > 0)
     denom = sx ** 2 + sy ** 2
     factor = np.sqrt(2 * sx * sy / denom)
     return factor * np.exp(-(x - y) ** 2 / denom)
+
+@isotropickernel
+def Periodic(r, outerscale=None):
+    assert np.isscalar(outerscale)
+    assert outerscale > 0
+    return np.exp(-2 * np.sin(r / 2) ** 2 / outerscale ** 2)

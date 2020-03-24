@@ -2,9 +2,7 @@
 
 Models of COVID-19 spread in Italy.
 
-## Structure
-
-### Data
+## Data
 
 We have a clone of the [official Civil Protection
 repository](https://github.com/pcm-dpc/COVID-19) in `pcm-dpc-COVID-19`
@@ -15,7 +13,7 @@ region-wise Chinese data.
 
 Other data shared by different models is in `shared_data/`.
 
-### Models
+## Models
   
 A directory for each model with name starting with `model`. In practice
 different people work on different models and mess in their own directory
@@ -34,7 +32,7 @@ versions. It is not fundamental that your code can be executed by someone else,
 as long as you can run it with new data every day and have the output in the
 same format as the others.
 
-#### Model list
+### Model list
 
   * `model-SIR-by-region-bayes`: least squares SIR per region, poisson errors,
     weak prior on the population.
@@ -46,7 +44,7 @@ same format as the others.
   
   * `model-Gompertz`: fit the national data with Gompertz curves. 
 
-### Predictions
+## Predictions
   
 A directory `predictions` for model prediction output in a common format.
 
@@ -55,7 +53,7 @@ for each model and for each subsequent day. So, the directory day is the day in
 which the models were run, i.e. it represents the data date, while inside there
 are files for each model with the predictions for future dates.
 
-#### dati-regioni
+### dati-regioni
 
 We have in each date directory a directory `dati-regioni` which contains one
 `csv` file for each model with regional data (Trento and Bolzano are treated as
@@ -75,10 +73,25 @@ If the fields `*guariti_or_deceduti` are missing it tries to deduce it from
 other fields, the last fallback is using `totale_casi` and
 `totale_attualmente_positivi`.
 
-#### dati-andamento-nazionale
+### dati-andamento-nazionale
 
 Much like `dati-regioni`, but uses predictions at national level. The script
 to run is `plot-dati-andamento-nazionale.py`.
+
+## Plots
+
+We do not save plots in this repository. The plots are on the shared Google
+Drive folder. The plots in the shared folder must have the following format:
+
+```
+    2020-XX-XX-Name-etc.ext
+```
+
+where `Name` is the name of who made the plot.
+
+There is a script `copyplots.py`, both here and on Drive, that scans
+recursively the current directory for image files, reporting those that do not
+follow the format, and can optionally copy the valid ones to a given directory.
 
 ## Links
 

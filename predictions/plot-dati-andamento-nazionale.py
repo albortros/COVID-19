@@ -137,6 +137,6 @@ for directory in directories:
     fig.tight_layout()
     
     # Save figure.
-    plotfile = f'{directory}/plot.png'
+    plotfile = f'{directory}/{directory.replace("/", "-Giacomo-")}.png'
     print(f'Saving plot in {plotfile}...')
     fig.savefig(plotfile)

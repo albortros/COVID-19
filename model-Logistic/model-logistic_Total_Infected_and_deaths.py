@@ -43,8 +43,8 @@ def logistic_derivative(x,Par):
 #Plot name format:
 path='Plots/'
 tday=dt.date.today()
-DATE = tday.strftime("%d-%m-%Y")
-name='-jacopo'
+DATE = tday.strftime("%Y-%m-%d")
+name='-Jacopo'
 model='-model-logistic'
 case=['-infected','-deaths','-recovered']
 types=['-linear','-log','-ratios','-derivative']
@@ -199,7 +199,7 @@ plt.fill_between(list(X)+pred_x,Ymin,Ymax,facecolor='blue', alpha = 0.3 )
 plt.legend()
 plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Increase of infected people")
-plt.ylim((min(Y3)*0.9,max([logistic_derivative(i,fit_derivative[0]) for i in list(X)+pred_x])*1.1))
+plt.ylim((min(Y3)*0.9,max([logistic_derivative(i,fit_derivative[0]) for i in list(X)+pred_x])*1.3))
 plt.grid(linestyle='--',which='both')
 plt.savefig(namefile+case[0]+types[3]+region+ext, dpi=DPI)
 
@@ -365,7 +365,7 @@ plt.fill_between(list(X)+pred_x,YminD,YmaxD,facecolor='blue', alpha = 0.3 )
 plt.legend()
 plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Increase of dead people")
-plt.ylim((min(Y3)*0.9,max([logistic_derivative(i,fit_derivative[0]) for i in list(X)+pred_x])*1.1))
+plt.ylim((min(Y3)*0.9,max([logistic_derivative(i,fit_derivative[0]) for i in list(X)+pred_x])*1.3))
 plt.grid(linestyle='--',which='both')
 plt.savefig(namefile+case[1]+types[3]+region+ext, dpi=DPI)
 
@@ -510,7 +510,7 @@ plt.fill_between(list(X)+pred_x,YminD,YmaxD,facecolor='blue', alpha = 0.3 )
 plt.legend()
 plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Increase of recovered people")
-plt.ylim((min(Y3)*0.9,max([logistic_derivative(i,fit_derivative[0]) for i in list(X)+pred_x])*1.1))
+plt.ylim((min(Y3)*0.9,max([logistic_derivative(i,fit_derivative[0]) for i in list(X)+pred_x])*1.5))
 plt.grid(linestyle='--',which='both')
 plt.savefig(namefile+case[2]+types[3]+region+ext, dpi=DPI)
 

@@ -8,6 +8,7 @@ Created on Fri Mar 20 09:23:34 2020
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import datetime as dt
 from sklearn.metrics import mean_squared_error
 from scipy.optimize import curve_fit
 from scipy.optimize import fsolve
@@ -22,6 +23,8 @@ SIZE=100
 
 #when MED method needed
 alphasigma=0.67449
+
+NumberOfDaysPredicted=14
 
 # Define analytical model
 def gompertz_model(x,a,b,c):
@@ -50,6 +53,22 @@ def logistic_model_derivative(x,a,b,c):
 
 def logistic_derivative(x,Par):
     return Par[0]*Par[2]*np.exp(-Par[0]*(x-Par[1]))/(1+np.exp(-(x-Par[1])*Par[0]))**2
+
+
+#Plot name format:
+path='Plots/'
+tday=dt.date.today()
+DATE = tday.strftime("%d-%m-%Y")
+name='-jacopo'
+model='-model-gompertz'
+case=['-infected','-deaths','-recovered']
+types=['-log','-derivative']
+region='-italia'
+ext='.png'
+
+namefile=path+DATE+name+model
+
+
 
 # Prendiamo i dati da Github
 url = "https://raw.githubusercontent.com/pcm-dpc/COVID-19/master/dati-andamento-nazionale/dpc-covid19-ita-andamento-nazionale.csv"
@@ -109,50 +128,36 @@ print('chi2r logistic = ', chi2_logistic_infected/DOF)
 #Fit with error bands
 Ymin_gompertz=np.array([gompertz(i,gompertz_Par) for i in xTOT])-np.array(std_fit_gompertz)
 Ymax_gompertz=np.array([gompertz(i,gompertz_Par) for i in xTOT])+np.array(std_fit_gompertz)
-
 Ymin_logistic=np.array([logistic(i,logistic_Par) for i in xTOT])-np.array(std_fit_logistic)
 Ymax_logistic=np.array([logistic(i,logistic_Par) for i in xTOT])+np.array(std_fit_logistic)
 
-##Lo commento perche nel caso di Gompletz l'asintoto_G>>asintoto_logistico, serve la semilog
-## Plot andamento
-#plt.rcParams['figure.figsize'] = [9, 9]
-#plt.rc('font', size=16)
-#plt.figure('Infected')
-##Dati
-#plt.errorbar(x, y, yerr=YERR, fmt='o',color="red", alpha=0.75,label="Data" )
-##Andamenti
-#plt.plot(xTOT, [logistic(i,logistic_Par) for i in xTOT], label="Logistic model" )
-#plt.plot(xTOT, [gompertz(i,gompertz_Par) for i in xTOT], label="Gompertz model" )
-#plt.fill_between(xTOT, [gompertz(i,ParMAX_gompertz) for i in xTOT],[gompertz(i,ParMIN_gompertz) for i in xTOT],facecolor='blue', alpha = 0.3 )
-##plt.plot(xTOT, [exponential_model(i,exp_fit[0][0],exp_fit[0][1],exp_fit[0][2]) for i in xTOT], label="Exponential model" )
-#plt.legend()
-#plt.xlabel("Days since 1 January 2020")
-#plt.ylabel("Total number of infected people")
-#plt.ylim((min(y)*0.9,gompertz_Par[2]*1.1))
-#plt.grid(linestyle='--',which='both')
-#plt.show()
+# Predictions
+Xpredicted=[ii+max(x) for ii in range(1,NumberOfDaysPredicted+1)]
+Ypredicted_gompertz=[gompertz(ii,gompertz_Par) for ii in Xpredicted]
+Ypredicted_logistic=[logistic(ii,logistic_Par) for ii in Xpredicted]
+YPERR_gompertz = np.array([std_fit_gompertz[i] for i in range(len(x),len(x)+NumberOfDaysPredicted)])
+YPERR_logistic = np.array([std_fit_logistic[i] for i in range(len(x),len(x)+NumberOfDaysPredicted)])
 
-#Log Plot
-plt.figure('log_infected')
-# Real data
-plt.grid()
-# plt.scatter(x,y,label="Real data",color="red")
-plt.errorbar(x, y, yerr=YERR, fmt='o',color="red",label="Data",alpha=0.6 )
-# Predicted logistic curve
-plt.semilogy(xTOT, [logistic(i,logistic_Par) for i in xTOT], label="Logistic model",color='green' )
-plt.semilogy(xTOT, [gompertz(i,gompertz_Par) for i in xTOT], label="Gompertz model",color='blue')
-# Predicted exponential curve
-plt.semilogy(xTOT, [exponential_model(i,exp_fit[0][0],exp_fit[0][1],exp_fit[0][2]) for i in xTOT], label="Exponential model" )
+Ypredicted_gompertz_infected=Ypredicted_gompertz
+YPERR_gompertz_infected=YPERR_gompertz
+
+#Plot with predictions
+plt.figure('predictions_infected')
+plt.errorbar(x, y, yerr=YERR, fmt='o',color="red", alpha=0.75,label="Data" )
+plt.errorbar(Xpredicted,Ypredicted_gompertz, yerr=YPERR_gompertz, fmt='o',color="orange", alpha=0.5,label="Gompertz predictions ({} days)".format(NumberOfDaysPredicted) )
+plt.errorbar(Xpredicted,Ypredicted_logistic, yerr=YPERR_logistic, fmt='o',color="green", alpha=0.5,label="Logistic predictions ({} days)".format(NumberOfDaysPredicted) )
 plt.fill_between(xTOT,Ymin_gompertz,Ymax_gompertz,facecolor='blue', alpha = 0.3 )
 plt.fill_between(xTOT,Ymin_logistic,Ymax_logistic,facecolor='blue', alpha = 0.3 )
-
+plt.semilogy(xTOT, [gompertz(i,gompertz_Par) for i in xTOT], 'b',label="Gompertz model" )
+plt.semilogy(xTOT, [logistic(i,logistic_Par) for i in xTOT], 'green',label="Logistic model" )
 plt.legend()
 plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Total number of infected people")
 plt.ylim((min(y)*0.9,gompertz_Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('Plots/log_infected.png', dpi=DPI)
+plt.savefig(namefile+case[0]+types[0]+region+ext, dpi=DPI)
 plt.show()
+
 
 
 # differences: derivatives
@@ -168,7 +173,6 @@ gompertz_fit_derivative    = curve_fit(gompertz_model_derivative,x,Y3,gompertz_P
 gompertz_ParD              = gompertz_fit_derivative[0]
 gompertz_CovD              = gompertz_fit_derivative[1]
 gompertz_simulated_par_D   = np.random.multivariate_normal(gompertz_ParD, gompertz_CovD, size=SIZE)
-#print(gompertz_simulated_par_D,'\n')
 gompertz_simulated_curve_D = np.array([[gompertz_derivative(ii,par) for ii in xTOT] for par in gompertz_simulated_par_D])
 gompertz_std_fit_D         = np.std(gompertz_simulated_curve_D, axis=0)
 gompertz_YminD             = np.array([gompertz_derivative(i,gompertz_ParD) for i in xTOT])-np.array(gompertz_std_fit_D)
@@ -187,67 +191,20 @@ logistic_YmaxD             = np.array([logistic_derivative(i,logistic_ParD) for 
 #for par in gompertz_simulated_par_D:
 #    plt.plot(xTOT,[gompertz_derivative(ii,par) for ii in xTOT])
 #plt.show()
-# Real data
+
 plt.figure('derivatives_infected')
 plt.errorbar(x, Y3, yerr=ERRY3, fmt='o',color="red", alpha=0.75,label="Data" )
-# Predicted logistic curve
 plt.plot(xTOT, [logistic_derivative(i,logistic_ParD) for i in xTOT], label="Logistic model derivative" )
 plt.fill_between(xTOT,logistic_YminD,logistic_YmaxD,facecolor='blue', alpha = 0.3 )
-
 plt.plot(xTOT, [gompertz_derivative(i,gompertz_ParD) for i in xTOT], label="Gompertz model derivative" )
 plt.fill_between(xTOT,gompertz_YminD,gompertz_YmaxD,facecolor='blue', alpha = 0.3 )
-
 plt.legend()
 plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Increase of infected people per day")
 plt.ylim((min(Y3)*0.9,3*max([logistic_derivative(i,logistic_ParD) for i in xTOT])*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('Plots/derivatives_infected.png', dpi=DPI)
+plt.savefig(namefile+case[0]+types[1]+region+ext, dpi=DPI)
 plt.show()
-
-
-
-
-# Predictions
-NumberOfDaysPredicted=14
-Xpredicted=[ii+max(x) for ii in range(1,NumberOfDaysPredicted+1)]
-Ypredicted_gompertz=[gompertz(ii,gompertz_Par) for ii in Xpredicted]
-Ypredicted_logistic=[logistic(ii,logistic_Par) for ii in Xpredicted]
-#Ymin_gompertz=[gompertz(i,ParMAX_gompertz) for i in xTOT]
-#Ymax_gompertz=[gompertz(i,ParMIN_gompertz) for i in xTOT]
-YPERR_gompertz = np.array([std_fit_gompertz[i] for i in range(len(x),len(x)+NumberOfDaysPredicted)])
-YPERR_logistic = np.array([std_fit_logistic[i] for i in range(len(x),len(x)+NumberOfDaysPredicted)])
-
-Ypredicted_gompertz_infected=Ypredicted_gompertz
-YPERR_gompertz_infected=YPERR_gompertz
-
-#Plot with predictions
-plt.figure('predictions_infected')
-# plt.scatter(x,y,label="Real data",color="red",linestyle="None")
-plt.errorbar(x, y, yerr=YERR, fmt='o',color="red", alpha=0.75,label="Data" )
-plt.errorbar(Xpredicted,Ypredicted_gompertz, yerr=YPERR_gompertz, fmt='o',color="orange", alpha=0.5,label="Gompertz predictions ({} days)".format(NumberOfDaysPredicted) )
-plt.errorbar(Xpredicted,Ypredicted_logistic, yerr=YPERR_logistic, fmt='o',color="green", alpha=0.5,label="Logistic predictions ({} days)".format(NumberOfDaysPredicted) )
-# Predicted logistic curve
-plt.fill_between(xTOT,Ymin_gompertz,Ymax_gompertz,facecolor='blue', alpha = 0.3 )
-plt.fill_between(xTOT,Ymin_logistic,Ymax_logistic,facecolor='blue', alpha = 0.3 )
-plt.semilogy(xTOT, [gompertz(i,gompertz_Par) for i in xTOT], 'b',label="Gompertz model" )
-plt.semilogy(xTOT, [logistic(i,logistic_Par) for i in xTOT], 'green',label="Logistic model" )
-plt.legend()
-plt.xlabel("Days since 1 January 2020")
-plt.ylabel("Total number of infected people")
-plt.ylim((min(y)*0.9,gompertz_Par[2]*1.1))
-plt.grid(linestyle='--',which='both')
-plt.savefig('Plots/predictions_infected.png', dpi=DPI)
-plt.show()
-
-
-
-
-
-
-
-
-
 
 
 
@@ -316,45 +273,31 @@ Ymax_gompertz=np.array([gompertz(i,gompertz_Par) for i in xTOT])+np.array(std_fi
 Ymin_logistic=np.array([logistic(i,logistic_Par) for i in xTOT])-np.array(std_fit_logistic)
 Ymax_logistic=np.array([logistic(i,logistic_Par) for i in xTOT])+np.array(std_fit_logistic)
 
-##Lo commento perche nel caso di Gompletz l'asintoto_G>>asintoto_logistico, serve la semilog
-## Plot andamento
-#plt.rcParams['figure.figsize'] = [9, 9]
-#plt.rc('font', size=16)
-#plt.figure('Infected')
-##Dati
-#plt.errorbar(x, y, yerr=YERR, fmt='o',color="red", alpha=0.75,label="Data" )
-##Andamenti
-#plt.plot(xTOT, [logistic(i,logistic_Par) for i in xTOT], label="Logistic model" )
-#plt.plot(xTOT, [gompertz(i,gompertz_Par) for i in xTOT], label="Gompertz model" )
-#plt.fill_between(xTOT, [gompertz(i,ParMAX_gompertz) for i in xTOT],[gompertz(i,ParMIN_gompertz) for i in xTOT],facecolor='blue', alpha = 0.3 )
-##plt.plot(xTOT, [exponential_model(i,exp_fit[0][0],exp_fit[0][1],exp_fit[0][2]) for i in xTOT], label="Exponential model" )
-#plt.legend()
-#plt.xlabel("Days since 1 January 2020")
-#plt.ylabel("Total number of infected people")
-#plt.ylim((min(y)*0.9,gompertz_Par[2]*1.1))
-#plt.grid(linestyle='--',which='both')
-#plt.show()
+# Predictions
+Xpredicted=[ii+max(x) for ii in range(1,NumberOfDaysPredicted+1)]
+Ypredicted_gompertz=[gompertz(ii,gompertz_Par) for ii in Xpredicted]
+Ypredicted_logistic=[logistic(ii,logistic_Par) for ii in Xpredicted]
+YPERR_gompertz = np.array([std_fit_gompertz[i] for i in range(len(x),len(x)+NumberOfDaysPredicted)])
+YPERR_logistic = np.array([std_fit_logistic[i] for i in range(len(x),len(x)+NumberOfDaysPredicted)])
 
-#Log Plot
-plt.figure('log_deaths')
-# Real data
-plt.grid()
-# plt.scatter(x,y,label="Real data",color="red")
-plt.errorbar(x, y, yerr=YERR, fmt='o',color="red",label="Data",alpha=0.6 )
-# Predicted logistic curve
-plt.semilogy(xTOT, [logistic(i,logistic_Par) for i in xTOT], label="Logistic model",color='green' )
-plt.semilogy(xTOT, [gompertz(i,gompertz_Par) for i in xTOT], label="Gompertz model",color='blue')
-# Predicted exponential curve
-plt.semilogy(xTOT, [exponential_model(i,exp_fit[0][0],exp_fit[0][1],exp_fit[0][2]) for i in xTOT], label="Exponential model" )
+Ypredicted_gompertz_deaths=Ypredicted_gompertz
+YPERR_gompertz_deaths=YPERR_gompertz
+
+#Plot with predictions
+plt.figure('predictions_deaths')
+plt.errorbar(x, y, yerr=YERR, fmt='o',color="red", alpha=0.75,label="Data" )
+plt.errorbar(Xpredicted,Ypredicted_gompertz, yerr=YPERR_gompertz, fmt='o',color="orange", alpha=0.5,label="Gompertz predictions ({} days)".format(NumberOfDaysPredicted) )
+plt.errorbar(Xpredicted,Ypredicted_logistic, yerr=YPERR_logistic, fmt='o',color="green", alpha=0.5,label="Logistic predictions ({} days)".format(NumberOfDaysPredicted) )
 plt.fill_between(xTOT,Ymin_gompertz,Ymax_gompertz,facecolor='blue', alpha = 0.3 )
 plt.fill_between(xTOT,Ymin_logistic,Ymax_logistic,facecolor='blue', alpha = 0.3 )
-
+plt.semilogy(xTOT, [gompertz(i,gompertz_Par) for i in xTOT], 'b',label="Gompertz model" )
+plt.semilogy(xTOT, [logistic(i,logistic_Par) for i in xTOT], 'green',label="Logistic model" )
 plt.legend()
 plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Total number of dead people")
 plt.ylim((min(y)*0.9,gompertz_Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('Plots/log_deaths.png', dpi=DPI)
+plt.savefig(namefile+case[1]+types[0]+region+ext, dpi=DPI)
 plt.show()
 
 
@@ -371,7 +314,6 @@ gompertz_fit_derivative    = curve_fit(gompertz_model_derivative,x,Y3,gompertz_P
 gompertz_ParD              = gompertz_fit_derivative[0]
 gompertz_CovD              = gompertz_fit_derivative[1]
 gompertz_simulated_par_D   = np.random.multivariate_normal(gompertz_ParD, gompertz_CovD, size=SIZE)
-#print(gompertz_simulated_par_D,'\n')
 gompertz_simulated_curve_D = [[gompertz_derivative(ii,par) for ii in xTOT] for par in gompertz_simulated_par_D]
 #gompertz_std_fit_D         = np.std(gompertz_simulated_curve_D, axis=0)
 gompertz_std_fit_D         = np.median(np.abs([gompertz_simulated_curve_D[ii] - np.median(gompertz_simulated_curve_D,axis=0) for ii in range(SIZE)]))/alphasigma
@@ -392,57 +334,24 @@ logistic_YmaxD             = np.array([logistic_derivative(i,logistic_ParD) for 
 #    plt.plot(xTOT,[gompertz_derivative(ii,par) for ii in xTOT])
 #plt.show()
 # Real data
+
 plt.figure('derivatives_deaths')
 plt.errorbar(x, Y3, yerr=ERRY3, fmt='o',color="red", alpha=0.75,label="Data" )
-# Predicted logistic curve
 plt.plot(xTOT, [logistic_derivative(i,logistic_ParD) for i in xTOT], label="Logistic model derivative" )
 plt.fill_between(xTOT,logistic_YminD,logistic_YmaxD,facecolor='blue', alpha = 0.3 )
-
 plt.plot(xTOT, [gompertz_derivative(i,gompertz_ParD) for i in xTOT], label="Gompertz model derivative" )
 plt.fill_between(xTOT,gompertz_YminD,gompertz_YmaxD,facecolor='blue', alpha = 0.3 )
-
 plt.legend()
 plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Increase of dead people per day")
 plt.ylim((min(Y3)*0.9,3*max([logistic_derivative(i,logistic_ParD) for i in xTOT])*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('Plots/derivatives_deaths.png', dpi=DPI)
+plt.savefig(namefile+case[1]+types[1]+region+ext, dpi=DPI)
 plt.show()
 
 
 
 
-# Predictions
-NumberOfDaysPredicted=14
-Xpredicted=[ii+max(x) for ii in range(1,NumberOfDaysPredicted+1)]
-Ypredicted_gompertz=[gompertz(ii,gompertz_Par) for ii in Xpredicted]
-Ypredicted_logistic=[logistic(ii,logistic_Par) for ii in Xpredicted]
-#Ymin_gompertz=[gompertz(i,ParMAX_gompertz) for i in xTOT]
-#Ymax_gompertz=[gompertz(i,ParMIN_gompertz) for i in xTOT]
-YPERR_gompertz = np.array([std_fit_gompertz[i] for i in range(len(x),len(x)+NumberOfDaysPredicted)])
-YPERR_logistic = np.array([std_fit_logistic[i] for i in range(len(x),len(x)+NumberOfDaysPredicted)])
-
-Ypredicted_gompertz_deaths=Ypredicted_gompertz
-YPERR_gompertz_deaths=YPERR_gompertz
-
-#Plot with predictions
-plt.figure('predictions_deaths')
-# plt.scatter(x,y,label="Real data",color="red",linestyle="None")
-plt.errorbar(x, y, yerr=YERR, fmt='o',color="red", alpha=0.75,label="Data" )
-plt.errorbar(Xpredicted,Ypredicted_gompertz, yerr=YPERR_gompertz, fmt='o',color="orange", alpha=0.5,label="Gompertz predictions ({} days)".format(NumberOfDaysPredicted) )
-plt.errorbar(Xpredicted,Ypredicted_logistic, yerr=YPERR_logistic, fmt='o',color="green", alpha=0.5,label="Logistic predictions ({} days)".format(NumberOfDaysPredicted) )
-# Predicted logistic curve
-plt.fill_between(xTOT,Ymin_gompertz,Ymax_gompertz,facecolor='blue', alpha = 0.3 )
-plt.fill_between(xTOT,Ymin_logistic,Ymax_logistic,facecolor='blue', alpha = 0.3 )
-plt.semilogy(xTOT, [gompertz(i,gompertz_Par) for i in xTOT], 'b',label="Gompertz model" )
-plt.semilogy(xTOT, [logistic(i,logistic_Par) for i in xTOT], 'green',label="Logistic model" )
-plt.legend()
-plt.xlabel("Days since 1 January 2020")
-plt.ylabel("Total number of dead people")
-plt.ylim((min(y)*0.9,gompertz_Par[2]*1.1))
-plt.grid(linestyle='--',which='both')
-plt.savefig('Plots/predictions_deaths.png', dpi=DPI)
-plt.show()
 
 
 
@@ -514,46 +423,36 @@ Ymax_gompertz=np.array([gompertz(i,gompertz_Par) for i in xTOT])+np.array(std_fi
 Ymin_logistic=np.array([logistic(i,logistic_Par) for i in xTOT])-np.array(std_fit_logistic)
 Ymax_logistic=np.array([logistic(i,logistic_Par) for i in xTOT])+np.array(std_fit_logistic)
 
-##Lo commento perche nel caso di Gompletz l'asintoto_G>>asintoto_logistico, serve la semilog
-## Plot andamento
-#plt.rcParams['figure.figsize'] = [9, 9]
-#plt.rc('font', size=16)
-#plt.figure('Infected')
-##Dati
-#plt.errorbar(x, y, yerr=YERR, fmt='o',color="red", alpha=0.75,label="Data" )
-##Andamenti
-#plt.plot(xTOT, [logistic(i,logistic_Par) for i in xTOT], label="Logistic model" )
-#plt.plot(xTOT, [gompertz(i,gompertz_Par) for i in xTOT], label="Gompertz model" )
-#plt.fill_between(xTOT, [gompertz(i,ParMAX_gompertz) for i in xTOT],[gompertz(i,ParMIN_gompertz) for i in xTOT],facecolor='blue', alpha = 0.3 )
-##plt.plot(xTOT, [exponential_model(i,exp_fit[0][0],exp_fit[0][1],exp_fit[0][2]) for i in xTOT], label="Exponential model" )
-#plt.legend()
-#plt.xlabel("Days since 1 January 2020")
-#plt.ylabel("Total number of infected people")
-#plt.ylim((min(y)*0.9,gompertz_Par[2]*1.1))
-#plt.grid(linestyle='--',which='both')
-#plt.show()
+# Predictions
+NumberOfDaysPredicted=14
+Xpredicted=[ii+max(x) for ii in range(1,NumberOfDaysPredicted+1)]
+Ypredicted_gompertz=[gompertz(ii,gompertz_Par) for ii in Xpredicted]
+Ypredicted_logistic=[logistic(ii,logistic_Par) for ii in Xpredicted]
+YPERR_gompertz = np.array([std_fit_gompertz[i] for i in range(len(x),len(x)+NumberOfDaysPredicted)])
+YPERR_logistic = np.array([std_fit_logistic[i] for i in range(len(x),len(x)+NumberOfDaysPredicted)])
 
-#Log Plot
-plt.figure('log_recovered')
-# Real data
-plt.grid()
-# plt.scatter(x,y,label="Real data",color="red")
-plt.errorbar(x, y, yerr=YERR, fmt='o',color="red",label="Data",alpha=0.6 )
-# Predicted logistic curve
-plt.semilogy(xTOT, [logistic(i,logistic_Par) for i in xTOT], label="Logistic model",color='green' )
-plt.semilogy(xTOT, [gompertz(i,gompertz_Par) for i in xTOT], label="Gompertz model",color='blue')
-# Predicted exponential curve
-plt.semilogy(xTOT, [exponential_model(i,exp_fit[0][0],exp_fit[0][1],exp_fit[0][2]) for i in xTOT], label="Exponential model" )
+Ypredicted_gompertz_recovered=Ypredicted_gompertz
+YPERR_gompertz_recovered=YPERR_gompertz
+
+#Plot with predictions
+plt.figure('predictions_recovered')
+plt.errorbar(x, y, yerr=YERR, fmt='o',color="red", alpha=0.75,label="Data" )
+plt.errorbar(Xpredicted,Ypredicted_gompertz, yerr=YPERR_gompertz, fmt='o',color="orange", alpha=0.5,label="Gompertz predictions ({} days)".format(NumberOfDaysPredicted) )
+plt.errorbar(Xpredicted,Ypredicted_logistic, yerr=YPERR_logistic, fmt='o',color="green", alpha=0.5,label="Logistic predictions ({} days)".format(NumberOfDaysPredicted) )
 plt.fill_between(xTOT,Ymin_gompertz,Ymax_gompertz,facecolor='blue', alpha = 0.3 )
 plt.fill_between(xTOT,Ymin_logistic,Ymax_logistic,facecolor='blue', alpha = 0.3 )
-
+plt.semilogy(xTOT, [gompertz(i,gompertz_Par) for i in xTOT], 'b',label="Gompertz model" )
+plt.semilogy(xTOT, [logistic(i,logistic_Par) for i in xTOT], 'green',label="Logistic model" )
 plt.legend()
 plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Total number of recovered people")
 plt.ylim((min(y)*0.9,gompertz_Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('Plots/log_recovered.png', dpi=DPI)
+plt.savefig(namefile+case[2]+types[0]+region+ext, dpi=DPI)
 plt.show()
+
+
+
 
 
 # differences: derivatives
@@ -590,60 +489,21 @@ logistic_YmaxD             = np.array([logistic_derivative(i,logistic_ParD) for 
 #for par in gompertz_simulated_par_D:
 #    plt.plot(xTOT,[gompertz_derivative(ii,par) for ii in xTOT])
 #plt.show()
+
 # Real data
 plt.figure('derivatives_recovered')
 plt.errorbar(x, Y3, yerr=ERRY3, fmt='o',color="red", alpha=0.75,label="Data" )
-# Predicted logistic curve
 plt.plot(xTOT, [logistic_derivative(i,logistic_ParD) for i in xTOT], label="Logistic model derivative" )
 plt.fill_between(xTOT,logistic_YminD,logistic_YmaxD,facecolor='blue', alpha = 0.3 )
-
 plt.plot(xTOT, [gompertz_derivative(i,gompertz_ParD) for i in xTOT], label="Gompertz model derivative" )
 plt.fill_between(xTOT,gompertz_YminD,gompertz_YmaxD,facecolor='blue', alpha = 0.3 )
-
 plt.legend()
 plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Increase of recovered people per day")
 plt.ylim((min(Y3)*0.9,3*max([logistic_derivative(i,logistic_ParD) for i in xTOT])*1.1))
 plt.grid(linestyle='--',which='both')
-plt.savefig('Plots/derivatives_recovered.png', dpi=DPI)
+plt.savefig(namefile+case[2]+types[1]+region+ext, dpi=DPI)
 plt.show()
-
-
-
-
-# Predictions
-NumberOfDaysPredicted=14
-Xpredicted=[ii+max(x) for ii in range(1,NumberOfDaysPredicted+1)]
-Ypredicted_gompertz=[gompertz(ii,gompertz_Par) for ii in Xpredicted]
-Ypredicted_logistic=[logistic(ii,logistic_Par) for ii in Xpredicted]
-#Ymin_gompertz=[gompertz(i,ParMAX_gompertz) for i in xTOT]
-#Ymax_gompertz=[gompertz(i,ParMIN_gompertz) for i in xTOT]
-YPERR_gompertz = np.array([std_fit_gompertz[i] for i in range(len(x),len(x)+NumberOfDaysPredicted)])
-YPERR_logistic = np.array([std_fit_logistic[i] for i in range(len(x),len(x)+NumberOfDaysPredicted)])
-
-Ypredicted_gompertz_recovered=Ypredicted_gompertz
-YPERR_gompertz_recovered=YPERR_gompertz
-
-#Plot with predictions
-plt.figure('predictions_recovered')
-# plt.scatter(x,y,label="Real data",color="red",linestyle="None")
-plt.errorbar(x, y, yerr=YERR, fmt='o',color="red", alpha=0.75,label="Data" )
-plt.errorbar(Xpredicted,Ypredicted_gompertz, yerr=YPERR_gompertz, fmt='o',color="orange", alpha=0.5,label="Gompertz predictions ({} days)".format(NumberOfDaysPredicted) )
-plt.errorbar(Xpredicted,Ypredicted_logistic, yerr=YPERR_logistic, fmt='o',color="green", alpha=0.5,label="Logistic predictions ({} days)".format(NumberOfDaysPredicted) )
-# Predicted logistic curve
-plt.fill_between(xTOT,Ymin_gompertz,Ymax_gompertz,facecolor='blue', alpha = 0.3 )
-plt.fill_between(xTOT,Ymin_logistic,Ymax_logistic,facecolor='blue', alpha = 0.3 )
-plt.semilogy(xTOT, [gompertz(i,gompertz_Par) for i in xTOT], 'b',label="Gompertz model" )
-plt.semilogy(xTOT, [logistic(i,logistic_Par) for i in xTOT], 'green',label="Logistic model" )
-plt.legend()
-plt.xlabel("Days since 1 January 2020")
-plt.ylabel("Total number of recovered people")
-plt.ylim((min(y)*0.9,gompertz_Par[2]*1.1))
-plt.grid(linestyle='--',which='both')
-plt.savefig('Plots/predictions_recovered.png', dpi=DPI)
-plt.show()
-
-
 
 
 

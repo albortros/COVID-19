@@ -87,6 +87,7 @@ print(f'Allowed names are {", ".join(allowed_names)}')
 # Iterate over all directories recursively.
 ntotal = 0
 nchecked = 0
+nok = 0
 ncopied = 0
 for dirpath, dirnames, filenames in os.walk('.'):
 
@@ -113,10 +114,10 @@ for dirpath, dirnames, filenames in os.walk('.'):
         if not groups['year'] in {'2020'}:
             eprint(f'invalid year {groups["year"]}')
         
-        if not groups['month'] in map(f'{month:02d}' for month in range(1, 12 + 1)):
+        if not groups['month'] in (f'{month:02d}' for month in range(1, 12 + 1)):
             eprint(f'invalid month {groups["month"]}')
         
-        if not groups['day'] in map(f'{day:02d}' for day in range(1, 31 + 1)):
+        if not groups['day'] in (f'{day:02d}' for day in range(1, 31 + 1)):
             eprint(f'invalid day {groups["day"]}')
         
         if not groups['name'] in allowed_names:
@@ -131,14 +132,15 @@ for dirpath, dirnames, filenames in os.walk('.'):
         
         if problems:
             continue # (`problems` is set True by `eprint`)
+        nok += 1
         
         # Finally, copy the file!
         if targetdir:
             shutil.copy(f'{dirpath}/{filename}', f'{targetdir}/')
-        already_copied_files.add(filename)
-        ncopied += 1
+            ncopied += 1
+            already_copied_files.add(filename)
 
-print(f'Found {ntotal} files, checked {nchecked}, copied {ncopied}')
+print(f'Found {ntotal} files, checked {nchecked}, passed {nok}, copied {ncopied}')
 
-assert ncopied <= nchecked <= ntotal
+assert ncopied <= nok <= nchecked <= ntotal
 assert ncopied == len(already_copied_files)

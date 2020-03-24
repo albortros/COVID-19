@@ -44,30 +44,23 @@ class GP:
         
         # assign instance variables
         self._datarange = len(xdata)
-        self._prior = None
         self._cov = cov
     
-    def _makeprior(self):
-        if self._prior is None:
-            self._prior = gvar.gvar(np.zeros(len(self._cov)), self._cov)
-    
+    @property
+    def _prior(self):
+        # We keep the prior in a gvar.BufferDict, otherwise pickling is a mess.
+        if not hasattr(self, '_bufferdict'):
+            prior = gvar.gvar(np.zeros(len(self._cov)), self._cov)
+            self._bufferdict = gvar.BufferDict(prior=prior)
+        return self._bufferdict['prior']
+
     def prior(self):
-        self._makeprior()
         return self._prior[:self._datarange]
     
     def predprior(self):
-        self._makeprior()
         return self._prior[self._datarange:]
     
     def pred(self, fxdata):
-        # This function is tipically used when fxdata has been obtained from
-        # a fit using the prior. However, since the prior-posterior
-        # correlations actually cancel in the normal approximation, all this
-        # works even if the posterior was obtained "manually" and is not
-        # keeping track of correlations with the prior. So, it makes sense to
-        # allow the prior gvar to not have been generated explicitly.
-        self._makeprior()
-        
         # check there are x to predict
         assert self._datarange < len(self._cov)
         
@@ -118,8 +111,6 @@ class GP:
         return gvar.gvar(mean, cov)
         
     def fitpred(self, y):
-        self._makeprior()
-        
         # check there are x to predict
         assert self._datarange < len(self._cov)
         

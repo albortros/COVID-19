@@ -201,7 +201,7 @@ plt.fill_between(xTOT,gompertz_YminD,gompertz_YmaxD,facecolor='blue', alpha = 0.
 plt.legend()
 plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Increase of infected people per day")
-plt.ylim((min(Y3)*0.9,3*max([logistic_derivative(i,logistic_ParD) for i in xTOT])*1.1))
+plt.ylim((min(Y3)*0.9,1.25*max([gompertz_derivative(i,gompertz_ParD) for i in xTOT])*1.1))
 plt.grid(linestyle='--',which='both')
 plt.savefig(namefile+case[0]+types[1]+region+ext, dpi=DPI)
 plt.show()

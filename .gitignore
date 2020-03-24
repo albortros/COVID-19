@@ -1,3 +1,10 @@
+# python
 *.ipynb_checkpoints
 __pycache__
 *.pyc
+
+# images
+*.pdf
+*.png
+*.jpg
+*.tiff

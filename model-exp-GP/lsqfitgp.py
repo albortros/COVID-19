@@ -44,30 +44,23 @@ class GP:
         
         # assign instance variables
         self._datarange = len(xdata)
-        self._prior = None
         self._cov = cov
     
-    def _makeprior(self):
-        if self._prior is None:
-            self._prior = gvar.gvar(np.zeros(len(self._cov)), self._cov)
-    
+    @property
+    def _prior(self):
+        # We keep the prior in a gvar.BufferDict, otherwise pickling is a mess.
+        if not hasattr(self, '_bufferdict'):
+            prior = gvar.gvar(np.zeros(len(self._cov)), self._cov)
+            self._bufferdict = gvar.BufferDict(prior=prior)
+        return self._bufferdict['prior']
+
     def prior(self):
-        self._makeprior()
         return self._prior[:self._datarange]
     
     def predprior(self):
-        self._makeprior()
         return self._prior[self._datarange:]
     
     def pred(self, fxdata):
-        # This function is tipically used when fxdata has been obtained from
-        # a fit using the prior. However, since the prior-posterior
-        # correlations actually cancel in the normal approximation, all this
-        # works even if the posterior was obtained "manually" and is not
-        # keeping track of correlations with the prior. So, it makes sense to
-        # allow the prior gvar to not have been generated explicitly.
-        self._makeprior()
-        
         # check there are x to predict
         assert self._datarange < len(self._cov)
         
@@ -118,8 +111,6 @@ class GP:
         return gvar.gvar(mean, cov)
         
     def fitpred(self, y):
-        self._makeprior()
-        
         # check there are x to predict
         assert self._datarange < len(self._cov)
         
@@ -265,20 +256,20 @@ Matern32 = isotropickernel(lambda r: (1 + np.sqrt(3) * r) * np.exp(-np.sqrt(3) *
 Matern52 = isotropickernel(lambda r: (1 + np.sqrt(5) * r + 5/3 * r**3) * np.exp(-np.sqrt(5) * r))
 
 @isotropickernel
-def GammaExp(r, gamma=None):
+def GammaExp(r, gamma=1):
     """Gamma exponential"""
     assert np.isscalar(gamma)
     assert 0 < gamma <= 2
     return np.exp(-(r ** gamma))
 
 @isotropickernel
-def RatQuad(r, alpha=None):
+def RatQuad(r, alpha=2):
     assert np.isscalar(alpha)
     assert alpha > 0
     return (1 + r ** 2 / (2 * alpha)) ** (-alpha)
 
 @kernel
-def NNKernel(x, y, sigma0=None):
+def NNKernel(x, y, sigma0=1):
     assert np.isscalar(sigma0)
     assert sigma0 > 0
     q = sigma0 ** 2
@@ -301,7 +292,7 @@ def VarScale(x, y, scalefun=None):
     return factor * np.exp(-(x - y) ** 2 / denom)
 
 @isotropickernel
-def Periodic(r, outerscale=None):
+def Periodic(r, outerscale=1):
     assert np.isscalar(outerscale)
     assert outerscale > 0
     return np.exp(-2 * np.sin(r / 2) ** 2 / outerscale ** 2)

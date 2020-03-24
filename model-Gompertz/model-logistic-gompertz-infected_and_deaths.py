@@ -58,7 +58,7 @@ def logistic_derivative(x,Par):
 #Plot name format:
 path='Plots/'
 tday=dt.date.today()
-DATE = tday.strftime("%d-%m-%Y")
+DATE = tday.strftime("%Y-%m-%d")
 name='-jacopo'
 model='-model-gompertz'
 case=['-infected','-deaths','-recovered']

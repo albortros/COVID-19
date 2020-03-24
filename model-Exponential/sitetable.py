@@ -27,7 +27,7 @@ for code in csv['codice_regione'].unique():
             <td>{row['casi_dopodomani'].sum():+.0f}</td>
         </tr>
         <tr>
-            <td class="leftheader">morti</td>
+            <td class="leftheader">deceduti</td>
             <td>{row['morti_domani'].sum():+.0f}</td>
             <td>{row['morti_dopodomani'].sum():+.0f}</td>
         </tr>

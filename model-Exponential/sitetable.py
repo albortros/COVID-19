@@ -2,7 +2,7 @@ import pandas as pd
 
 outputfile = 'sitetable.html'
 
-csv = pd.read_csv('LocalExp_forecast_regioni_2020-03-22.csv', parse_dates=['data'])
+csv = pd.read_csv('LocalExp_forecast_regioni_2020-03-23-telegram.csv', parse_dates=['data'])
 
 grouped = csv.groupby('codice_regione')
 

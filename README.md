@@ -98,6 +98,8 @@ each country.
 5. [stopCOVID19](https://stopcovid19.neocities.org/index.html) a student group
 from Pisa.
 
+6. [Twitter posts data](https://github.com/thepanacealab/covid19_twitter)
+
 ## Git
 
 In case someone is not used to git: probably the simplest way to use it is the

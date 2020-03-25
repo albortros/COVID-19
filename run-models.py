@@ -5,6 +5,10 @@ import sys
 
 @contextlib.contextmanager
 def chdir(dir):
+    """
+    Context manager to change directory that comes back to the original
+    directory if an error interrupts the execution.
+    """
     prev_dir = os.getcwd()
     os.chdir(dir)
     try:
@@ -13,6 +17,9 @@ def chdir(dir):
         os.chdir(prev_dir)
 
 def command(cmd):
+    """
+    Print a command and run it.
+    """
     print('command:', cmd)
     os.system(cmd)
 

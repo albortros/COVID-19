@@ -220,7 +220,10 @@ class IsotropicKernel(Kernel):
         super().__init__(lambda x, y: kernel(np.abs(x - y), **kw), scale=scale)
     
 def makekernel(kernel, superclass):
-    name = 'Specific' + superclass.__name__
+    supername = 'Specific' + superclass.__name__
+    name = getattr(kernel, '__name__', supername)
+    if name == '<lambda>':
+        name = supername
     newclass = type(name, (superclass,), dict(
         __doc__=kernel.__doc__
     ))
@@ -230,10 +233,21 @@ def makekernel(kernel, superclass):
 isotropickernel = lambda kernel: makekernel(kernel, IsotropicKernel)
 kernel = lambda kernel: makekernel(kernel, Kernel)
 
-Constant = isotropickernel(lambda r: np.ones_like(r))
-White = isotropickernel(lambda r: np.where(r == 0, 1, 0))
-Linear = kernel(lambda x, y: x * y)
-ExpQuad = isotropickernel(lambda r: np.exp(-1/2 * r ** 2))
+@isotropickernel
+def Constant(r):
+    return np.ones_like(r)
+    
+@isotropickernel
+def White(r):
+    return np.where(r == 0, 1, 0)
+
+@kernel
+def Linear(x, y):
+    return x * y
+
+@isotropickernel
+def ExpQuad(r):
+    return np.exp(-1/2 * r ** 2)
 
 @kernel
 def Polynomial(x, y, exponent=None, sigma0=1):
@@ -251,13 +265,20 @@ def Matern(r, nu=None):
     out[xpos] = 2 ** (1 - nu) / special.gamma(nu) * x[xpos] ** nu * special.kv(nu, x[xpos])
     return out
 
-Matern12 = isotropickernel(lambda r: np.exp(-r))
-Matern32 = isotropickernel(lambda r: (1 + np.sqrt(3) * r) * np.exp(-np.sqrt(3) * r))
-Matern52 = isotropickernel(lambda r: (1 + np.sqrt(5) * r + 5/3 * r**3) * np.exp(-np.sqrt(5) * r))
+@isotropickernel
+def Matern12(r):
+    return np.exp(-r)
+
+@isotropickernel
+def Matern32(r):
+    return (1 + np.sqrt(3) * r) * np.exp(-np.sqrt(3) * r)
+
+@isotropickernel
+def Matern52(r):
+    return (1 + np.sqrt(5) * r + 5/3 * r**3) * np.exp(-np.sqrt(5) * r)
 
 @isotropickernel
 def GammaExp(r, gamma=1):
-    """Gamma exponential"""
     assert np.isscalar(gamma)
     assert 0 < gamma <= 2
     return np.exp(-(r ** gamma))
@@ -282,7 +303,7 @@ def Wiener(x, y):
     return np.minimum(x, y)
 
 @kernel
-def VarScale(x, y, scalefun=None):
+def Gibbs(x, y, scalefun=None):
     sx = scalefun(x)
     sy = scalefun(y)
     assert np.all(sx > 0)

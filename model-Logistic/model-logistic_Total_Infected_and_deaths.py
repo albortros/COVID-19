@@ -40,18 +40,6 @@ def logistic_model_derivative(x,a,b,c):
 def logistic_derivative(x,Par):
     return Par[0]*Par[2]*np.exp(-Par[0]*(x-Par[1]))/(1+np.exp(-(x-Par[1])*Par[0]))**2
 
-#Plot name format:
-path='Plots/'
-tday=dt.date.today()
-DATE = tday.strftime("%Y-%m-%d")
-name='-Jacopo'
-model='-model-logistic'
-case=['-infected','-deaths','-recovered']
-types=['-linear','-log','-ratios','-derivative']
-region='-italia'
-ext='.png'
-
-namefile=path+DATE+name+model
 
 
 # Prendiamo i dati da Github
@@ -60,7 +48,19 @@ df = pd.read_csv(url)
 df = df.loc[:,['data','totale_casi']]
 FMT = '%Y-%m-%d %H:%M:%S'
 date = df['data']
+DATE = df['data'][len(date)-1][:10]
 df['data'] = date.map(lambda x : (datetime.strptime(x, FMT) - datetime.strptime("2020-01-01 00:00:00", FMT)).days  )
+
+#Plot name format:
+path='Plots/'
+name='-Jacopo'
+model='-model-logistic'
+case=['-infected','-deaths','-recovered']
+types=['-linear','-log','-ratios','-derivative']
+region='-italia'
+ext='.png'
+namefile=path+DATE+name+model
+
 
 x = list(df.iloc[:,0])
 y = list(df.iloc[:,1])

@@ -51,28 +51,27 @@ def exponential_model(x,a,b,c):
 
 
 
-#Plot name format:
-path='Plots/'
-tday=dt.date.today()
-DATE = tday.strftime("%Y-%m-%d")
-name='-jacopo'
-model='-model-gompertz-only'
-case=['-infected','-deaths','-recovered']
-types=['-log','-derivative']
-region='-italia'
-ext='.png'
-
-namefile=path+DATE+name+model
-
-
-
 # Prendiamo i dati da Github
 url = "https://raw.githubusercontent.com/pcm-dpc/COVID-19/master/dati-andamento-nazionale/dpc-covid19-ita-andamento-nazionale.csv"
 df = pd.read_csv(url)
 df = df.loc[:,['data','totale_casi']]
 FMT = '%Y-%m-%d %H:%M:%S'
 date = df['data']
+DATE = df['data'][len(date)-1][:10]
 df['data'] = date.map(lambda x : (datetime.strptime(x, FMT) - datetime.strptime("2020-01-01 00:00:00", FMT)).days  )
+
+
+
+#Plot name format:
+path     ='Plots/'
+name     ='-jacopo'
+model    ='-model-gompertz-only'
+case     =['-infected','-deaths','-recovered']
+types    =['-log','-derivative']
+region   ='-italia'
+ext      ='.png'
+namefile =path+DATE+name+model
+
 
 x = list(df.iloc[:,0])
 y = list(df.iloc[:,1])

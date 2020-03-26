@@ -2,7 +2,7 @@ import pandas as pd
 
 outputfile = 'sitetable.html'
 
-csv = pd.read_csv('LocalExp_forecast_regioni_2020-03-23-telegram.csv', parse_dates=['data'])
+csv = pd.read_csv('LocalExp_forecast_regioni_2020-03-25.csv', parse_dates=['data'])
 
 grouped = csv.groupby('codice_regione')
 
@@ -13,7 +13,7 @@ for code in csv['codice_regione'].unique():
     if code == 4:
         region = 'Trentino-Alto Adige'
     regionid = 'table' + region.replace("'", '').replace(' ','').replace('-', '').lower()
-    output += f"""
+    output += f'''
 <div id="{regionid}" class="predtablediv">
     <table>
         <tr class="header">
@@ -33,7 +33,7 @@ for code in csv['codice_regione'].unique():
         </tr>
     </table>
 </div>
-"""
+'''
 output = output.lstrip()
 
 print(f'Writing output in {outputfile}...')

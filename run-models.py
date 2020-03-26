@@ -38,5 +38,5 @@ for model in models:
         files = glob.glob('fitlsq_*UTC.pickle')
         files.sort()
         file = files[-1]
-        command(f'python3 fitlsqplot.py {file}')
+        # command(f'python3 fitlsqplot.py {file}')
         command(f'python3 fitlsqpred.py {file}')

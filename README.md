@@ -53,30 +53,20 @@ for each model and for each subsequent day. So, the directory day is the day in
 which the models were run, i.e. it represents the data date, while inside there
 are files for each model with the predictions for future dates.
 
+### Plotting
+
+The script `plot.py` can be used to plot all or only requested comparisons
+between data and models. Run `plot.py --help` for command line options.
+
 ### dati-regioni
 
 We have in each date directory a directory `dati-regioni` which contains one
 `csv` file for each model with regional data (Trento and Bolzano are treated as
-separate regions). There is a script `plot-dati-regioni.py` which plots the
-data, using the following fields of the csv:
-
-  * `totale_casi`, `std_totale_casi`,
-  
-  * `totale_attualmente_positivi`, `std_totale_attualmente_positivi`,
-  
-  * `guariti_o_deceduti`, `std_guariti_o_deceduti`.
-  
-The fields starting with `std_` represent the standard deviation of the
-corresponding field.
-  
-If the fields `*guariti_or_deceduti` are missing it tries to deduce it from
-other fields, the last fallback is using `totale_casi` and
-`totale_attualmente_positivi`.
+separate regions).
 
 ### dati-andamento-nazionale
 
-Much like `dati-regioni`, but uses predictions at national level. The script
-to run is `plot-dati-andamento-nazionale.py`.
+Much like `dati-regioni`, but uses predictions at national level.
 
 ## Plots
 
@@ -112,6 +102,9 @@ each country.
 from Pisa.
 
 6. [Twitter posts data](https://github.com/thepanacealab/covid19_twitter)
+
+7. [2002.06563](https://arxiv.org/abs/2002.06563) Chinese article from
+February 16 using generalized SEIR
 
 ## Git
 

@@ -34,9 +34,9 @@ for model in models:
     print(f'--------------- {model} ---------------')
     
     with chdir(model):
-        command('python fitlsq.py')
+        command('python3 fitlsq.py')
         files = glob.glob('fitlsq_*UTC.pickle')
         files.sort()
         file = files[-1]
-        command(f'python fitlsqplot.py {file}')
-        command(f'python fitlsqpred.py {file}')
+        command(f'python3 fitlsqplot.py {file}')
+        command(f'python3 fitlsqpred.py {file}')

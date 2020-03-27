@@ -5,6 +5,7 @@ import autograd
 from autograd import numpy as np
 from autograd.scipy import linalg, special
 import collections
+import itertools
 
 __doc__ = """Module to fit gaussian processes with lsqfit."""
 
@@ -29,6 +30,9 @@ class GP:
     def addx(self, x, key=None, deriv=0):
         if not self._canaddx:
             raise RuntimeError('can not add x any more to this process because it has been used')
+        
+        if isinstance(key, tuple):
+            raise TypeError('key can not be tuple')
         
         deriv = self._checkderiv(deriv)
         
@@ -66,41 +70,57 @@ class GP:
     #     return sum(sum(sum(map(len, l)) for l in d.values()) for d in self._x.values())
     
     def _makeslices(self):
-        slices = collections.defaultdict(dict)
-        xlist = []
-        # slices: label -> (derivative order -> slice)
+        slices = dict()
+        # slices: (key, derivative order) -> slice
         i = 0
         for key, d in self._x.items():
             for deriv, l in d.items():
                 length = sum(map(len, l))
-                slices[key][deriv] = slice(i, i + length)
+                slices[key, deriv] = slice(i, i + length)
                 i += length
-                xlist += l
-        return slices, xlist
+        return slices, i
+    
+    def _covfunderiv(self, xderiv, yderiv):
+        assert isinstance(xderiv, int)
+        assert isinstance(yderiv, int)
+        fun = self._covfun
+        for _ in range(xderiv):
+            fun = autograd.elementwise_grad(fun, 0)
+        for _ in range(yderiv):
+            fun = autograd.elementwise_grad(fun, 1)
+        return fun
     
     def _buildcov(self):
-        assert self._x
+        if not self._x:
+            raise ValueError('process is empty, add values with `addx`')
         self._canaddx = False
         
-        # this must be changed because I have to derivate kernel function for
-        # derivatives
-        self._slices, xlist = self._makeslices()
-        x = np.concatenate(xlist)
+        self._slices, length = self._makeslices()
+        cov = np.empty((length, length))
+        for kdkd in itertools.product(self._slices, repeat=2):
+            xy = [
+                np.concatenate(self._x[key][deriv])
+                for key, deriv in kdkd
+            ]
+            assert len(xy) == 2
+            kernel = self._covfunderiv(kdkd[0][1], kdkd[1][1])
+            slices = [self._slices[k, d] for k, d in kdkd]
+            cov[slices[0], slices[1]] = kernel(xy[0].reshape(-1, 1), xy[1].reshape(1, -1))
         
-        # build covariance matrix and check it is positive definite
-        cov = self._covfun(x.reshape(-1, 1), x.reshape(1, -1))
-        assert isinstance(cov, np.ndarray)
-        assert np.issubdtype(cov.dtype, np.floating)
-        assert cov.shape == (len(x), len(x))
+        # check covariance matrix is positive definite
+        if not np.allclose(cov, cov.T):
+            raise ValueError('covariance matrix is not symmetric')
         eigv = linalg.eigvalsh(cov)
         mineigv = np.min(eigv)
         if mineigv < 0:
-            assert mineigv > -len(cov) * np.finfo(float).eps * np.max(eigv)
+            if mineigv < -len(cov) * np.finfo(float).eps * np.max(eigv):
+                raise ValueError('covariance matrix is not positive definite')
             cov[np.diag_indices(len(cov))] += -mineigv
+            # this is a fast but strong regularization, maybe we could just do
+            # an svd cut
         # since we are diagonalizing, maybe save the transformation and apply
         # it so that lsqfit does not diagonalize it again for the fit.
         
-        # assign instance variables
         return cov
     
     @property 
@@ -115,87 +135,171 @@ class GP:
         # use gvar.BufferDict instead of dict, otherwise pickling is a mess
         if not hasattr(self, '_priordict'):
             flatprior = gvar.gvar(np.zeros(len(self._cov)), self._cov)
+            flatprior.flags['WRITEABLE'] = False
             self._priordict = gvar.BufferDict({
                 (key, deriv): flatprior[s]
-                for key, d in self._slices.items()
-                for deriv, s in d.items()
+                for (key, deriv), s in self._slices.items()
             })
         return self._priordict
-
-    def prior(self, key=None, deriv=None, stripderiv0=None):
-        if not (deriv is None):
-            deriv = self._checkderiv(deriv)
-        
-        if stripderiv0 is None:
-            stripderiv0 = deriv is None
-        stripderiv0 = bool(stripderiv0)
-        
+    
+    def _checkkeyderiv(self, key, deriv):
+        # this method not to be used by addx, and not to check keys in
+        # dictionaries
         if not (key is None):
+            if isinstance(key, tuple):
+                raise TypeError('key can not be tuple')
             if None in self._x:
                 raise ValueError('you have given key but x is array')
             if not key in self._x:
                 raise KeyError(key)
         
-        if key is None and deriv is None:
-            if None in self._x:
-                if len(self._x[None]) == 1 and 0 in self._x[None] and stripderiv0:
-                    return self._prior[None, 0]
+        if not (deriv is None):
+            deriv = self._checkderiv(deriv)
+            if key is None:
+                for k, d in self._slices:
+                    if deriv == d:
+                        break
                 else:
-                    return gvar.BufferDict({
-                        deriv: self._prior[None, deriv]
-                        for deriv in self._x[None]
-                    })
-            elif stripderiv0:
-                return gvar.BufferDict({
-                    (key, deriv) if deriv else key: obj
-                    for (key, deriv), obj in self._prior.items()
-                })
-            else:
-                return self._prior
-                
+                    raise ValueError("there's no derivative {} in process".format(deriv))
+            elif not (deriv in self._x[key]):
+                raise ValueError('no derivative {} for key {}'.format(deriv, key))
+        
+        return key, deriv
+    
+    def _getkeyderivlist(self, key, deriv):
+        if key is None and deriv is None:
+            return list(self._slices)
         elif key is None and not (deriv is None):
-            if None in self._x:
-                return self._prior[None, deriv]
-            else:
-                return gvar.BufferDict({
-                    key: self._prior[key, deriv]
-                    for key in self._x
-                })
-        
+            return [(k, deriv) for k in self._x if deriv in self._x[k]]
         elif not (key is None) and deriv is None:
-            if len(self._x[key]) == 1 and 0 in self._x[key] and stripderiv0:
-                return self._prior[key, 0]
-            else:
-                return gvar.BufferDict({
-                    deriv: self._prior[key, deriv]
-                    for deriv in self._x[key]
-                })
-            
+            return [(key, d) for d in self._x[key]]
         elif not (key is None) and not (deriv is None):
-            return self._prior[key, deriv]
-            
+            return [(key, deriv)]
+        assert False
+    
+    def _stripkeyderiv(self, kdlist, key, deriv, strip0):
+        if strip0 is None:
+            strip0 = deriv is None
+        strip0 = bool(strip0)
+        
+        if None in self._x or not (key is None) and deriv is None:
+            outlist = [d for _, d in kdlist]
+            return [] if outlist == [0] and strip0 else outlist
+        if not (key is None) and not (deriv is None):
+            return []
+        if key is None and not (deriv is None):
+            return [k for k, _ in kdlist]
+        if key is None and deriv is None:
+            return [(k, d) if d else k for k, d in kdlist] if strip0 else kdlist
+        assert False
+
+    def prior(self, key=None, deriv=None, strip0=None):
+        self._prior
+        key, deriv = self._checkkeyderiv(key, deriv)
+        kdlist = self._getkeyderivlist(key, deriv)
+        assert kdlist
+        strippedkd = self._stripkeyderiv(kdlist, key, deriv, strip0)
+        
+        if strippedkd:
+            return gvar.BufferDict({
+                strippedkd[i]: self._prior[kdlist[i]]
+                for i in range(len(kdlist))
+            })
         else:
-            raise 'wtf??'
+            assert len(kdlist) == 1
+            return self._prior[kdlist[0]]
+        
+    def _flatgiven(self, given):
+        if isinstance(given, (list, np.ndarray)):
+            if None in self._x and len(self._x[None]) == 1:
+                given = {(None, *self.x[None]): given}
+            else:
+                raise ValueError('`given` is an array but x has keys and/or multiple derivatives, provide a dictionary')
+            
+        elif not isinstance(given, (dict, gvar.BufferDict)):
+            raise TypeError('`given` must be array or dict')
+        
+        ylist = []
+        yslices = []
+        kdlist = []
+        for k, l in given.items():
+            if isinstance(k, tuple):
+                if len(k) != 2:
+                    raise ValueError('key `{}` from `given` is a tuple but has not length 2')
+                key, deriv = k
+            elif k is None:
+                raise KeyError('None key in `given` not allowed')
+            elif None in self._x:
+                key = None
+                deriv = k
+            else:
+                key = k
+                deriv = 0
+                
+            if not (key in self._x):
+                raise KeyError(key)
+            if deriv != int(deriv) or int(deriv) < 0:
+                raise ValueError('supposed deriv order `{}` is not a nonnegative integer'.format(key, deriv, deriv))
+            if not (deriv in self._x[key]):
+                raise KeyError('derivative {} for key {} missing'.format(key, deriv))
+
+            if not isinstance(l, (list, np.ndarray)):
+                raise TypeError('element `given[{}]` is not list or array'.format(k))
+            s = self._slices[key, deriv]
+            xlen = s.stop - s.start
+            if len(l) != xlen:
+                raise ValueError('`given[{}]` has length {} different from x length {}'.format(k, len(l), xlen))
+        
+            l = np.asarray(l)
+            if not len(l.shape) == 1 and len(l) >= 1:
+                raise ValueError('`given[{}]` is not 1D nonempty array'.formay(k))
+            
+            ylist.append(l)
+            yslices.append(self._slices[key, deriv])
+            kdlist.append((key, deriv))
+            
+        return ylist, yslices, kdlist
     
-    def predprior(self):
-        return self._prior[self._datarange:]
+    def _compatslices(self, sliceslist):
+        i = 0
+        out = []
+        for s in sliceslist:
+            length = s.stop - s.start
+            out.append(slice(i, i + length))
+            i += length
+        return out
     
-    def pred(self, fxdata):
-        # check there are x to predict
-        assert self._datarange < len(self._cov)
+    def predfromfit(self, given, key=None, deriv=None, strip0=None):
+        key, deriv = self._checkkeyderiv(key, deriv)
+        kdlist = self._getkeyderivlist(key, deriv)
+        assert kdlist
+        strippedkd = self._stripkeyderiv(kdlist, key, deriv, strip0)
+        assert strippedkd or len(kdlist) == 1
         
-        # check fxdata
-        y = np.asarray(fxdata)
-        assert len(y.shape) == 1
-        assert len(y) == self._datarange
+        ylist, yslices, inkdl = self._flatgiven(given)
+        cyslices = self._compatslices(yslices)
+        yplist = [self._prior[kd] for kd in inkdl]
         
-        # compute things
-        Kxsx = self._cov[self._datarange:, :self._datarange]
-        Kxx = self._cov[:self._datarange, :self._datarange]
-        yp = self._prior[:self._datarange]
-        ysp = self._prior[self._datarange:]
+        yspslices = [self._slices[kd] for kd in kdlist]
+        cyspslices = self._compatslices(yspslices)
+        ysplist = [self._prior[s] for kd in kdlist]
         
-        return Kxsx @ gvar.linalg.solve(Kxx, y - yp) + ysp
+        y = np.concatenate(ylist)
+        yp = np.concatenate(yplist)
+        ysp = np.concatenate(ysplist)
+        
+        Kxsx = np.nan * np.empty((len(ysp), len(yp)))
+        for ss, css in zip(yspslices, cyspslices):
+            for s, cs in zip(yslices, cyslices):
+                Kxsx[css, cs] = self._cov[ss, s]
+        
+        Kxx = np.nan * np.empty((len(yp), len(yp)))
+        for s1, cs1 in zip(yslices, cyslices):
+            for s2, cs2 in zip(yslices, cyslices):
+                Kxx[cs1, cs2] = self._cov[s1, s2]
+        assert np.allclose(Kxx, Kxx.T)
+        
+        flatout = Kxsx @ gvar.linalg.solve(Kxx, y - yp) + ysp
     
     def predraw(self, fxdata_mean, fxdata_cov=None):
         # check there are x to predict
@@ -299,8 +403,8 @@ class Kernel:
         self._kernel = lambda x, y: kernel((x - loc) / scale, (y - loc) / scale, **kw)
     
     def __call__(self, x, y):
-        x = np.asarray(x)
-        y = np.asarray(y)
+        x = np.array(x, copy=False, dtype=float)
+        y = np.array(y, copy=False, dtype=float)
         np.broadcast(x, y)
         return self._kernel(x, y)
     

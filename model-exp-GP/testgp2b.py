@@ -4,7 +4,7 @@ import numpy as np
 import gvar
 
 xdata = np.linspace(0, 10, 10)
-xpred = np.linspace(-5, 15, 100)
+xpred = np.linspace(-15, 25, 200)
 y = np.sin(xdata)
 yerr = 0
 
@@ -18,7 +18,7 @@ print('fit...')
 u = gp.pred({'data': y}, strip0=False)
 
 print('figure...')
-fig = plt.figure('testgp2a')
+fig = plt.figure('testgp2b')
 fig.clf()
 ax = fig.subplots(1, 1)
 
@@ -30,7 +30,7 @@ for label in ('pred', 0), ('deriv', 1):
     colors[label] = patch.get_facecolor()[0]
     
 print('samples...')
-for i, sample in zip(range(10), gvar.raniter(u)):
+for i, sample in zip(range(1), gvar.raniter(u)):
     for label in ('pred', 0), ('deriv', 1):
         ax.plot(xpred, sample[label], '-', color=colors[label])
 ax.errorbar(xdata, y, yerr=yerr, fmt='k.', label='data')

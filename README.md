@@ -106,6 +106,8 @@ from Pisa.
 7. [2002.06563](https://arxiv.org/abs/2002.06563) Chinese article from
 February 16 using generalized SEIR
 
+8. [Forecasts state-level for all states](http://epidemicforecasting.org/)
+
 ## Git
 
 In case someone is not used to git: probably the simplest way to use it is the

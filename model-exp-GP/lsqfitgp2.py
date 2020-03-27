@@ -66,8 +66,9 @@ class GP:
             
             self._x[key][deriv].append(gx)
     
-    # def _totlenx(self):
-    #     return sum(sum(sum(map(len, l)) for l in d.values()) for d in self._x.values())
+    @property
+    def _length(self):
+        return sum(sum(sum(map(len, l)) for l in d.values()) for d in self._x.values())
     
     def _makeslices(self):
         slices = dict()
@@ -78,7 +79,13 @@ class GP:
                 length = sum(map(len, l))
                 slices[key, deriv] = slice(i, i + length)
                 i += length
-        return slices, i
+        return slices
+    
+    @property
+    def _slices(self):
+        if not hasattr(self, '_slicesdict'):
+            self._slicesdict = self._makeslices()
+        return self._slicesdict
     
     def _covfunderiv(self, xderiv, yderiv):
         assert isinstance(xderiv, int)
@@ -95,15 +102,14 @@ class GP:
             raise ValueError('process is empty, add values with `addx`')
         self._canaddx = False
         
-        self._slices, length = self._makeslices()
-        cov = np.empty((length, length))
+        cov = np.empty((self._length, self._length))
         for kdkd in itertools.product(self._slices, repeat=2):
             xy = [
                 np.concatenate(self._x[key][deriv])
                 for key, deriv in kdkd
             ]
-            xy[0] = xy[0].reshape(-1, 1) * np.ones(len(xy[0])).reshape(1, -1)
-            xy[1] = xy[1].reshape(1, -1) * np.ones(len(xy[1])).reshape(-1, 1)
+            xy[0] = xy[0].reshape(-1, 1) * np.ones(len(xy[1])).reshape(1, -1)
+            xy[1] = xy[1].reshape(1, -1) * np.ones(len(xy[0])).reshape(-1, 1)
             assert len(xy) == 2
             kernel = self._covfunderiv(kdkd[0][1], kdkd[1][1])
             slices = [self._slices[k, d] for k, d in kdkd]
@@ -196,7 +202,6 @@ class GP:
         assert False
 
     def prior(self, key=None, deriv=None, strip0=None):
-        self._prior
         key, deriv = self._checkkeyderiv(key, deriv)
         kdlist = self._getkeyderivlist(key, deriv)
         assert kdlist
@@ -271,7 +276,7 @@ class GP:
             i += length
         return out
     
-    def predfromfit(self, given, key=None, deriv=None, strip0=None):
+    def pred(self, given, key=None, deriv=None, strip0=None):
         key, deriv = self._checkkeyderiv(key, deriv)
         kdlist = self._getkeyderivlist(key, deriv)
         assert kdlist

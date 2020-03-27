@@ -4,15 +4,15 @@ import numpy as np
 import gvar
 
 xdata = np.linspace(0, 10, 10)
-xpred = np.linspace(-5, 15, 100)
+xpred = np.linspace(-15, 25, 300)
 y = np.sin(xdata)
 yerr = 0
 
 gp = lgp.GP(lgp.ExpQuad(scale=3))
-gp.addx(xdata, 'data')
-gp.addx(xpred, 'pred')
+gp.addx(xdata, 'pere')
+gp.addx(xpred, 'banane')
 
-u = gp.pred({'data': y}, 'pred')
+u = gp.pred({'pere': y}, 'banane')
 m = gvar.mean(u)
 s = gvar.sdev(u)
 cov = gvar.evalcov(u)

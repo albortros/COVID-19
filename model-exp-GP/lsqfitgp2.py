@@ -214,7 +214,7 @@ class GP:
     def _flatgiven(self, given):
         if isinstance(given, (list, np.ndarray)):
             if None in self._x and len(self._x[None]) == 1:
-                given = {(None, *self.x[None]): given}
+                given = {(None, *self._x[None]): given}
             else:
                 raise ValueError('`given` is an array but x has keys and/or multiple derivatives, provide a dictionary')
             
@@ -284,7 +284,7 @@ class GP:
         
         yspslices = [self._slices[kd] for kd in kdlist]
         cyspslices = self._compatslices(yspslices)
-        ysplist = [self._prior[s] for kd in kdlist]
+        ysplist = [self._prior[kd] for kd in kdlist]
         
         y = np.concatenate(ylist)
         yp = np.concatenate(yplist)
@@ -303,7 +303,13 @@ class GP:
         
         flatout = Kxsx @ gvar.linalg.solve(Kxx, y - yp) + ysp
         
-        
+        if strippedkd:
+            return gvar.BufferDict({
+                strippedkd[i]: flatout[self._slices[kdlist[i]]]
+                for i in range(len(kdlist))
+            })
+        else:
+            return flatout
     
     def predraw(self, fxdata_mean, fxdata_cov=None):
         # check there are x to predict

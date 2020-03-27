@@ -102,10 +102,12 @@ class GP:
                 np.concatenate(self._x[key][deriv])
                 for key, deriv in kdkd
             ]
+            xy[0] = xy[0].reshape(-1, 1) * np.ones(len(xy[0])).reshape(1, -1)
+            xy[1] = xy[1].reshape(1, -1) * np.ones(len(xy[1])).reshape(-1, 1)
             assert len(xy) == 2
             kernel = self._covfunderiv(kdkd[0][1], kdkd[1][1])
             slices = [self._slices[k, d] for k, d in kdkd]
-            cov[slices[0], slices[1]] = kernel(xy[0].reshape(-1, 1), xy[1].reshape(1, -1))
+            cov[slices[0], slices[1]] = kernel(xy[0], xy[1])
         
         # check covariance matrix is positive definite
         if not np.allclose(cov, cov.T):
@@ -300,6 +302,8 @@ class GP:
         assert np.allclose(Kxx, Kxx.T)
         
         flatout = Kxsx @ gvar.linalg.solve(Kxx, y - yp) + ysp
+        
+        
     
     def predraw(self, fxdata_mean, fxdata_cov=None):
         # check there are x to predict
@@ -437,11 +441,15 @@ class Kernel:
             return Kernel(lambda x, y: self._kernel(x, y) ** value)
         else:
             return NotImplemented
+            
+def softabs(x):
+    a = np.finfo(float).eps
+    return np.sqrt(x ** 2 + a ** 2)
 
 class IsotropicKernel(Kernel):
     
     def __init__(self, kernel, *, scale=1, **kw):
-        super().__init__(lambda x, y: kernel(np.abs(x - y), **kw), scale=scale)
+        super().__init__(lambda x, y: kernel(softabs(x - y), **kw), scale=scale)
     
 def makekernel(kernel, superclass):
     supername = 'Specific' + superclass.__name__

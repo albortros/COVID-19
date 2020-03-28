@@ -14,7 +14,7 @@ gp.addx(xpred, 'integral')
 gp.addx(xpred, 'pred', 1)
 
 print('fit...')
-u = gp.pred({('data', 1): y}, strip0=False)
+u = gp.predfromdata({('data', 1): y}, strip0=False)
 
 print('figure...')
 fig = plt.figure('testgp2d')

@@ -16,7 +16,7 @@ gp.addx(xpred, 'pred', 0)
 gp.addx(xpred, 'pred', 1)
 
 print('fit...')
-u = gp.pred({('data', d): y[d::2] for d in [0, 1]}, 'pred')
+u = gp.predfromdata({('data', d): y[d::2] for d in [0, 1]}, 'pred')
 
 print('figure...')
 fig = plt.figure('testgp2e')

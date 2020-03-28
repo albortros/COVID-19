@@ -285,7 +285,11 @@ class GP:
             i += length
         return out
     
-    def pred(self, given, key=None, deriv=None, strip0=None):
+    def pred(self, given, key=None, deriv=None, strip0=None, fromdata=None):
+        if fromdata is None:
+            raise ValueError('you must specify if `given` is data or fit result')
+        fromdata = bool(fromdata)
+        
         key, deriv = self._checkkeyderiv(key, deriv)
         kdlist = self._getkeyderivlist(key, deriv)
         assert kdlist
@@ -315,6 +319,10 @@ class GP:
                 Kxx[cs1, cs2] = self._cov[s1, s2]
         assert np.allclose(Kxx, Kxx.T)
         
+        if fromdata and y.dtype == object:
+            S = gvar.evalcov(gvar.gvar(y))
+            Kxx += S
+        
         flatout = Kxsx @ gvar.linalg.solve(Kxx, y - yp) + ysp
         
         if strippedkd:
@@ -324,6 +332,12 @@ class GP:
             })
         else:
             return flatout
+    
+    def predfromfit(self, *args, **kw):
+        return self.pred(*args, fromdata=False, **kw)
+    
+    def predfromdata(self, *args, **kw):
+        return self.pred(*args, fromdata=True, **kw)
     
     def predraw(self, fxdata_mean, fxdata_cov=None):
         # check there are x to predict

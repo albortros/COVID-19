@@ -22,7 +22,7 @@ def fcn(data_or_pred, p):
     if data_or_pred == 'data':
         phi = p['phi']
     elif data_or_pred == 'pred':
-        phi = gp.pred({'data': p['phi']}, 'pred')
+        phi = gp.predfromfit({'data': p['phi']}, 'pred')
     else:
         raise KeyError(data_or_pred)
     
@@ -49,7 +49,7 @@ print(fit.format(maxline=True))
 ypred = fcn('pred', fit.p)
 ypredalt = fcn('pred', fit.palt)
 
-phipred = gp.pred({'data': fit.p['phi']}, 'pred')
+phipred = gp.predfromfit({'data': fit.p['phi']}, 'pred')
 
 fig = plt.figure('testgp2c')
 fig.clf()

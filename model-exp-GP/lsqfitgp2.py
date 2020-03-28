@@ -285,11 +285,15 @@ class GP:
             i += length
         return out
     
-    def pred(self, given, key=None, deriv=None, strip0=None, fromdata=None, raw=False):
+    def pred(self, given, key=None, deriv=None, strip0=None, fromdata=None, raw=False, keepcorr=None):
         if fromdata is None:
             raise ValueError('you must specify if `given` is data or fit result')
         fromdata = bool(fromdata)
         raw = bool(raw)
+        if keepcorr is None:
+            keepcorr = not raw
+        if keepcorr and raw:
+            raise ValueError('both keepcorr=True and raw=True')
         
         key, deriv = self._checkkeyderiv(key, deriv)
         kdlist = self._getkeyderivlist(key, deriv)
@@ -320,12 +324,12 @@ class GP:
                 Kxx[cs1, cs2] = self._cov[s1, s2]
         assert np.allclose(Kxx, Kxx.T)
         
-        if (fromdata or raw) and y.dtype == object:
+        if (fromdata or raw or not keepcorr) and y.dtype == object:
             S = gvar.evalcov(gvar.gvar(y))
         else:
             S = 0
         
-        if raw:
+        if raw or not keepcorr:
             
             Kxsxs = np.nan * np.empty((len(ysp), len(ysp)))
             for s1, cs1 in zip(yspslices, cyspslices):
@@ -342,6 +346,10 @@ class GP:
                 cov = Kxsxs + A @ (S - Kxx) @ A.T
                 mean = A @ gvar.mean(y)
             
+        else: # (keepcorr and not raw)        
+            flatout = Kxsx @ gvar.linalg.solve(Kxx + S, y - yp) + ysp
+        
+        if raw:
             if strippedkd:
                 meandict = gvar.BufferDict({
                     strippedkd[i]: mean[cyspslices[i]]
@@ -359,18 +367,18 @@ class GP:
             
             else:
                 return mean, cov
-            
-        else: # (not raw)        
-            flatout = Kxsx @ gvar.linalg.solve(Kxx + S, y - yp) + ysp
         
-            if strippedkd:
-                return gvar.BufferDict({
-                    strippedkd[i]: flatout[cyspslices[i]]
-                    for i in range(len(kdlist))
-                })
-            else:
-                return flatout
-    
+        elif not keepcorr:
+            flatout = gvar.gvar(mean, cov)
+        
+        if strippedkd:
+            return gvar.BufferDict({
+                strippedkd[i]: flatout[cyspslices[i]]
+                for i in range(len(kdlist))
+            })
+        else:
+            return flatout
+        
     def predfromfit(self, *args, **kw):
         return self.pred(*args, fromdata=False, **kw)
     

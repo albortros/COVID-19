@@ -15,6 +15,7 @@ gp.addx(xpred, 'pred', 1)
 
 print('fit...')
 umean, ucov = gp.predfromdata({'data': y}, 'pred', raw=True)
+ualt = gp.predfromdata({'data': y}, 'pred')
 
 print('figure...')
 fig = plt.figure('testgp2g')
@@ -25,9 +26,14 @@ colors = dict()
 for deriv in 0, 1:
     m = umean[deriv]
     s = np.sqrt(np.diag(ucov[deriv, deriv]))
-    patch = ax.fill_between(xpred, m - s, m + s, label=f'deriv {deriv}', alpha=0.5)
+    patch = ax.fill_between(xpred, m - s, m + s, label=f'deriv {deriv} (raw)', alpha=0.5)
     colors[deriv] = patch.get_facecolor()[0]
     
+for deriv in 0, 1:
+    m = gvar.mean(ualt[deriv])
+    s = gvar.sdev(ualt[deriv])
+    ax.fill_between(xpred, m - s, m + s, label=f'deriv {deriv}', alpha=0.5)
+
 print('samples...')
 for deriv in 0, 1:
     m = umean[deriv]

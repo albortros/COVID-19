@@ -54,17 +54,26 @@ class GP:
         
         else:
             raise TypeError('x must be array or dict')
+        
+        for k in x:
+            if isinstance(k, tuple):
+                if not (deriv is None):
+                    raise ValueError('key `{}` in x is tuple but derivative is specified'.format(k))
+                if len(k) != 2:
+                    raise ValueError('key `{}` in x is tuple but not length 2'.format(k))
+                key, d = k
+            else:
+                key, d = k, deriv
             
-        for key in x:
             gx = x[key]
             if not isinstance(gx, (list, np.ndarray)):
-                raise TypeError('object for key `{}` in x is not array or list'.format(key))
+                raise TypeError('`x[{}]` is not array or list'.format(k))
             
             gx = np.asarray(gx)
             if len(gx.shape) != 1 or len(gx) == 0:
-                raise ValueError('array for key `{}` in x is not 1D and nonempty'.format(key))
+                raise ValueError('`x[{}]` is not 1D and nonempty'.format(k))
             
-            self._x[key][deriv].append(gx)
+            self._x[key][d].append(gx)
     
     @property
     def _length(self):
@@ -248,7 +257,7 @@ class GP:
             if deriv != int(deriv) or int(deriv) < 0:
                 raise ValueError('supposed deriv order `{}` is not a nonnegative integer'.format(key, deriv, deriv))
             if not (deriv in self._x[key]):
-                raise KeyError('derivative {} for key {} missing'.format(key, deriv))
+                raise KeyError('derivative `{}` for key `{}` missing'.format(deriv, key))
 
             if not isinstance(l, (list, np.ndarray)):
                 raise TypeError('element `given[{}]` is not list or array'.format(k))
@@ -310,7 +319,7 @@ class GP:
         
         if strippedkd:
             return gvar.BufferDict({
-                strippedkd[i]: flatout[self._slices[kdlist[i]]]
+                strippedkd[i]: flatout[cyspslices[i]]
                 for i in range(len(kdlist))
             })
         else:

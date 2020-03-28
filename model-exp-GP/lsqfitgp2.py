@@ -326,18 +326,41 @@ class GP:
             S = 0
         
         if raw:
+            
+            Kxsxs = np.nan * np.empty((len(ysp), len(ysp)))
+            for s1, cs1 in zip(yspslices, cyspslices):
+                for s2, cs2 in zip(yspslices, cyspslices):
+                    Kxsxs[cs1, cs2] = self._cov[s1, s2]
+            assert np.allclose(Kxsxs, Kxsxs.T)
+
             if fromdata:
-                B = linalg.solve(Kxx + S, Kxxs, assume_a='pos').T
-                cov = Kxsxs - Kxxs.T @ B.T
+                B = linalg.solve(Kxx + S, Kxsx.T, assume_a='pos').T
+                cov = Kxsxs - Kxsx @ B.T
                 mean = B @ gvar.mean(y)
             else:
-                A = linalg.solve(Kxx, Kxxs, assume_a='pos').T
+                A = linalg.solve(Kxx, Kxsx.T, assume_a='pos').T
                 cov = Kxsxs + A @ (S - Kxx) @ A.T
                 mean = A @ gvar.mean(y)
-        
-            return mean, cov
             
-        else:        
+            if strippedkd:
+                meandict = gvar.BufferDict({
+                    strippedkd[i]: mean[cyspslices[i]]
+                    for i in range(len(kdlist))
+                })
+                
+                covdict = gvar.BufferDict({
+                    (strippedkd[i], strippedkd[j]):
+                    cov[cyspslices[i], cyspslices[j]]
+                    for i in range(len(kdlist))
+                    for j in range(len(kdlist))
+                })
+                
+                return meandict, covdict
+            
+            else:
+                return mean, cov
+            
+        else: # (not raw)        
             flatout = Kxsx @ gvar.linalg.solve(Kxx + S, y - yp) + ysp
         
             if strippedkd:

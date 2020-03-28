@@ -285,10 +285,11 @@ class GP:
             i += length
         return out
     
-    def pred(self, given, key=None, deriv=None, strip0=None, fromdata=None):
+    def pred(self, given, key=None, deriv=None, strip0=None, fromdata=None, raw=False):
         if fromdata is None:
             raise ValueError('you must specify if `given` is data or fit result')
         fromdata = bool(fromdata)
+        raw = bool(raw)
         
         key, deriv = self._checkkeyderiv(key, deriv)
         kdlist = self._getkeyderivlist(key, deriv)
@@ -319,116 +320,39 @@ class GP:
                 Kxx[cs1, cs2] = self._cov[s1, s2]
         assert np.allclose(Kxx, Kxx.T)
         
-        if fromdata and y.dtype == object:
+        if (fromdata or raw) and y.dtype == object:
             S = gvar.evalcov(gvar.gvar(y))
-            Kxx += S
-        
-        flatout = Kxsx @ gvar.linalg.solve(Kxx, y - yp) + ysp
-        
-        if strippedkd:
-            return gvar.BufferDict({
-                strippedkd[i]: flatout[cyspslices[i]]
-                for i in range(len(kdlist))
-            })
         else:
-            return flatout
+            S = 0
+        
+        if raw:
+            if fromdata:
+                B = linalg.solve(Kxx + S, Kxxs, assume_a='pos').T
+                cov = Kxsxs - Kxxs.T @ B.T
+                mean = B @ gvar.mean(y)
+            else:
+                A = linalg.solve(Kxx, Kxxs, assume_a='pos').T
+                cov = Kxsxs + A @ (S - Kxx) @ A.T
+                mean = A @ gvar.mean(y)
+        
+            return mean, cov
+            
+        else:        
+            flatout = Kxsx @ gvar.linalg.solve(Kxx + S, y - yp) + ysp
+        
+            if strippedkd:
+                return gvar.BufferDict({
+                    strippedkd[i]: flatout[cyspslices[i]]
+                    for i in range(len(kdlist))
+                })
+            else:
+                return flatout
     
     def predfromfit(self, *args, **kw):
         return self.pred(*args, fromdata=False, **kw)
     
     def predfromdata(self, *args, **kw):
         return self.pred(*args, fromdata=True, **kw)
-    
-    def predraw(self, fxdata_mean, fxdata_cov=None):
-        # check there are x to predict
-        assert self._datarange < len(self._cov)
-        
-        # check fxdata_mean
-        y = np.asarray(fxdata_mean)
-        assert len(y.shape) == 1
-        assert len(y) == self._datarange
-        
-        # check fxdata_cov
-        if fxdata_cov is None:
-            C = 0
-        else:
-            C = np.asarray(fxdata_cov)
-            assert C.shape == (len(y), len(y))
-            assert np.allclose(C, C.T)
-        
-        # compute things
-        Kxxs = self._cov[:self._datarange, self._datarange:]
-        Kxx = self._cov[:self._datarange, :self._datarange]
-        Kxsxs = self._cov[self._datarange:, self._datarange:]
-        A = linalg.solve(Kxx, Kxxs, assume_a='pos').T
-        cov = Kxsxs + A @ (C - Kxx) @ A.T
-        mean = A @ y
-        
-        return mean, cov
-
-    def predalt(self, fxdata):
-        fxdata_mean = gvar.mean(fxdata)
-        fxdata_cov = gvar.evalcov(gvar.gvar(fxdata))
-        mean, cov = self.predraw(fxdata_mean, fxdata_cov)
-        return gvar.gvar(mean, cov)
-        
-    def fitpred(self, y):
-        # check there are x to predict
-        assert self._datarange < len(self._cov)
-        
-        # check y
-        y = np.asarray(y)
-        assert len(y.shape) == 1
-        assert len(y) == self._datarange
-        S = gvar.evalcov(y)
-        
-        # compute things
-        Kxsx = self._cov[self._datarange:, :self._datarange]
-        Kxx = self._cov[:self._datarange, :self._datarange]
-        yp = self._prior[:self._datarange]
-        ysp = self._prior[self._datarange:]
-        U = Kxx + S
-        
-        return Kxsx @ gvar.linalg.solve(U, y - yp) + ysp
-    
-    def fitpredraw(self, y, yerr=None):
-        # check there are x to predict
-        assert self._datarange < len(self._cov)
-        
-        # check y
-        y = np.asarray(y)
-        assert len(y.shape) == 1
-        assert len(y) == self._datarange
-        
-        # check yerr
-        if yerr is None:
-            S = 0
-        else:
-            yerr = np.asarray(yerr)
-            assert len(yerr.shape) <= 2
-            if len(yerr.shape) <= 1:
-                S = np.diag(yerr ** 2 * np.ones(len(y)))
-            else:
-                assert yerr.shape == (len(y), len(y))
-                assert np.allclose(yerr, yerr.T)
-                S = yerr
-        
-        # compute things
-        Kxxs = self._cov[:self._datarange, self._datarange:]
-        Kxx = self._cov[:self._datarange, :self._datarange]
-        Kxsxs = self._cov[self._datarange:, self._datarange:]
-        U = Kxx + S
-        B = linalg.solve(U, Kxxs, assume_a='pos').T
-        cov = Kxsxs - Kxxs.T @ B.T
-        mean = B @ y
-        
-        return mean, cov
-    
-    def fitpredalt(self, y):
-        y_mean = gvar.mean(y)
-        y_cov = gvar.evalcov(gvar.gvar(y))
-        mean, cov = self.fitpredraw(y_mean, y_cov)
-        return gvar.gvar(mean, cov)
 
 class Kernel:
     

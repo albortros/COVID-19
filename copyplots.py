@@ -138,6 +138,7 @@ for dirpath, dirnames, filenames in os.walk('.'):
         if targetdir:
             shutil.copy(f'{dirpath}/{filename}', f'{targetdir}/')
             ncopied += 1
+            print('.', end='')
             already_copied_files.add(filename)
 
 print(f'Found {ntotal} files, checked {nchecked}, passed {nok}, copied {ncopied}')

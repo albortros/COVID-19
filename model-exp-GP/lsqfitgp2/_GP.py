@@ -131,8 +131,8 @@ class GP:
         eigv = linalg.eigvalsh(cov)
         mineigv = np.min(eigv)
         if mineigv < 0:
-            if mineigv < -len(cov) * np.finfo(float).eps * np.max(eigv):
-                raise ValueError('covariance matrix is not positive definite')
+            # if mineigv < -len(cov) * np.finfo(float).eps * np.max(eigv):
+            #     raise ValueError('covariance matrix is not positive definite')
             cov[np.diag_indices(len(cov))] += -mineigv
             # this is a fast but strong regularization, maybe we could just do
             # an svd cut

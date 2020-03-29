@@ -105,7 +105,7 @@ kv = lambda v, z: kvp(v, z, 0)
 
 def softabs(x):
     eps = np.finfo(x.dtype).eps
-    return np.sqrt(x ** 2 + eps ** 2)
+    return np.sqrt(x ** 2 + np.sqrt(eps))
 
 # This still does not work with derivatives due to the pole of kv. I need a
 # direct calculation of x ** nu * kv(nu, x).

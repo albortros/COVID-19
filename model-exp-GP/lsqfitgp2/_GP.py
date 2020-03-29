@@ -2,6 +2,7 @@ from __future__ import division
 
 import collections
 import itertools
+import sys
 
 import gvar
 import autograd
@@ -12,13 +13,14 @@ from . import _kernels
 
 class GP:
     
-    def __init__(self, covfun):
+    def __init__(self, covfun, checkpos=True):
         if not isinstance(covfun, _kernels.Kernel):
             raise TypeError('covariance function must be of class Kernel')
         self._covfun = covfun
         self._x = collections.defaultdict(lambda: collections.defaultdict(list))
         # self._x: label -> (derivative order -> list of arrays)
         self._canaddx = True
+        self._checkpositive = checkpos
     
     def _checkderiv(self, deriv):
         if deriv != int(deriv):
@@ -131,8 +133,14 @@ class GP:
         eigv = linalg.eigvalsh(cov)
         mineigv = np.min(eigv)
         if mineigv < 0:
-            # if mineigv < -len(cov) * np.finfo(float).eps * np.max(eigv):
-            #     raise ValueError('covariance matrix is not positive definite')
+            bound = -len(cov) * np.finfo(float).eps * np.max(eigv)
+            if mineigv < bound:
+                message = 'covariance matrix is not positive definite: '
+                message += f'mineigv = {mineigv:.4g} < {bound:.4g}'
+                if self._checkpositive:
+                    raise ValueError(message)
+                else:
+                    print(message, file=sys.stderr)
             cov[np.diag_indices(len(cov))] += -mineigv
             # this is a fast but strong regularization, maybe we could just do
             # an svd cut

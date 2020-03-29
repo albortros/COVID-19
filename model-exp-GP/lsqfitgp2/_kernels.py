@@ -103,36 +103,46 @@ extend.defvjp(
 )
 kv = lambda v, z: kvp(v, z, 0)
 
-def softabs(x):
-    eps = np.finfo(x.dtype).eps
-    return np.sqrt(x ** 2 + np.sqrt(eps))
+def _softabs(x, eps=None):
+    if not eps:
+        eps = np.finfo(x.dtype).eps ** (1/4)
+    return np.sqrt(x ** 2 + eps ** 2)
 
 # This still does not work with derivatives due to the pole of kv. I need a
 # direct calculation of x ** nu * kv(nu, x).
 @stationarykernel
 def Matern(r, nu=None):
     assert np.isscalar(nu)
-    x = np.sqrt(2 * nu) * softabs(r)
+    x = np.sqrt(2 * nu) * _softabs(r)
     return 2 ** (1 - nu) / special.gamma(nu) * x ** nu * kv(nu, x)
 
 @stationarykernel
 def Matern12(r):
-    r = softabs(r)
+    r = _softabs(r)
     return np.exp(-r)
+
+@extend.primitive
+def _matern32(x):
+    return (1 + x) * np.exp(-x)
+
+extend.defvjp(
+    _matern32,
+    lambda ans, x: lambda g: g * -x * np.exp(-x)
+)
 
 @stationarykernel
 def Matern32(r):
-    r = softabs(r)
-    return (1 + np.sqrt(3) * r) * np.exp(-np.sqrt(3) * r)
+    r = _softabs(r, np.finfo(r.dtype).eps)
+    return _matern32(np.sqrt(3) * r)
 
 @stationarykernel
 def Matern52(r):
-    r = softabs(r)
+    r = _softabs(r)
     return (1 + np.sqrt(5) * r + 5/3 * r**3) * np.exp(-np.sqrt(5) * r)
 
 @stationarykernel
 def GammaExp(r, gamma=1):
-    r = softabs(r)
+    r = _softabs(r)
     assert np.isscalar(gamma)
     assert 0 < gamma <= 2
     return np.exp(-(r ** gamma))

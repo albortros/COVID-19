@@ -95,26 +95,27 @@ def Polynomial(x, y, exponent=None, sigma0=1):
         assert p >= 0
     return (x * y + sigma0 ** 2) ** exponent
     
-kvp = extend.primitive(special_noderiv.kvp)
+_kvp = extend.primitive(special_noderiv.kvp)
 extend.defvjp(
-    kvp,
-    lambda ans, v, z, n: lambda g: g * kvp(v, z, n + 1),
+    _kvp,
+    lambda ans, v, z, n: lambda g: g * _kvp(v, z, n + 1),
     argnums=[1]
 )
-kv = lambda v, z: kvp(v, z, 0)
+_kv = lambda v, z: _kvp(v, z, 0)
 
 def _softabs(x, eps=None):
     if not eps:
-        eps = np.finfo(x.dtype).eps ** (1/4)
+        eps = np.finfo(x.dtype).eps
     return np.sqrt(x ** 2 + eps ** 2)
 
 # This still does not work with derivatives due to the pole of kv. I need a
-# direct calculation of x ** nu * kv(nu, x).
+# direct calculation of x ** nu * kv(nu, x). Maybe use the formula from GPML
+# for nu half-integer.
 @stationarykernel
 def Matern(r, nu=None):
     assert np.isscalar(nu)
     x = np.sqrt(2 * nu) * _softabs(r)
-    return 2 ** (1 - nu) / special.gamma(nu) * x ** nu * kv(nu, x)
+    return 2 ** (1 - nu) / special.gamma(nu) * x ** nu * special_noderiv.kv(nu, x)
 
 @stationarykernel
 def Matern12(r):
@@ -132,13 +133,22 @@ extend.defvjp(
 
 @stationarykernel
 def Matern32(r):
-    r = _softabs(r, np.finfo(r.dtype).eps)
+    r = _softabs(r)
     return _matern32(np.sqrt(3) * r)
+
+@extend.primitive
+def _matern52(x):
+    return (1 + x * (1 + x/3)) * np.exp(-x)
+
+extend.defvjp(
+    _matern52,
+    lambda ans, x: lambda g: g * -x/3 * _matern32(x)
+)
 
 @stationarykernel
 def Matern52(r):
     r = _softabs(r)
-    return (1 + np.sqrt(5) * r + 5/3 * r**3) * np.exp(-np.sqrt(5) * r)
+    return _matern52(np.sqrt(5) * r)
 
 @stationarykernel
 def GammaExp(r, gamma=1):

@@ -53,14 +53,10 @@ class Kernel:
         else:
             return NotImplemented
             
-def softabs(x):
-    a = np.finfo(x.dtype).eps
-    return np.sqrt(x ** 2 + a ** 2)
-
-class IsotropicKernel(Kernel):
+class StationaryKernel(Kernel):
     
     def __init__(self, kernel, *, scale=1, **kw):
-        super().__init__(lambda x, y: kernel(softabs(x - y), **kw), scale=scale)
+        super().__init__(lambda x, y: kernel(x - y, **kw), scale=scale)
     
 def makekernel(kernel, superclass):
     supername = 'Specific' + superclass.__name__
@@ -73,14 +69,14 @@ def makekernel(kernel, superclass):
     newclass.__init__ = lambda self, *args, **kw: super(newclass, self).__init__(kernel, *args, **kw)
     return newclass
 
-isotropickernel = lambda kernel: makekernel(kernel, IsotropicKernel)
+stationarykernel = lambda kernel: makekernel(kernel, StationaryKernel)
 kernel = lambda kernel: makekernel(kernel, Kernel)
 
-@isotropickernel
+@stationarykernel
 def Constant(r):
     return np.ones_like(r)
     
-@isotropickernel
+@stationarykernel
 def White(r):
     return np.where(r == 0, 1, 0)
 
@@ -88,7 +84,7 @@ def White(r):
 def Linear(x, y):
     return x * y
 
-@isotropickernel
+@stationarykernel
 def ExpQuad(r):
     return np.exp(-1/2 * r ** 2)
 
@@ -98,37 +94,50 @@ def Polynomial(x, y, exponent=None, sigma0=1):
         assert np.isscalar(p)
         assert p >= 0
     return (x * y + sigma0 ** 2) ** exponent
-
-kv = extend.primitive(special_noderiv.kv)
     
-@isotropickernel
+kvp = extend.primitive(special_noderiv.kvp)
+extend.defvjp(
+    kvp,
+    lambda ans, v, z, n: lambda g: g * kvp(v, z, n + 1),
+    argnums=[1]
+)
+kv = lambda v, z: kvp(v, z, 0)
+
+def softabs(x):
+    eps = np.finfo(x.dtype).eps
+    return np.sqrt(x ** 2 + eps ** 2)
+
+# This still does not work with derivatives due to the pole of kv. I need a
+# direct calculation of x ** nu * kv(nu, x).
+@stationarykernel
 def Matern(r, nu=None):
     assert np.isscalar(nu)
-    x = np.sqrt(2 * nu) * r
-    xpos = x > 0
-    out = np.ones_like(x, dtype=float)
-    out[xpos] = 2 ** (1 - nu) / special.gamma(nu) * x[xpos] ** nu * kv(nu, x[xpos])
-    return out
+    x = np.sqrt(2 * nu) * softabs(r)
+    return 2 ** (1 - nu) / special.gamma(nu) * x ** nu * kv(nu, x)
 
-@isotropickernel
+@stationarykernel
 def Matern12(r):
+    r = softabs(r)
     return np.exp(-r)
 
-@isotropickernel
+@stationarykernel
 def Matern32(r):
+    r = softabs(r)
     return (1 + np.sqrt(3) * r) * np.exp(-np.sqrt(3) * r)
 
-@isotropickernel
+@stationarykernel
 def Matern52(r):
+    r = softabs(r)
     return (1 + np.sqrt(5) * r + 5/3 * r**3) * np.exp(-np.sqrt(5) * r)
 
-@isotropickernel
+@stationarykernel
 def GammaExp(r, gamma=1):
+    r = softabs(r)
     assert np.isscalar(gamma)
     assert 0 < gamma <= 2
     return np.exp(-(r ** gamma))
 
-@isotropickernel
+@stationarykernel
 def RatQuad(r, alpha=2):
     assert np.isscalar(alpha)
     assert alpha > 0
@@ -157,7 +166,7 @@ def Gibbs(x, y, scalefun=lambda x: 1):
     factor = np.sqrt(2 * sx * sy / denom)
     return factor * np.exp(-(x - y) ** 2 / denom)
 
-@isotropickernel
+@stationarykernel
 def Periodic(r, outerscale=1):
     assert np.isscalar(outerscale)
     assert outerscale > 0

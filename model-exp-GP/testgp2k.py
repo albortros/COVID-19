@@ -8,7 +8,7 @@ xpred = np.linspace(-15, 25, 200)
 y = np.sin(xdata)
 
 print('make GP...')
-gp = lgp.GP(lgp.ExpQuad(scale=3))
+gp = lgp.GP(lgp.Matern52(scale=3))
 gp.addx(xdata, 'data')
 gp.addx(xpred, 'pred')
 gp.addx(xpred, 'deriv', 1)

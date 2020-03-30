@@ -1,0 +1,26 @@
+import os
+os.makedirs('testgp2plot', exist_ok=True)
+%run testgp2a.py
+fig.savefig("testgp2plot/a.png")
+%run testgp2b.py
+fig.savefig("testgp2plot/b.png")
+%run testgp2c.py
+fig.savefig("testgp2plot/c.png")
+%run testgp2d.py
+fig.savefig("testgp2plot/d.png")
+%run testgp2e.py
+fig.savefig("testgp2plot/e.png")
+%run testgp2f.py
+fig.savefig("testgp2plot/f.png")
+%run testgp2g.py
+fig.savefig("testgp2plot/g.png")
+%run testgp2h.py
+fig.savefig("testgp2plot/h.png")
+%run testgp2i.py
+fig.savefig("testgp2plot/i.png")
+%run testgp2j.py
+fig.savefig("testgp2plot/j.png")
+%run testgp2k.py
+fig.savefig("testgp2plot/k.png")
+%run testgp2l.py
+fig.savefig("testgp2plot/l.png")

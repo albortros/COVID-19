@@ -29,5 +29,8 @@ but I'm thinking of switching to `pycm3`, although it is slower.
     
   * `testgp2a.py`, `testgp2b.py`, ...: test scripts for `lsqfitgp2`. Read them
     for examples on fitting gaussian processes.
+    
+  * `runtestgp2.ipy`: script for ipython that executes all `testgp2*` scripts
+    and saves the plots in `testgp2plots/`.
 
   * `testgpa.py`, `testgpb.py`: tests for the older version `lsqfitgp.py`.

@@ -55,9 +55,9 @@ def calc_resid(x, *args):
     S, E, I, R = integrate_ode(x, total_time, time_shift+1) # la quarantena inizia dal 23, quindi un giorno dopo
     ref_I = I[time_shift+1:]
     ref_R = R[time_shift+1:]
-    print("INPUT : "+str(x))
-    print("calcolated : "+str(ref_I))
-    print("reference  : "+str(reference))
+#    print("INPUT : "+str(x))
+#    print("calcolated : "+str(ref_I))
+#    print("reference  : "+str(reference))
     cost_function = 0
     for i in range(len(ref_I)):
         cost_function = cost_function+((reference[i]-ref_I[i]-ref_R[i])/reference[i])**2

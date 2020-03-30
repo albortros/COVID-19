@@ -12,8 +12,39 @@ from scipy import linalg
 from . import _kernels
 
 class GP:
+    """
+    
+    Object that represents a gaussian process over 1D real input.
+    
+    Methods that accept array/dictionary input also recognize lists and
+    gvar.BufferDict. The output is always a np.ndarray or gvar.BufferDict.
+    
+    Methods
+    -------
+    addx :
+        Add points where the gaussian process is evaluated.
+    prior :
+        Return a collection of unique `gvar`s representing the prior.
+    pred :
+        Compute the posterior for the process.
+    predfromfit, predfromdata :
+        Convenience wrappers for `pred`.
+    
+    """
     
     def __init__(self, covfun, checkpos=True):
+        """
+        
+        Parameters
+        ----------
+        covfun : Kernel
+            An instance of `Kernel` representing the covariance kernel.
+        checkpos : bool
+            If True (default), raise a `ValueError` if the covariance matrix
+            turns out non positive within numerical error. The exception will
+            be raised the first time you call `prior` or `pred`.
+        
+        """
         if not isinstance(covfun, _kernels.Kernel):
             raise TypeError('covariance function must be of class Kernel')
         self._covfun = covfun
@@ -31,6 +62,36 @@ class GP:
         return deriv
     
     def addx(self, x, key=None, deriv=0):
+        """
+        
+        Add points where the gaussian process is evaluated. The points can be
+        added in two ways: "array mode" or "dictionary mode". The mode is
+        decided the first time you call `addx`: if you just pass an array,
+        `addx` expects to receive again only an array in eventual subsequent
+        calls, and concatenates the arrays. If you either pass a dictionary or
+        an array and a key, `addx` will organize arrays of points in an
+        internal dictionary, and when you give an array for an already used
+        key, the old array and the new one will be concatenated.
+        
+        You can specify if the points are used to evaluate the gaussian process
+        itself or its derivatives by passing a nonzero `deriv` argument.
+        Array of points for different differentiation orders are kept separate,
+        both in array and in dictionary mode.
+        
+        Once `prior` or `pred` have been called, `addx` raises a RuntimeError. 
+        
+        Parameters
+        ----------
+        x : 1D array or dictionary of 1D arrays
+            The points to be added. If a dictionary, the keys can be anything
+            except None. Tuple keys must be length 2 and are unpacked in
+            key, deriv.
+        key : hashable type, not None or tuple
+            `addx(array, key)` is equivalent to `addx({key: array})`.
+        deriv : int >= 0
+            The derivative order.
+        
+        """
         if not self._canaddx:
             raise RuntimeError('can not add x any more to this process because it has been used')
         
@@ -220,6 +281,39 @@ class GP:
         assert False
 
     def prior(self, key=None, deriv=None, strip0=None):
+        """
+        
+        Return an array or a dictionary of arrays of `gvar`s representing the
+        prior for the gaussian process. The returned object is not unique but
+        the `gvar`s stored inside are, so all the correlations are kept between
+        objects returned by different calls to `prior`.
+        
+        Calling without arguments returns an array or dictionary, depending
+        on the mode set by the first call to `addx`, representing the complete
+        prior. If you have specified nonzero derivatives, the returned object
+        is a dictionary where the keys are the derivative orders if in array
+        mode, and the pairs `(key, deriv)` if in dictionary mode.
+        
+        By specifying the `key` and `deriv` parameters you can get a subset
+        of the prior.
+        
+        Parameters
+        ----------
+        key :
+            A key corresponding to one passed to `addx`. None for all keys.
+        deriv : int >= 0
+            One of the derivatives passed to `addx`. None for all derivatives.
+        strip0 : None or bool
+            By default (None), 0 order derivatives (so, no derivative taken at
+            all) are stripped (example: `{0: array}` becomes just `array`, and
+            `{(A, 0): array1, (B, 1): array2}` becomes `{A: array1, (B, 1):
+            array2}`), unless `deriv` is specified explicitly.
+        
+        Returns
+        -------
+        prior : np.ndarray or gvar.BufferDict
+            A collection of `gvar`s representing the prior.
+        """
         key, deriv = self._checkkeyderiv(key, deriv)
         kdlist = self._getkeyderivlist(key, deriv)
         assert kdlist
@@ -295,6 +389,56 @@ class GP:
         return out
     
     def pred(self, given, key=None, deriv=None, strip0=None, fromdata=None, raw=False, keepcorr=None):
+        """
+        
+        Compute the posterior for the gaussian process, either on all points,
+        on a subset of points, or conditionally from a subset of points on
+        another subset; and either directly from data or from a posterior
+        obtained with a fit. The latter case is for when the gaussian process
+        was used in a fit with other parameters.
+        
+        The output is a collection of `gvar`s, either an array or a dictionary
+        of arrays. They are properly correlated with `gvar`s returned by
+        `prior` and with the input data/fit.
+        
+        The input is an array or dictionary of arrays, `given`. You can pass an
+        array only if the GP is in array mode as set by `addx`. The contents of
+        `given` are either the input data or posterior. If a dictionary, the
+        keys in given must follow the same convention of the output from
+        `prior()`, i.e. `(key, deriv)`, or just `key` with implicitly `deriv =
+        0` when in dictionary mode, and `deriv` in array mode.
+        
+        The parameters `key`, `deriv` and `strip0` control what is the output
+        in the same way as in `prior()`.
+        
+        Parameters
+        ----------
+        given : array or dictionary of arrays
+            The data or fit result for some/all of the points in the GP.
+            The arrays can contain either `gvar`s or normal numbers, the latter
+            being equivalent to zero-uncertainty `gvar`s.
+        key, deriv :
+            If None, compute the posterior for all points in the GP (also those
+            used in `given`). Otherwise only those specified by key and/or
+            deriv.
+        strip0 : bool
+            By default, 0th order derivatives are stripped from returned
+            dictionary keys, unless `deriv` is explicitly specified to be 0.
+        fromdata : bool
+            Mandatory. Specify if the contents of `given` are data or already
+            a posterior.
+        raw : bool (default False)
+            If True, instead of returning a collection of `gvar`s, return
+            the mean and the covariance. When the mean is a dictionary, the
+            covariance is a dictionary whose keys are pairs of keys of the
+            mean (the same format used by `gvar.evalcov`).
+        keepcorr : bool
+            If True (default), the returned `gvar`s are correlated with the
+            prior and the data/fit. If False, they have the correct covariance
+            between themselves, but are independent from all other preexisting
+            `gvar`s.
+        """
+        
         if fromdata is None:
             raise ValueError('you must specify if `given` is data or fit result')
         fromdata = bool(fromdata)
@@ -388,7 +532,13 @@ class GP:
             return flatout
         
     def predfromfit(self, *args, **kw):
+        """
+        Like `pred` with `fromdata=False`.
+        """
         return self.pred(*args, fromdata=False, **kw)
     
     def predfromdata(self, *args, **kw):
+        """
+        Like `pred` with `fromdata=True`.
+        """
         return self.pred(*args, fromdata=True, **kw)

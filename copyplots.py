@@ -141,7 +141,7 @@ for dirpath, dirnames, filenames in os.walk('.'):
             print('.', end='', flush=True)
             already_copied_files.add(filename)
 
-print(f'Found {ntotal} files, checked {nchecked}, passed {nok}, copied {ncopied}')
+print(f'\nFound {ntotal} files, checked {nchecked}, passed {nok}, copied {ncopied}')
 
 assert ncopied <= nok <= nchecked <= ntotal
 assert ncopied == len(already_copied_files)

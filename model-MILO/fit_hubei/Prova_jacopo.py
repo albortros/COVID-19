@@ -27,14 +27,14 @@ def integrate_ode(x, tempo_totale, quarantine_time):
     S_0  = x[0] #free growth rate
     J    = x[1] #rate of exposed->infected
     rr   = x[2] #rate of infected->removed
-    
+    p    = x[3] #fraction of time in a day spent in danger
+    Heff = x[4] #susceptible population after quarantene
+#    h    = x[5] #se volessimo fittare pure H
+
     a    = S_0*(J-rr)
     b    = S_0*(1-J-rr)
     f1a  = (-1+(1+a)**p)*a*(1+a)**p
     f2a  = p*(-1+(1+a)**p)*(a+1-(1+a)**p)
-    p   = x[3] #fraction of time in a day spent in danger
-    Heff = x[4] #susceptible population after quarantene
-#   h = x[5] #se volessimo fittare pure H
     
     # inizia l'integrazione numerica
 #    for step in range(tempo_totale):
@@ -65,9 +65,9 @@ def integrate_ode(x, tempo_totale, quarantine_time):
         R[step+1]=R[step]+I[step]*S_0*(h-E[step]-I[step]-R[step])*rr/h
         S[step+1]=S[step]-E[step]-I[step]-R[step]
     for step in range(quarantine_time-1, tempo_totale-1):
-        E[step+1]=E[step]+I[step]*S_0*(1-J)*((1+a)**p -1)/a +p*I[step]*(E[step]+R[step])*(1-J)*S_0*(1+a)**(p-1)/Heff +I[step]**2/(Heff*a**2 * (1+a))*(f1a*(1-J)*S_0+f2a*S_0**2 *((1-J)**2+rr(1-J)))
-        I[step+1]=I[step]+I[step]*S_0*(h-E[step]-I[step]-R[step])*(J-rr)/h
-        R[step+1]=R[step]+I[step]*S_0*(h-E[step]-I[step]-R[step])*rr/h
+        E[step+1]=E[step]+I[step]*S_0*(1-J)*((1+a)**p -1)/a +p*I[step]*(E[step]+R[step])*(1-J)*S_0*(1+a)**(p-1)/Heff +I[step]**2/(Heff*a**2 * (1+a))*(f1a*(1-J)*S_0+f2a*S_0**2 *((1-J)**2+rr*(1-J)))
+        I[step+1]=I[step]*(1+a)**p + p*I[step]*(E[step]+R[step])*a*(1+a)**(p-1)/Heff + I[step]**2*((a-b*p)*(1+a)-(a-b*p)*(1+a)**(p-1) + b*p*((1+a)**p-1))/(Heff*a)
+        R[step+1]=R[step]+ I[step]*((1+a)**p -1)*rr*S_0/(a) + p*I[step]*(E[step]+R[step])*rr*S_0*(1+a)**(p-1)/Heff + I[step]**2 * (f1a*rr*S_0 + f2a*S_0**2 *(rr**2 + rr*(1-J)))/(Heff*a*a*(1+a))
         S[step+1]=S[step]-E[step]-I[step]-R[step]
 
     # fine integrazione numerica
@@ -89,17 +89,21 @@ def calc_resid(x, *args):
 
 
 
-#with open("../../jhu-csse-COVID-19/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Confirmed.csv","r") as data:
-#    for line in data:
-#        if line.split(",")[0] == 'Province/State':
-#            giorni = [str(item).rstrip("\n") for item in line.split(",")[4:]]
-#        if line.split(",")[0] == 'Hubei':
-#            reference = [int(str(item).rstrip("\n")) for item in line.split(",")[4:]]
-#print('PORCODDIO')
+with open("../../jhu-csse-COVID-19/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Confirmed.csv","r") as data:
+    for line in data:
+        if line.split(",")[0] == 'Province/State':
+            giorni = [str(item).rstrip("\n") for item in line.split(",")[4:]]
+        if line.split(",")[0] == 'Hubei':
+            reference = [int(str(item).rstrip("\n")) for item in line.split(",")[4:]]
+print('PORCODDIO')
+print(reference)
 time_shift = 22
+total_time=400
 #total_time = time_shift + len(reference)
-total_time=200
-x0 = np.array([0.2,0.1, 0.2])
+
+
+#S_0,J,rr,p,Heff
+x0 = np.array([1.2,0.7, 0.8,0.2,70000])
 
 #fitting = minimize(calc_resid, x0, args=(total_time,time_shift,reference),method="Nelder-Mead")
 #print(fitting)
@@ -111,6 +115,7 @@ S, E, I, R = integrate_ode(x0,total_time,time_shift+1)
 t = [tt for tt in range(total_time)]
 fig = plt.figure('dario', facecolor='w')
 plt.clf()
+#plt.plot(reference)
 plt.plot(t, E, alpha=0.5, lw=2, label='esposti')
 plt.plot(t, I+R, 'r', alpha=0.5, lw=2, label='MILO')
 plt.xlabel('Time [days]')

@@ -3,7 +3,6 @@ from scipy.optimize import minimize,least_squares
 import matplotlib.pyplot as plt
 
 
-
 def integrate_ode(x, tempo_totale, quarantine_time):
     # variabili importanti
     h = 5.85*(10**7) # numero di abitanti

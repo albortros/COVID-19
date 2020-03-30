@@ -61,6 +61,8 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 """
 
 # TODO
+# marginal likelihood
+# multidimensional input, both multidim and structured arrays
 # Matern derivatives
-# raw argument for GP.prior
+# `raw` argument for GP.prior
 # GP._prior stored flat

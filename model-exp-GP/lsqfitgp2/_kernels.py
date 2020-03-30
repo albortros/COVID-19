@@ -119,7 +119,7 @@ def makekernel(kernel, superclass):
     newclass = type(name, (superclass,), dict(
         __doc__=kernel.__doc__
     ))
-    newclass.__init__ = lambda self, *args, **kw: super(newclass, self).__init__(kernel, *args, **kw)
+    newclass.__init__ = lambda self, **kw: super(newclass, self).__init__(kernel, **kw)
     return newclass
 
 def stationarykernel(kernel):

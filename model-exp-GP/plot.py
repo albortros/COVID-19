@@ -22,9 +22,6 @@ ax = fig.subplots(1, 1)
 savedir = 'plots'
 os.makedirs(savedir, exist_ok=True)
 
-def log10(x):
-    return gvar.log(x) / gvar.log(10)
-
 # Iterate over regions.
 print(f'Writing plots in {savedir}/...')
 for region, fit in tqdm.tqdm(fits.items()):
@@ -42,13 +39,18 @@ for region, fit in tqdm.tqdm(fits.items()):
         color = rt[0].get_color()
     
         # fit
-        xfit = fit['dates_plot']
-        yfit = fit['prediction'][label][:len(xfit)]
+        xfit = fit['dates']['plot']
+        yfit = fit['plot'][label]
         ym, ys = gvar.mean(yfit), gvar.sdev(yfit)
         ax.fill_between(xfit, ym - ys, ym + ys, color=color, alpha=0.5)
+        
+        # fit samples
+        cov = gvar.evalcov(yfit)
+        samples = np.random.multivariate_normal(ym, cov, size=20)
+        ax.plot(xfit, samples.T, '-', color=color, alpha=0.2)
 
     # Embellishments.
-    ax.set_yscale('symlog', linthreshy=1, subsy=np.arange(2, 10), linscaley=0.3)
+    # ax.set_yscale('symlog', linthreshy=1, subsy=np.arange(2, 10), linscaley=0.3)
     if ax.get_ylim()[0] < 0:
         ax.set_ylim(0, ax.get_ylim()[1])
     ax.legend(loc='upper left')
@@ -78,3 +80,5 @@ for region, fit in tqdm.tqdm(fits.items()):
     fig.autofmt_xdate(rotation=70)
     fig.tight_layout()
     fig.savefig(f'{savedir}/{region}.png')
+
+fig.show()

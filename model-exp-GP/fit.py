@@ -6,7 +6,7 @@ import pickle
 import namedate
 import tqdm
 import sys
-import lsqfitgp as lgp
+import lsqfitgp2 as lgp
 
 # Read command line.
 regions = sys.argv[1:]
@@ -26,13 +26,13 @@ pickle_dict = dict()
 def fcn(args, p):
     times = args['times']
     gps = args['gps']
-    pred = args.get('pred', False)
+    pred = args.get('pred', '')
     
     out = gvar.BufferDict()
     for label in gps:
         phi = p['phi_' + label]
         if pred:
-            phi = gps[label].pred(phi)
+            phi = gps[label].predfromfit({'data': phi}, pred)
         out[label] = phi
     
     return out
@@ -63,31 +63,30 @@ for region in regions if regions else tqdm.tqdm(data['denominazione_regione'].un
 
     # Times for prediction.
     lastdate = table['data'].max()
-    dates_pred = pd.date_range(lastdate, periods=15, freq='1D')[1:]
+    dates_pred = pd.date_range(lastdate, periods=60, freq='1D')[1:]
     times_pred = time_to_number(dates_pred) - time_zero
 
     # Times for plot.
     firstdate = table['data'].min()
-    dates_plot = pd.date_range(firstdate, dates_pred[-1], 100)
+    dates_plot = pd.date_range(firstdate, dates_pred[-1], 300)
     times_plot = time_to_number(dates_plot) - time_zero
     
     # Data.
     fitdata = gvar.BufferDict({
-        label: np.log(make_poisson_data(table[label].values)) / (10 + times)
+        label: make_poisson_data(table[label].values)
         for label in ['totale_casi']
     })
     
     # Prior.
-    times_gppred = np.concatenate([times_plot, times_pred])
-    gps = {
-        label: lgp.GP(times, lgp.NNKernel(scale=3, sigma0=20, loc=-20), times_gppred)
-        for label in fitdata
-    }
-    prior = gvar.BufferDict(**{
-        't0_' + label: gvar.gvar('-20(.1)')
-        for label in []#fitdata
-    }, **{
-        'phi_' + label: gps[label].prior()
+    gps = dict()
+    for label in fitdata:
+        gp = lgp.GP(10000 ** 2 * lgp.ExpQuad(scale=30) + 100 ** 2 * lgp.ExpQuad())
+        gp.addx(times, 'data')
+        gp.addx(times_pred, 'pred'),
+        gp.addx(times_plot, 'plot')
+        gps[label] = gp
+    prior = gvar.BufferDict({
+        'phi_' + label: gps[label].prior('data')
         for label in fitdata
     })
 
@@ -96,9 +95,10 @@ for region in regions if regions else tqdm.tqdm(data['denominazione_regione'].un
     fit = lsqfit.nonlinear_fit(data=(args, fitdata), prior=prior, fcn=fcn)
     
     # Compute prediction.
-    predargs = dict(times=times_gppred, pred=True, gps=gps)
-    # prediction = fcn(predargs, fit.p)
-    prediction = gvar.BufferDict(totale_casi=gps['totale_casi'].fitpredalt(fitdata['totale_casi']))
+    predargs = dict(times=times_pred, pred='pred', gps=gps)
+    pred = fcn(predargs, fit.palt)
+    predargs = dict(times=times_plot, pred='plot', gps=gps)
+    plot = fcn(predargs, fit.palt)
 
     # Save results.
     pickle_dict[region] = dict(
@@ -110,12 +110,13 @@ for region in regions if regions else tqdm.tqdm(data['denominazione_regione'].un
         pvalue=fit.Q,
         table=table,
         time_zero=time_zero,
-        prediction=prediction,
-        dates_plot=dates_plot,
-        dates_pred=dates_pred
+        pred=pred,
+        plot=plot,
+        dates=dict(pred=dates_pred, plot=dates_plot)
     )
 
 # Save results on file.
-pickle_file = 'fit_' + namedate.file_timestamp() + '.pickle'
+# pickle_file = 'fit_' + namedate.file_timestamp() + '.pickle'
+pickle_file = 'fit.pickle'
 print(f'Saving to {pickle_file}...')
 pickle.dump(pickle_dict, open(pickle_file, 'wb'))

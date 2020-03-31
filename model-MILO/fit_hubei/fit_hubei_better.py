@@ -59,7 +59,9 @@ def calc_resid(x, *args):
     #print("calcolated : "+str(ref_I))
     #print("reference  : "+str(reference))
     
-    return [(np.log(reference[i])-np.log(ref_I[i]+ref_R[i]) ) for i in range(len(reference))] 
+#    return [(np.log(reference[i])-np.log(ref_I[i]+ref_R[i]) ) for i in range(len(reference))] 
+    #POTREI USARE CURVE_FIT CON QUESTO RETURN QUI SOTTO
+    return [np.array(ref_I)+np.array(ref_R)]
 
 with open("../../jhu-csse-COVID-19/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Confirmed.csv","r") as data:
     for line in data:
@@ -74,7 +76,8 @@ x0 = np.array([2,100, 40])
 
 fitting = least_squares(calc_resid, x0, args=(total_time,time_shift,reference))
 print(fitting)
-
+COV=np.linalg.inv(fitting.jac.T@fitting.jac)
+errPar=np.sqrt(np.diag(COV))
 S, E, I, R = integrate_ode(fitting.x,total_time,time_shift+1)
 
 t = np.linspace(1,len(reference),len(reference))

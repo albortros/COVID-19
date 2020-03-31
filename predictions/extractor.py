@@ -111,7 +111,7 @@ def variazione(df, label):
     elif label in df.columns:
         # ASSERT IT IS SORTED BY DATE
         assert np.all(np.array(np.diff(df['data'].values), float) > 0)
-        x = np.concatenate([[0], np.diff(df[label].values)])
+        x = np.concatenate([[np.nan], np.diff(df[label].values)])
     else:
         x = None
     

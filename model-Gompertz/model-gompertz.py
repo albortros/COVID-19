@@ -197,8 +197,8 @@ for ii in range(len(TypeOfData)):
         STD='std_'+TypeOfData[ii]
         intestCSV= intestCSV + [TypeOfData[ii]] + [STD]
 for ii in range(len(TypeOfData)):
-    STD='std_nuovi_'+TypeOfData[ii]
-    intestCSV= intestCSV + ['nuovi_'+TypeOfData[ii]] + [STD]
+    STD='std_variazione_'+TypeOfData[ii]
+    intestCSV= intestCSV + ['variazione_'+TypeOfData[ii]] + [STD]
     
 
 startingDate=737425

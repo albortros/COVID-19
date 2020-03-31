@@ -48,15 +48,19 @@ extractor = Extractor([
     'terapia_intensiva',
     'totale_ospedalizzati',
     'isolamento_domiciliare',
-    'totale_attualmente_positivi',
-    'nuovi_attualmente_positivi',
+    'totale_positivi',
+    'variazione_totale_positivi',
     'dimessi_guariti',
     'deceduti',
     'totale_casi',
-    'tamponi'
+    'tamponi',
+    'nuovi_positivi'
 ] + [
     # custom labels from models (a new function must be registered for them)
-    'guariti_o_deceduti'
+    'guariti_o_deceduti',
+    'variazione_totale_casi',
+    'variazione_deceduti',
+    'variazione_dimessi_guariti'
 ])
 
 def tryornone(lambdalist):
@@ -80,3 +84,54 @@ def guariti_o_deceduti(df):
         lambda: np.hypot(df['std_totale_casi'], df['std_totale_attualmente_positivi'])
     ])
     return x, dx
+
+def trymany(df, *labels):
+    x = tryornone([
+        eval(f'lambda: df["{label}"]', {'df': df})
+        for label in labels
+    ])
+    dx = tryornone([
+        eval(f'lambda: df["std_" + "{label}"]', {'df': df})
+        for label in labels
+    ])
+    return x, dx
+
+@extractor.register
+def totale_positivi(df):
+    return trymany(df, 'totale_positivi', 'totale_attualmente_positivi')
+
+@extractor.register
+def variazione_totale_positivi(df):
+    return trymany(df, 'variazione_totale_positivi', 'nuovi_attualmente_positivi')
+
+def variazione(df, label):
+    nuovilabel = 'nuovi_' + label
+    # TODO: change nuovi_ to variazione_ when Jacopo updates the scripts ## !!!
+    if nuovilabel in df.columns:
+        x = df[nuovilabel]
+    elif label in df.columns:
+        # ASSERT IT IS SORTED BY DATE
+        assert np.all(np.array(np.diff(df['data'].values), float) > 0)
+        x = np.concatenate([[0], np.diff(df[label].values)])
+    else:
+        x = None
+    
+    stdnuovilabel = 'std_' + nuovilabel
+    if stdnuovilabel in df.columns:
+        dx = df[stdnuovilabel]
+    else:
+        dx = None
+    
+    return x, dx
+    
+@extractor.register
+def variazione_totale_casi(df):
+    return variazione(df, 'totale_casi')
+
+@extractor.register
+def variazione_deceduti(df):
+    return variazione(df, 'deceduti')
+
+@extractor.register
+def variazione_dimessi_guariti(df):
+    return variazione(df, 'dimessi_guariti')

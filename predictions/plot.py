@@ -98,7 +98,7 @@ for table in data.values():
     lastdate = table['data'].max()
     today = pd.Timestamp.today()
     if today - lastdate > pd.Timedelta(1, 'D'):
-        raise ValueError(f'Data` is not update, last date in data is {lastdate}')
+        raise ValueError(f'Data is not update, last date in data is {lastdate}')
     
 # Determine labels to plot.
 if cmdargs.label:
@@ -237,10 +237,10 @@ for date_directory in directories:
                 eprint(f'region `{region}`, label `{label}`: no data (??)')
             if not (yerr is None):
                 eprint(f'region `{region}`, label `{label}`: got uncertainties for real data, ignoring them and using poisson errors')
-            yerr = np.where(y > 0, np.sqrt(y), 1)
             
             # Plot data.
             if not (y is None):
+                yerr = np.where(y > 0, np.sqrt(y), 1)
                 kw = dict(label='data', marker='.', capsize=0, linestyle='', color=colorset.colorfor('data'))
                 ax.errorbar(x, y, yerr=yerr, **kw)
         

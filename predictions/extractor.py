@@ -105,8 +105,7 @@ def variazione_totale_positivi(df):
     return trymany(df, 'variazione_totale_positivi', 'nuovi_attualmente_positivi')
 
 def variazione(df, label):
-    nuovilabel = 'nuovi_' + label
-    # TODO: change nuovi_ to variazione_ when Jacopo updates the scripts ## !!!
+    nuovilabel = 'variazione_' + label
     if nuovilabel in df.columns:
         x = df[nuovilabel]
     elif label in df.columns:

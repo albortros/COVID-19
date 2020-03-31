@@ -88,7 +88,7 @@ for TYPE in TypeOfData:
     
     #quanti punti considero: fino a che la differenza tra l'asintoto e la funzione non è < 1
     sol = int(fsolve(lambda x : logistic(x,Par) - int(Par[2]),Par[1]))
-    pred_x = list(range(max(x),int(sol)))
+    pred_x = list(range(max(x),max([int(sol)])))
     xTOT= x+pred_x
     
     # Calcoliamo SIZE funzioni estraendo parametri a caso e facendo la std
@@ -173,31 +173,26 @@ for TYPE in TypeOfData:
     Y1=np.insert(Y1,0,Y1[0])
     Y3=Y2-Y1
     ERRY3=np.sqrt(Y2+Y1)
-    X=np.array(x)
-    X=np.delete(X,15,axis=0)
-    Y3=np.delete(Y3,15,axis=0)
-    ERRY3=np.delete(ERRY3,15,axis=0)
     
-    ParD, CovD = curve_fit(logistic_model_derivative,X,Y3,p0=[0.2,70,64000],sigma=ERRY3, absolute_sigma=False)
+    ParD, CovD = curve_fit(logistic_model_derivative,x,Y3,p0=[0.2,70,64000],sigma=ERRY3, absolute_sigma=False)
     simulated_par_D= np.random.multivariate_normal(ParD, CovD, size=SIZE)
-    simulated_curve_D=[[logistic_derivative(ii,par) for ii in list(X)+pred_x] for par in simulated_par_D]
+    simulated_curve_D=[[logistic_derivative(ii,par) for ii in list(x)+pred_x] for par in simulated_par_D]
     std_fit_D=np.std(simulated_curve_D, axis=0)
     
-    Ymin= np.array([logistic_derivative(i,ParD) for i in list(X)+pred_x])-np.array(std_fit_D)
-    Ymax= np.array([logistic_derivative(i,ParD) for i in list(X)+pred_x])+np.array(std_fit_D)
+    Ymin= np.array([logistic_derivative(i,ParD) for i in list(x)+pred_x])-np.array(std_fit_D)
+    Ymax= np.array([logistic_derivative(i,ParD) for i in list(x)+pred_x])+np.array(std_fit_D)
     
     YPred_model_derivative   = YPred_model_derivative + [[logistic_derivative(ii,ParD) for ii in Xpredicted]]
-    StdPred_model_derivative = StdPred_model_derivative + [std_fit_D]
-    
+    StdPred_model_derivative = StdPred_model_derivative + [[std_fit_D[ii] for ii in range(len(x),len(x)+NumberOfDaysPredicted)]]    
     # Real data
     plt.figure('derivatives_'+NomeIng[iteration])
-    plt.errorbar(X, Y3, yerr=ERRY3, fmt='o',color="red", alpha=0.75,label="Data" )
-    plt.plot(list(X)+pred_x, [logistic_derivative(i,ParD) for i in list(X)+pred_x], label="logistic model derivative" )
-    plt.fill_between(list(X)+pred_x,Ymin,Ymax,facecolor='blue', alpha = 0.3 )
+    plt.errorbar(x, Y3, yerr=ERRY3, fmt='o',color="red", alpha=0.75,label="Data" )
+    plt.plot(list(x)+pred_x, [logistic_derivative(i,ParD) for i in list(x)+pred_x], label="logistic model derivative" )
+    plt.fill_between(list(x)+pred_x,Ymin,Ymax,facecolor='blue', alpha = 0.3 )
     plt.legend()
     plt.xlabel("Days since 1 January 2020")
     plt.ylabel('Increase of '+NomeIng[iteration]+' people')
-    plt.ylim((min(Y3)*0.9,max([logistic_derivative(i,ParD) for i in list(X)+pred_x])*1.6))
+    plt.ylim((min(Y3)*0.9,max([logistic_derivative(i,ParD) for i in list(x)+pred_x])*1.6))
     plt.grid(linestyle='--',which='both')
     plt.savefig(namefile+cases[iteration]+types[3]+region+ext, dpi=DPI)
     plt.gcf().show()

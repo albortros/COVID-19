@@ -7,6 +7,7 @@ import namedate
 import fitlsqdefs
 import tqdm
 import sys
+import os
 
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
@@ -23,20 +24,34 @@ data = pd.read_csv(
     parse_dates=['data'],
     infer_datetime_format=True
 )
-gdata = data.groupby('denominazione_regione')
-# use the name to group because problems with south tirol
 
-# Check data is updated.
-lastdate = data['data'].max()
-today = pd.Timestamp.today()
-if today - lastdate > pd.Timedelta(1, 'D'):
-    raise ValueError(f'Data is not update, last date in data is {lastdate}')
+def rounddate(date):
+    # removes hours, minutes, etc.
+    return pd.Timestamp(year=date.year, month=date.month, day=date.day)
+
+# Get date to be used.
+lastdateindata = data['data'].max()
+if os.getenv('LASTDATE'):
+    lastdate = pd.Timestamp(os.getenv('LASTDATE'))
+    ok = rounddate(lastdateindata) >= lastdate
+    lastdate += pd.Timedelta(23, 'H')
+else:
+    lastdate = pd.Timestamp.today()
+    ok = lastdate - lastdateindata < pd.Timedelta(1, 'D')
+if not ok:
+    raise ValueError(f'Data is not update, last date in data is {lastdateindata}, requested date is {lastdate}')
+print(f'last date used is {lastdate}')
+data = data[data['data'] <= lastdate]
 
 # Read additional csv to know the population of each region.
 regioninfo = pd.read_csv('../shared_data/dati_regioni.csv')
 
 # This dictionary will be saved on file at the end.
 pickle_dict = dict(prior_option=prior_option)
+
+# Group data by region.
+gdata = data.groupby('denominazione_regione')
+# (use the name to group because problems with south tirol)
 
 print('Iterating over regions...')
 for region in tqdm.tqdm(regions if regions else data['denominazione_regione'].unique()):

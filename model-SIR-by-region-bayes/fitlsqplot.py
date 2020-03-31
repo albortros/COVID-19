@@ -13,7 +13,7 @@ register_matplotlib_converters()
 
 # Load fit result.
 fits = pickle.load(open(sys.argv[1], 'rb'))
-fits.pop('prior_option')
+prior_option = fits.pop('prior_option')
 
 # Prepare figure.
 fig = plt.figure('fitlsqplot')
@@ -90,6 +90,6 @@ $\\sqrt{{\\chi^2 / \\mathrm{{dof}}}}$ = {np.sqrt(fit["chi2"] / fit["dof"]):.1f}"
     # Save figure.
     fig.autofmt_xdate()
     fig.tight_layout()
-    fig.savefig(f'{savedir}/{region}.png')
+    fig.savefig(f'{savedir}/{region}-{prior_option}.png')
 
 del fig, ax

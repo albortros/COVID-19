@@ -188,11 +188,15 @@ class GP:
             assert len(xy) == 2
             kernel = self._covfunderiv(kdkd[0][1], kdkd[1][1])
             slices = [self._slices[k, d] for k, d in kdkd]
-            cov[slices[0], slices[1]] = kernel(xy[0], xy[1])
+            thiscov = kernel(xy[0], xy[1])
+            if not np.all(np.isfinite(thiscov)):
+                raise ValueError('covariance block ({}, {}) is not finite'.format(*kdkd))
+            cov[slices[0], slices[1]] = thiscov
         
-        # check covariance matrix is positive definite
         if not np.allclose(cov, cov.T):
             raise ValueError('covariance matrix is not symmetric')
+
+        # check covariance matrix is positive definite
         eigv = linalg.eigvalsh(cov)
         mineigv = np.min(eigv)
         if mineigv < 0:
@@ -205,10 +209,6 @@ class GP:
                 else:
                     print(message, file=sys.stderr)
             cov[np.diag_indices(len(cov))] += -mineigv
-            # this is a fast but strong regularization, maybe we could just do
-            # an svd cut
-        # since we are diagonalizing, maybe save the transformation and apply
-        # it so that lsqfit does not diagonalize it again for the fit.
         
         return cov
     

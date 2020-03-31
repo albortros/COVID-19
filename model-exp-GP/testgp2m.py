@@ -4,20 +4,21 @@ import numpy as np
 import gvar
 from scipy import optimize
 
-xdata = np.linspace(0, 10, 30)
-xpred = np.linspace(-15, 25, 300)
+xdata = np.linspace(0, 10, 10)
+xpred = np.linspace(-15, 25, 500)
 y = np.sin(xdata)
 
 def makegp(par):
     scale = np.exp(par[0])
-    return lgp.GP(lgp.ExpQuad(scale=scale))
+    nu = np.exp(par[1])
+    return lgp.GP(lgp.Matern(scale=scale, nu=nu))
 
 def fun(par):
     gp = makegp(par)
     gp.addx(xdata)
     return -gp.marginal_likelihood(y)
 
-result = optimize.minimize(fun, [np.log(3)], method='Nelder-Mead')
+result = optimize.minimize(fun, np.log([5, 5]), method='Nelder-Mead')
 print(result)
 
 gp = makegp(result.x)

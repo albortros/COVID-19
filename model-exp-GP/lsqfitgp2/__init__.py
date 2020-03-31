@@ -61,9 +61,43 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 """
 
 # TODO
-# remove full diagonalization step
-# multidimensional input, both multidim and structured arrays
-# Matern derivatives
+#
+# Remove full diagonalization step and make positive only Kxx in `pred`
+# and `marginal_likelihood`. Provide options to do one of the following:
+#  1) Compute maximum eigenvalue with eigh/eigsh (decided based on size) and
+#     add to the diagonal 2 * n * eps * maxeigv.
+#  2) Estimate maxeigv with an approximate method (faster, but won't remove
+#     the O(n^3) asymptotic bottleneck of the Cholesky, and may be too brutal).
+#  3) Reduce the rank with eigsh (possibly difficult to use, but reduces from
+#     O(n^3) to O(n^2 * rank)). How good is the approximation is determined
+#     by computing the trace.
+#  4) Rank-reducing svdcut.
+#  5) Rank-enforcing svdcut (default, what lsqfit would do).
+#  6) Sparse covariance (useful only if I add finite support kernels).
+# I could also try in any case the Cholesky first (except for options 3, 6) and
+# do something only if it fails. Write all this in a new private method.
+# Question: when I do the svdcut, should I do a diagonalization or really an
+# SVD? Is there a numerical stability difference? Interface: string keyword
+# argument, additional keyword arguments to specify rank and threshold.
+#
+# Multidimensional input, both multidim and structured arrays. The first
+# axis is the dimesion axis: this way caching makes sense with separated
+# kernels, and it works also in exactly the same way with structured arrays
+# by using strings instead of numbers. What dimension the kernel operates on
+# is specified by the `dim` keyword at construction, dim=None means all
+# dimensions and can accept 1D x without trying to extract something (I want
+# to avoid having to use 2D x in any case like pymc3). On its part, GP will
+# look at the shape/dtype of the first x it receives and enforce it for all
+# other xs.
+#
+# Matern derivatives for half-integer nu
+# stabilize Matern kernel near r == 0, then Matern derivatives for real nu
+# (quick fix: larger eps in _softabs)
 # `raw` argument for GP.prior
 # GP._prior stored flat
 # compute only half of the covariance matrices
+# GP._cov stored 1D (lower triangular)
+# non-real input kernels (there are some examples in GPML)
+# marginal likelihood derivatives
+# _concatenate_noop to avoid copying arrays (in general remove unneeded copies)
+# finite support kernels

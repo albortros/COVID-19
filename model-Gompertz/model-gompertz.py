@@ -163,7 +163,7 @@ for TYPE in TypeOfData:
     Ymax= np.array([gompertz_derivative(i,ParD) for i in list(X)+pred_x])+np.array(std_fit_D)
     
     YPred_model_derivative   = YPred_model_derivative + [[gompertz_derivative(ii,ParD) for ii in Xpredicted]]
-    StdPred_model_derivative = StdPred_model_derivative + [std_fit_D]
+    StdPred_model_derivative = StdPred_model_derivative + [[std_fit_D[ii] for ii in range(len(x),len(x)+NumberOfDaysPredicted)]]
     
     # Real data
     plt.figure('derivatives_'+NomeIng[iteration])

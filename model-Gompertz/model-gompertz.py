@@ -78,7 +78,6 @@ for TYPE in TypeOfData:
     namefile=path+DATE+name+model
     
     # tiene conto di che iterazione stiamo facendo
-
     x = list(df.iloc[:,0])
     y = list(df.iloc[:,1])
     YERR = np.sqrt(y)

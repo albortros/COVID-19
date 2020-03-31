@@ -66,7 +66,7 @@ df['data'] = date.map(lambda x : (x - datetime.strptime("2020-01-01T00:00:00", F
 
 #Plot name format:
 path     ='Plots/'
-name     ='-jacopo'
+name     ='-Jacopo'
 model    ='-model-gompertz-only'
 case     =['-infected','-deaths','-recovered']
 types    =['-log','-derivative']
@@ -137,7 +137,7 @@ plt.ylabel("Total number of infected people")
 plt.ylim((min(y)*0.9,gompertz_Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
 plt.savefig(namefile+case[0]+types[0]+region+ext, dpi=DPI)
-plt.show()
+plt.gcf().show()
 
 
 
@@ -162,7 +162,7 @@ gompertz_YmaxD             = np.array([gompertz_derivative(i,gompertz_ParD) for 
 #plt.figure('prova1')
 #for par in gompertz_simulated_par_D:
 #    plt.plot(xTOT,[gompertz_derivative(ii,par) for ii in xTOT])
-#plt.show()
+#plt.gcf().show()
 
 plt.figure('derivatives_infected')
 plt.errorbar(x, Y3, yerr=ERRY3, fmt='o',color="red", alpha=0.75,label="Data" )
@@ -174,7 +174,7 @@ plt.ylabel("Increase of infected people per day")
 plt.ylim((min(Y3)*0.9,1.25*max([gompertz_derivative(i,gompertz_ParD) for i in xTOT])*1.1))
 plt.grid(linestyle='--',which='both')
 plt.savefig(namefile+case[0]+types[1]+region+ext, dpi=DPI)
-plt.show()
+plt.gcf().show()
 
 
 
@@ -252,7 +252,7 @@ plt.ylabel("Total number of dead people")
 plt.ylim((min(y)*0.9,gompertz_Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
 plt.savefig(namefile+case[1]+types[0]+region+ext, dpi=DPI)
-plt.show()
+plt.gcf().show()
 
 
 # differences: derivatives
@@ -277,7 +277,7 @@ gompertz_YmaxD             = np.array([gompertz_derivative(i,gompertz_ParD) for 
 #plt.figure('prova')
 #for par in gompertz_simulated_par_D:
 #    plt.plot(xTOT,[gompertz_derivative(ii,par) for ii in xTOT])
-#plt.show()
+#plt.gcf().show()
 # Real data
 
 plt.figure('derivatives_deaths')
@@ -290,7 +290,7 @@ plt.ylabel("Increase of dead people per day")
 plt.ylim((min(Y3)*0.9,1.1*max([gompertz_derivative(i,gompertz_ParD) for i in xTOT])))
 plt.grid(linestyle='--',which='both')
 plt.savefig(namefile+case[1]+types[1]+region+ext, dpi=DPI)
-plt.show()
+plt.gcf().show()
 
 
 
@@ -374,7 +374,7 @@ plt.ylabel("Total number of recovered people")
 plt.ylim((min(y)*0.9,gompertz_Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
 plt.savefig(namefile+case[2]+types[0]+region+ext, dpi=DPI)
-plt.show()
+plt.gcf().show()
 
 
 
@@ -405,7 +405,7 @@ gompertz_YmaxD             = np.array([gompertz_derivative(i,gompertz_ParD) for 
 #plt.figure('prova')
 #for par in gompertz_simulated_par_D:
 #    plt.plot(xTOT,[gompertz_derivative(ii,par) for ii in xTOT])
-#plt.show()
+#plt.gcf().show()
 
 # Real data
 plt.figure('derivatives_recovered')
@@ -418,7 +418,7 @@ plt.ylabel("Increase of recovered people per day")
 plt.ylim((min(Y3)*0.9,max([gompertz_derivative(i,gompertz_ParD) for i in xTOT])*1.1))
 plt.grid(linestyle='--',which='both')
 plt.savefig(namefile+case[2]+types[1]+region+ext, dpi=DPI)
-plt.show()
+plt.gcf().show()
 
 
 

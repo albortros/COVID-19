@@ -277,7 +277,7 @@ plt.ylabel("Total number of dead people")
 plt.ylim((min(y)*0.9,Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
 plt.savefig(namefile+model+case[1]+types[0]+region+ext, dpi=DPI)
-plt.show()
+plt.gcf().show()
 
 Ypredicted_logistic_deaths=Ypredicted
 YPERR_logistic_deaths=YPERR
@@ -304,7 +304,7 @@ plt.ylabel("Total number of dead people")
 plt.ylim((min(y)*0.9,Par[2]*1.1))
 plt.grid(linestyle='--',which='both')
 plt.savefig(namefile+model+case[1]+types[1]+region+ext, dpi=DPI)
-plt.show()
+plt.gcf().show()
 
 Ypredicted_logistic_deaths=Ypredicted
 YPERR_logistic_deaths=YPERR
@@ -331,7 +331,7 @@ plt.ylim((min(Y2/Y1)*0.9,max(Y2/Y1)*1.1))
 plt.grid(linestyle='--',which='both')
 plt.savefig(namefile+case[1]+types[2]+region+ext, dpi=DPI)
 
-#plt.show()
+#plt.gcf().show()
 
 
 # differences
@@ -475,7 +475,7 @@ plt.ylabel("Ratio of recovered people respect to the day before")
 plt.ylim((min(Y2/Y1)*0.9,max(Y2/Y1)*1.1))
 plt.grid(linestyle='--',which='both')
 plt.savefig(namefile+case[2]+types[2]+region+ext, dpi=DPI)
-#plt.show()
+#plt.gcf().show()
 
 
 # differences
@@ -516,7 +516,7 @@ plt.ylim((min(Y3)*0.9,max([logistic_derivative(i,fit_derivative[0]) for i in lis
 plt.grid(linestyle='--',which='both')
 plt.savefig(namefile+model+case[2]+types[3]+region+ext, dpi=DPI)
 
-#plt.show()
+#plt.gcf().show()
 
 
 

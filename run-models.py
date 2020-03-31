@@ -6,6 +6,7 @@ import contextlib
 import glob
 import sys
 import pandas as pd
+import shutil
 
 @contextlib.contextmanager
 def chdir(dir):
@@ -36,18 +37,32 @@ def eprint(*args):
     errors += 1
     print('##### ERROR #####', *args, file=sys.stderr)
 
-model_commands = {
-    'model-SIR-by-region-bayes': """
+model_commands = dict() # key = model directory, value = code
+
+model_commands['model-SIR-by-region-bayes'] = """
 command('python3 fitlsq.py')
 files = glob.glob('fitlsq_*UTC.pickle')
 files.sort()
 file = files[-1]
 # command(f'python3 fitlsqplot.py {file}')
 command(f'python3 fitlsqpred.py {file}')
-    """
-}
+"""
 
 model_commands['model-SIR-region-truepop'] = model_commands['model-SIR-by-region-bayes']
+
+model_commands['model-Logistic'] = """
+url = "https://raw.githubusercontent.com/pcm-dpc/COVID-19/master/dati-andamento-nazionale/dpc-covid19-ita-andamento-nazionale.csv"
+df = pd.read_csv(url, parse_dates=['data'])
+lastdate = df['data'].max()
+savedir = f'../predictions/{lastdate.year:04d}-{lastdate.month:02d}-{lastdate.day:02d}/dati-andamento-nazionale'
+os.makedirs(savedir, exist_ok=True)
+os.makedirs('Plots', exist_ok=True)
+command('python3 model-logistic.py')
+filename = 'model-logistic-national.csv'
+shutil.copy(filename, f'{savedir}/{filename}')
+"""
+
+model_commands['model-Gompertz'] = model_commands['model-Logistic'].replace('logistic', 'gompertz')
 
 if sys.argv[1:]:
     model_dirs = sys.argv[1:]

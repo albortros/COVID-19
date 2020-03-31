@@ -22,6 +22,7 @@ class Extractor:
         """
         name = fun.__name__
         assert name in self.labels
+        assert not (name in self._functions)
         self._functions[name] = fun
         return fun
 
@@ -60,7 +61,8 @@ extractor = Extractor([
     'guariti_o_deceduti',
     'variazione_totale_casi',
     'variazione_deceduti',
-    'variazione_dimessi_guariti'
+    'variazione_dimessi_guariti',
+    'variazione_guariti_o_deceduti'
 ])
 
 def tryornone(lambdalist):
@@ -108,12 +110,14 @@ def variazione(df, label):
     nuovilabel = 'variazione_' + label
     if nuovilabel in df.columns:
         x = df[nuovilabel]
-    elif label in df.columns:
-        # ASSERT IT IS SORTED BY DATE
-        assert np.all(np.array(np.diff(df['data'].values), float) > 0)
-        x = np.concatenate([[np.nan], np.diff(df[label].values)])
     else:
-        x = None
+        y, _ = extractor.extract(df, label)
+        if y is None:
+            x = None
+        else:
+            # ASSERT IT IS SORTED BY DATE
+            assert np.all(np.array(np.diff(df['data'].values), float) > 0)
+            x = np.concatenate([[np.nan], np.diff(y.values)])
     
     stdnuovilabel = 'std_' + nuovilabel
     if stdnuovilabel in df.columns:
@@ -134,3 +138,7 @@ def variazione_deceduti(df):
 @extractor.register
 def variazione_dimessi_guariti(df):
     return variazione(df, 'dimessi_guariti')
+
+@extractor.register
+def variazione_guariti_o_deceduti(df):
+    return variazione(df, 'guariti_o_deceduti')

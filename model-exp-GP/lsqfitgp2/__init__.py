@@ -39,7 +39,7 @@ and roughly unit lengthscale.
         White noise, each point is indipendent.
     Matern :
         Matérn kernel, you can set how many times it is differentiable.
-    Matern12, Matern32, Matern52:
+    Matern12, Matern32, Matern52 :
         Matérn kernel for the specific cases nu = 1/2, 3/2, 5/2.
     GammaExp :
         Gamma exponential. Not differentiable, but you can set how close it is
@@ -61,8 +61,9 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 """
 
 # TODO
-# marginal likelihood
+# remove full diagonalization step
 # multidimensional input, both multidim and structured arrays
 # Matern derivatives
 # `raw` argument for GP.prior
 # GP._prior stored flat
+# compute only half of the covariance matrices

@@ -29,6 +29,8 @@ class GP:
         Compute the posterior for the process.
     predfromfit, predfromdata :
         Convenience wrappers for `pred`.
+    marginal_likelihood :
+        Compute the "marginal likelihood" also known as "bayes factor".
     
     """
     
@@ -437,6 +439,22 @@ class GP:
             prior and the data/fit. If False, they have the correct covariance
             between themselves, but are independent from all other preexisting
             `gvar`s.
+        
+        Returns
+        -------
+        If raw=False (default):
+        
+        posterior : array or dictionary of arrays
+            A collections of `gvar`s representing the posterior.
+        
+        If raw=True:
+        
+        pmean : array or dictionary of arrays
+            The mean of the posterior.
+        pcov : 2D array or dictionary of 2D arrays
+            The covariance matrix of the posterior. If `pmean` is a dictionary,
+            the keys of `pcov` are pairs of keys of `pmean`.
+        
         """
         
         if fromdata is None:
@@ -542,3 +560,70 @@ class GP:
         Like `pred` with `fromdata=True`.
         """
         return self.pred(*args, fromdata=True, **kw)
+
+    def marginal_likelihood(self, given):
+        """
+        
+        Compute (the logarithm of) the marginal likelihood given data, i.e. the
+        probability of the data conditioned on the gaussian process prior and
+        data error.
+        
+        Unlike `pred()`, you can't compute this with a fit result instead of
+        data. If you used the gaussian process as latent variable in a fit,
+        use the whole fit to compute the marginal likelihood. E.g. `lsqfit`
+        always computes the logGBF (it's the same thing).
+        
+        The input is an array or dictionary of arrays, `given`. You can pass an
+        array only if the GP is in array mode as set by `addx`. The contents of
+        `given` represent the input data. If a dictionary, the keys in given
+        must follow the same convention of the output from `prior()`, i.e.
+        `(key, deriv)`, or just `key` with implicitly `deriv = 0` when in
+        dictionary mode, and `deriv` in array mode.
+                
+        Parameters
+        ----------
+        given : array or dictionary of arrays
+            The data for some/all of the points in the GP. The arrays can
+            contain either `gvar`s or normal numbers, the latter being
+            equivalent to zero-uncertainty `gvar`s.
+        
+        Returns
+        -------
+        marglike : scalar
+            The marginal likelihood.
+            
+        """        
+        ylist, yslices, inkdl = self._flatgiven(given)
+        cyslices = self._compatslices(yslices)
+                
+        y = np.concatenate(ylist)
+                
+        Kxx = np.full((len(y), len(y)), np.nan)
+        for s1, cs1 in zip(yslices, cyslices):
+            for s2, cs2 in zip(yslices, cyslices):
+                Kxx[cs1, cs2] = self._cov[s1, s2]
+        assert np.allclose(Kxx, Kxx.T)
+        
+        if y.dtype == object:
+            gvary = gvar.gvar(y)
+            ycov = gvar.evalcov(gvary)
+            ymean = gvar.mean(gvary)
+        else:
+            ycov = 0
+            ymean = y
+        
+        Kxx += ycov
+        try:
+            L = linalg.cholesky(Kxx)
+            logdet = 2 * np.sum(np.log(np.diag(L)))
+            res = linalg.solve_triangular(L, ymean)
+            return -1/2 * (np.sum(res ** 2) + logdet + len(L) * np.log(2 * np.pi))
+        except linalg.LinAlgError:
+            w, v = linalg.eigh(Kxx)
+            bound = len(w) * np.finfo(Kxx.dtype).eps * np.max(w)
+            w[w < bound] = bound
+            logdet = np.sum(np.log(w))
+            res = v.T @ ymean
+            return -1/2 + (np.sum(res ** 2 / w) + logdet + len(w) * np.log(2 * np.pi))
+            # maybe LU decomposition is a faster solution, but would it give
+            # positive determinant?

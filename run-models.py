@@ -94,7 +94,7 @@ parser = argparse.ArgumentParser(
     description='Run models to compute predictions.'
 )
 parser.add_argument('-d', '--date', help='last date to use for data (e.g. 2020-XX-XX)', action='append', nargs='+')
-parser.add_argument('-m', '--model', help='model (e.g. gompertz, abbreviations allowed)', action='append', nargs='+')
+parser.add_argument('-m', '--model', help='model (e.g. model-Gompertz)', action='append', nargs='+')
 args = parser.parse_args()
 
 # Dates for data used.
@@ -102,7 +102,7 @@ if getattr(args, 'date', None):
     lastdates = np.concatenate(args.date)
     lastdates = [pd.Timestamp(str(date)) for date in lastdates]
 else:
-    lastdates = [pd.Timestamp.today()]
+    lastdates = [None]
 
 # Models.
 if getattr(args, 'model', None):
@@ -118,10 +118,14 @@ for model in models:
         continue
 
     for lastdate in lastdates:
-        print(f'--- using data up to {daystring(lastdate)} ---')
+        if lastdate:
+            print(f'--- using data up to {daystring(lastdate)} ---')
     
         try:
-            command_default_env['LASTDATE'] = daystring(lastdate)
+            if lastdate:
+                command_default_env['LASTDATE'] = daystring(lastdate)
+            else:
+                command_default_env.pop('LASTDATE', None)
             exec(model_commands[model])
         except Exception as exc:
             eprint(f'There was an error running the commands:\n{type(exc).__name__}({", ".join(map(str, exc.args))})')

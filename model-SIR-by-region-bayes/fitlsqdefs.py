@@ -46,3 +46,6 @@ def make_poisson_data(v):
     assert len(v.shape) <= 1
     assert np.all(v >= 0)
     return gvar.gvar(v, np.where(v > 0, np.sqrt(v), 1))
+
+def rescale_sdev(x, factor):
+    return x * factor + gvar.mean(x) * (1 - factor)

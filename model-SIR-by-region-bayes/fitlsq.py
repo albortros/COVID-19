@@ -12,7 +12,10 @@ from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
 
 # Read command line.
-regions = sys.argv[1:]
+assert len(sys.argv) >= 2
+prior_option = sys.argv[1]
+assert prior_option in ('weakpop', 'truepop')
+regions = sys.argv[2:]
 
 # Read region data.
 data = pd.read_csv(
@@ -23,14 +26,20 @@ data = pd.read_csv(
 gdata = data.groupby('denominazione_regione')
 # use the name to group because problems with south tirol
 
+# Check data is updated.
+lastdate = data['data'].max()
+today = pd.Timestamp.today()
+if today - lastdate > pd.Timedelta(1, 'D'):
+    raise ValueError(f'Data is not update, last date in data is {lastdate}')
+
 # Read additional csv to know the population of each region.
 regioninfo = pd.read_csv('../shared_data/dati_regioni.csv')
 
 # This dictionary will be saved on file at the end.
-pickle_dict = dict()
+pickle_dict = dict(prior_option=prior_option)
 
 print('Iterating over regions...')
-for region in regions if regions else tqdm.tqdm(data['denominazione_regione'].unique()):
+for region in tqdm.tqdm(regions if regions else data['denominazione_regione'].unique()):
     table = gdata.get_group(region)
 
     # Times.
@@ -39,7 +48,7 @@ for region in regions if regions else tqdm.tqdm(data['denominazione_regione'].un
     times -= time_zero
 
     # Data.
-    I_data = table['totale_attualmente_positivi'].values
+    I_data = table['totale_positivi'].values
     R_data = table['totale_casi'].values - I_data
     I_data = fitlsqdefs.make_poisson_data(I_data)
     R_data = fitlsqdefs.make_poisson_data(R_data)
@@ -49,12 +58,16 @@ for region in regions if regions else tqdm.tqdm(data['denominazione_regione'].un
     totpop = regioninfo[regioninfo['denominazione_regione'] == region]['popolazione'].values[0]
     min_pop = np.max(gvar.mean(R_data + I_data))
     _totpop = totpop - min_pop
+    if prior_option == 'weakpop':
+        popprior = gvar.gvar(np.log(_totpop), np.log(20))
+    elif prior_option == 'truepop':
+        popprior = gvar.log(gvar.gvar(_totpop, 10))
 
     # Prior.
     prior = gvar.BufferDict({
         'log(R0)': gvar.gvar(np.log(1), np.log(10)),
         'log(lambda)': gvar.gvar(np.log(1), np.log(10)),
-        'log(_population)': gvar.gvar(np.log(_totpop), np.log(20)),
+        'log(_population)': popprior,
         'log(I0_pop)': gvar.gvar(np.log(10), np.log(100))
     })
 
@@ -65,7 +78,7 @@ for region in regions if regions else tqdm.tqdm(data['denominazione_regione'].un
     # Save results.
     pickle_dict[region] = dict(
         y=fitdata,
-        p=fit.p,
+        p=fit.palt,
         prior=prior,
         log=fit.format(maxline=True),
         chi2=fit.chi2,
@@ -73,7 +86,7 @@ for region in regions if regions else tqdm.tqdm(data['denominazione_regione'].un
         pvalue=fit.Q,
         table=table,
         min_pop=min_pop,
-        time_zero=time_zero
+        time_zero=time_zero,
     )
 
 # Save results on file.

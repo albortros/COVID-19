@@ -13,6 +13,7 @@ register_matplotlib_converters()
 
 # Load fit result.
 fits = pickle.load(open(sys.argv[1], 'rb'))
+fits.pop('prior_option')
 
 # Prepare figure.
 fig = plt.figure('fitlsqplot')
@@ -28,8 +29,7 @@ def log10(x):
 
 # Iterate over regions.
 print(f'Writing plots in {savedir}/...')
-for region, fit in tqdm.tqdm(fits.items()):
-    
+for region, fit in tqdm.tqdm(fits.items()):    
     # Prepare plot.
     ax.cla()
     ax.set_title(region)
@@ -42,7 +42,8 @@ for region, fit in tqdm.tqdm(fits.items()):
     xfit_num = fitlsqdefs.time_to_number(xfit) - fit['time_zero']
     
     # Compute I, R at given times.
-    yfit = fitlsqdefs.fcn(dict(times=xfit_num, min_pop=fit['min_pop']), fit['p'])
+    p = fitlsqdefs.rescale_sdev(fit['p'], np.sqrt(fit['chi2'] / fit['dof']))
+    yfit = fitlsqdefs.fcn(dict(times=xfit_num, min_pop=fit['min_pop']), p)
     
     # Plot.
     for label in 'I', 'R':
@@ -53,25 +54,24 @@ for region, fit in tqdm.tqdm(fits.items()):
     
         # fit
         ym, ys = gvar.mean(yfit[label]), gvar.sdev(yfit[label])
-        ax.fill_between(xfit, ym - ys, ym + ys, color=color)
+        ax.fill_between(xfit, ym - ys, ym + ys, color=color, alpha=0.3)
 
     # Embellishments.
     top = max(np.max(gvar.mean(fit['y'][label])) for label in ['I', 'R'])
     top *= 1.2
     top = max(1, top)
-    ax.set_yscale('symlog', linthreshy=top)
+    ax.set_yscale('symlog', linthreshy=top, subsy=np.arange(2, 10))
     ax.axhline(top, color='black', linestyle='--', label='logscale boundary')
     ax.legend(loc='upper left')
     ax.grid(linestyle=':')
     
     # Box with fit results.
-    p = fit['p']
     population = p['_population'] + fit['min_pop']
-    brief = f"""population = {population}
+    brief = f"""population = {population} people
 $log_{{10}}$(population) = {log10(population)}
-initial I = {p["I0_pop"]}
+initial I = {p["I0_pop"]} people
 $R_0$ = {p["R0"]}
-$\\gamma$ = {p["lambda"]}
+$\\gamma^{{-1}}$ = {1 / p["lambda"]} days
 $\\sqrt{{\\chi^2 / \\mathrm{{dof}}}}$ = {np.sqrt(fit["chi2"] / fit["dof"]):.1f}"""
     ax.annotate(
         brief, (1, 0), xytext=(-8, 8),

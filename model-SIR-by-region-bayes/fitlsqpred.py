@@ -22,8 +22,9 @@ for region, fit in tqdm.tqdm(fits.items()):
 
     # Dates at which to predict.
     lastdate = fit['table']['data'].max()
-    futuredates = pd.date_range(start=lastdate, periods=15, freq='1D')[1:]
-    x = fitlsqdefs.time_to_number(futuredates) - fit['time_zero']
+    futuredates_full = pd.date_range(start=lastdate, periods=15, freq='1D')
+    futuredates = futuredates_full[1:]
+    x = fitlsqdefs.time_to_number(futuredates_full) - fit['time_zero']
     
     # Compute prediction.
     p = fitlsqdefs.rescale_sdev(fit['p'], np.sqrt(fit['chi2'] / fit['dof']))
@@ -33,15 +34,18 @@ for region, fit in tqdm.tqdm(fits.items()):
     output['denominazione_regione'] += [region] * len(futuredates)
     output['data'] += list(futuredates)
     
-    totale_casi = y['R'] + y['I']
-    output['totale_casi'] += list(gvar.mean(totale_casi))
-    output['std_totale_casi'] += list(gvar.sdev(totale_casi))
-
-    output['totale_positivi'] += list(gvar.mean(y['I']))
-    output['std_totale_positivi'] += list(gvar.sdev(y['I']))
+    things = {
+        'totale_casi': y['R'] + y['I'],
+        'totale_positivi': y['I'],
+        'guariti_o_deceduti': y['R'],
+    }
+    for key in list(things.keys()):
+        things['variazione_' + key] = np.diff(things[key])
     
-    output['guariti_o_deceduti'] += list(gvar.mean(y['R']))
-    output['std_guariti_o_deceduti'] += list(gvar.sdev(y['R']))
+    for key, val in things.items():
+        val = val[-len(futuredates):]
+        output[key] += list(gvar.mean(val))
+        output['std_' + key] += list(gvar.sdev(val))
 
 # Convert to dataframe.
 regional = pd.DataFrame(output)
@@ -53,9 +57,11 @@ for date in regional['data'].unique():
     table = grouped_by_date.get_group(date)
     output['data'].append(date)
     for label in 'totale_casi', 'totale_positivi', 'guariti_o_deceduti':
-        output[label].append(np.sum(table[label]))
-        stdlabel = 'std_' + label
-        output[stdlabel].append(np.sqrt(np.sum(table[stdlabel] ** 2)))
+        for var in '', 'variazione_':
+            label = var + label
+            output[label].append(np.sum(table[label]))
+            stdlabel = 'std_' + label
+            output[stdlabel].append(np.sqrt(np.sum(table[stdlabel] ** 2)))
 national = pd.DataFrame(output)
 
 for df, subdir in [(regional, 'dati-regioni'), (national, 'dati-andamento-nazionale')]:

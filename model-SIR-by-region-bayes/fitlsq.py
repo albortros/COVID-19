@@ -40,8 +40,8 @@ else:
     ok = lastdate - lastdateindata < pd.Timedelta(1, 'D')
 if not ok:
     raise ValueError(f'Data is not update, last date in data is {lastdateindata}, requested date is {lastdate}')
-print(f'last date used is {lastdate}')
 data = data[data['data'] <= lastdate]
+print(f'last date used is {data["data"].max()}')
 
 # Read additional csv to know the population of each region.
 regioninfo = pd.read_csv('../shared_data/dati_regioni.csv')

@@ -71,7 +71,6 @@ for TYPE in TypeOfData:
     DATE = df['data'][len(date)-1].strftime(FMD)
     df['data'] = date.map(lambda x : (x - datetime.strptime("2020-01-01T00:00:00", FMT)).days  )
     namefile=path+DATE+name+model
-
     x = list(df.iloc[:,0])
     y = list(df.iloc[:,1])
     YERR = np.sqrt(y)

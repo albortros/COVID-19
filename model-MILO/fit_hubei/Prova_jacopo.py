@@ -59,16 +59,19 @@ def integrate_ode(x, tempo_totale, quarantine_time):
 #        I.append(I[step]-delta_IR[step]+delta_EI[step])
 #        R.append(R[step]+delta_IR[step])
     
-    for step in range(quarantine_time-1):
+#    for step in range(quarantine_time-1):
+    for step in range(0, tempo_totale-1):
         E[step+1]=E[step]+I[step]*S_0*(h-E[step]-I[step]-R[step])*(1-J)/h
         I[step+1]=I[step]+I[step]*S_0*(h-E[step]-I[step]-R[step])*(J-rr)/h
         R[step+1]=R[step]+I[step]*S_0*(h-E[step]-I[step]-R[step])*rr/h
-        S[step+1]=S[step]-E[step]-I[step]-R[step]
-    for step in range(quarantine_time-1, tempo_totale-1):
-        E[step+1]=E[step]+I[step]*S_0*(1-J)*((1+a)**p -1)/a +p*I[step]*(E[step]+R[step])*(1-J)*S_0*(1+a)**(p-1)/Heff +I[step]**2/(Heff*a**2 * (1+a))*(f1a*(1-J)*S_0+f2a*S_0**2 *((1-J)**2+rr*(1-J)))
-        I[step+1]=I[step]*(1+a)**p + p*I[step]*(E[step]+R[step])*a*(1+a)**(p-1)/Heff + I[step]**2*((a-b*p)*(1+a)-(a-b*p)*(1+a)**(p-1) + b*p*((1+a)**p-1))/(Heff*a)
-        R[step+1]=R[step]+ I[step]*((1+a)**p -1)*rr*S_0/(a) + p*I[step]*(E[step]+R[step])*rr*S_0*(1+a)**(p-1)/Heff + I[step]**2 * (f1a*rr*S_0 + f2a*S_0**2 *(rr**2 + rr*(1-J)))/(Heff*a*a*(1+a))
-        S[step+1]=S[step]-E[step]-I[step]-R[step]
+        S[step+1]=h-E[step+1]-I[step+1]-R[step+1]
+        
+        
+#    for step in range(quarantine_time-1, tempo_totale-1):
+#        E[step+1]=E[step]+I[step]*S_0*(1-J)*((1+a)**p -1)/a +p*I[step]*(E[step]+R[step])*(1-J)*S_0*(1+a)**(p-1)/Heff +I[step]**2/(Heff*a**2 * (1+a))*(f1a*(1-J)*S_0+f2a*S_0**2 *((1-J)**2+rr*(1-J)))
+#        I[step+1]=I[step]*(1+a)**p + p*I[step]*(E[step]+R[step])*a*(1+a)**(p-1)/Heff + I[step]**2*((a-b*p)*(1+a)-(a-b*p)*(1+a)**(p-1) + b*p*((1+a)**p-1))/(Heff*a)
+#        R[step+1]=R[step]+ I[step]*((1+a)**p -1)*rr*S_0/(a) + p*I[step]*(E[step]+R[step])*rr*S_0*(1+a)**(p-1)/Heff + I[step]**2 * (f1a*rr*S_0 + f2a*S_0**2 *(rr**2 + rr*(1-J)))/(Heff*a*a*(1+a))
+#        S[step+1]=S[step]-E[step]-I[step]-R[step]
 
     # fine integrazione numerica
     return S, E, I, R
@@ -103,7 +106,7 @@ total_time=400
 
 
 #S_0,J,rr,p,Heff
-x0 = np.array([1.2,0.7, 0.8,0.2,70000])
+x0 = np.array([1.2,(1/1.2)**6, (1/1.2)**18,1,70000])
 
 #fitting = minimize(calc_resid, x0, args=(total_time,time_shift,reference),method="Nelder-Mead")
 #print(fitting)
@@ -121,6 +124,7 @@ plt.plot(t, I+R, 'r', alpha=0.5, lw=2, label='MILO')
 plt.xlabel('Time [days]')
 plt.ylabel('Total')
 legend = plt.legend()
+plt.ylim(0,70000000)
 plt.title ('MILO Fitting')
 plt.show()
 

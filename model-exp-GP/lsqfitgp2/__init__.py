@@ -71,8 +71,9 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 #  3) Reduce the rank with eigsh (possibly difficult to use, but reduces from
 #     O(n^3) to O(n^2 * rank)). How good is the approximation is determined
 #     by computing the trace.
-#  4) Rank-reducing svdcut.
-#  5) Rank-enforcing svdcut (default, what lsqfit would do).
+#  4) Rank-reducing svdcut. This may make sense as default since there can be
+#     effectively quite degenerate cases, like when evaluating derivatives.
+#  5) Rank-enforcing svdcut (what lsqfit would do).
 #  6) Sparse covariance (useful only if I add finite support kernels).
 # I could also try in any case the Cholesky first (except for options 3, 6) and
 # do something only if it fails. Write all this in a new private method.

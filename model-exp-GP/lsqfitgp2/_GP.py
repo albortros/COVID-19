@@ -9,6 +9,7 @@ import numpy as np
 from scipy import linalg
 
 from . import _kernels
+from . import _linalg
 
 def _concatenate_noop(alist, **kw):
     """

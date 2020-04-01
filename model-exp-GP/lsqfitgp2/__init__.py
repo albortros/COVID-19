@@ -94,11 +94,10 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # stabilize Matern kernel near r == 0, then Matern derivatives for real nu
 # (quick fix: larger eps in _softabs)
 # GP._prior stored flat?
-# compute only half of the covariance matrices
+# compute only half of the covariance matrices (checksym=True to compute full)
 # GP._cov stored 1D? (lower triangular)
 # non-real input kernels (there are some examples in GPML)
 # marginal likelihood derivatives
-# _concatenate_noop to avoid copying arrays (in general remove unneeded copies)
 # finite support kernels
 # method GP._covblock to get covariance matrix that builds it one piece at a
 # time as required

@@ -10,6 +10,16 @@ from scipy import linalg
 
 from . import _kernels
 
+def _concatenate_noop(alist, **kw):
+    """
+    Like np.concatenate, but does not make a copy when concatenating only one
+    array.
+    """
+    if len(alist) == 1:
+        return np.asarray(alist[0])
+    else:
+        return np.concatenate(alist, **kw)
+
 class GP:
     """
     
@@ -175,7 +185,7 @@ class GP:
         cov = np.empty((self._length, self._length))
         for kdkd in itertools.product(self._slices, repeat=2):
             xy = [
-                np.concatenate(self._x[key][deriv])
+                _concatenate_noop(self._x[key][deriv])
                 for key, deriv in kdkd
             ]
             assert len(xy) == 2
@@ -494,7 +504,7 @@ class GP:
         cyspslices = self._compatslices(yspslices)
         ysplen = sum(s.stop - s.start for s in cyspslices)
         
-        y = np.concatenate(ylist)
+        y = _concatenate_noop(ylist)
         
         Kxsx = np.full((ysplen, len(y)), np.nan)
         for ss, css in zip(yspslices, cyspslices):
@@ -532,8 +542,8 @@ class GP:
         else: # (keepcorr and not raw)        
             yplist = [self._prior[kd] for kd in inkdl]
             ysplist = [self._prior[kd] for kd in kdlist]
-            yp = np.concatenate(yplist)
-            ysp = np.concatenate(ysplist)
+            yp = _concatenate_noop(yplist)
+            ysp = _concatenate_noop(ysplist)
         
             flatout = Kxsx @ gvar.linalg.solve(Kxx + S, y - yp) + ysp
         
@@ -614,7 +624,7 @@ class GP:
         yslices = [self._slices[kd] for kd in inkdl]
         cyslices = self._compatslices(yslices)
                 
-        y = np.concatenate(ylist)
+        y = _concatenate_noop(ylist)
                 
         Kxx = np.full((len(y), len(y)), np.nan)
         for s1, cs1 in zip(yslices, cyslices):

@@ -126,12 +126,16 @@ class SVDLowRank(SVD):
         
 class DiagLowRank(Decomposition):
     """
-    Keep only the first `rank` higher eigenmodes.
+    Keep only the first `rank` higher eigenmodes. If `estmissing=True`, when
+    computing the log determinant assume that the ignored eigenvalues are
+    uniform. Otherwise, they are not included at all (this changes a lot the
+    result, but the point is that it is stable if you fix the rank).
     """
     
-    def __init__(self, K, rank=1):
+    def __init__(self, K, rank=1, estmissing=False):
         self._w, self._V = slinalg.eigsh(K, k=rank, which='LM')
-        self._trace = np.sum(np.diag(K))
+        self._trace = np.trace(K)
+        self._estmissing = bool(estmissing)
         
     def solve(self, b):
         if b.dtype != object and (len(b.shape) == 1 or b.shape[1] < b.shape[0]):
@@ -148,9 +152,13 @@ class DiagLowRank(Decomposition):
         return (VTb.T / self._w) @ VTb
     
     def logdet(self):
-        nmissing = len(self._V) - len(self._w)
-        tracemissing = self._trace - np.sum(self._w)
-        return np.sum(np.log(self._w)) + nmissing * np.log(tracemissing / nmissing)
+        missing = 0
+        if self._estmissing:
+            nmissing = len(self._V) - len(self._w)
+            tracemissing = self._trace - np.sum(self._w)
+            if nmissing and tracemissing > 0:
+                missing = nmissing * np.log(tracemissing / nmissing)
+        return np.sum(np.log(self._w)) + missing
 
 class Chol(Decomposition):
     """

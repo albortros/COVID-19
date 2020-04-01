@@ -33,12 +33,15 @@ class DecompTestBase:
         if not n:
             n = self.randsize()
         return np.random.randn(m, n)
+    
+    def solve(self, K, b):
+        return linalg.solve(K, b)
             
     def test_solve_vec(self):
         for _ in range(100):
             K = self.randsymmat()
             b = self.randvec(len(K))
-            sol = linalg.solve(K, b)
+            sol = self.solve(K, b)
             result = self.decompclass(K).solve(b)
             assert np.allclose(sol, result)
     
@@ -46,7 +49,7 @@ class DecompTestBase:
         for _ in range(100):
             K = self.randsymmat()
             b = self.randmat(len(K))
-            sol = linalg.solve(K, b)
+            sol = self.solve(K, b)
             result = self.decompclass(K).solve(b)
             assert np.allclose(sol, result, rtol=1e-4)
 
@@ -57,7 +60,8 @@ class DecompTestBase:
             xcov = np.linspace(0, 3, len(K))
             cov = np.exp(-(xcov.reshape(-1, 1) - xcov.reshape(1, -1)) ** 2)
             b = gvar.gvar(mean, cov)
-            sol = linalg.inv(K) @ b
+            invK = self.solve(K, np.eye(len(K)))
+            sol = invK @ b
             result = self.decompclass(K).usolve(b)
             diff = result - sol
             
@@ -75,7 +79,7 @@ class DecompTestBase:
         for _ in range(100):
             K = self.randsymmat()
             b = self.randvec(len(K))
-            sol = b @ linalg.solve(K, b)
+            sol = b @ self.solve(K, b)
             result = self.decompclass(K).quad(b)
             assert np.allclose(sol, result)
     
@@ -127,3 +131,28 @@ class TestCholGersh(DecompTestBase):
     @property
     def decompclass(self):
         return _linalg.CholGersh
+
+class TestDiagLowRank(DecompTestBase):
+    
+    @property
+    def decompclass(self):
+        return lambda K: _linalg.DiagLowRank(K, rank=self._rank)
+    
+    def solve(self, K, b):
+        invK, rank = linalg.pinv(K, return_rank=True)
+        assert rank == self._rank
+        return invK @ b
+    
+    def randsymmat(self, n=None):
+        if not n:
+            n = self.randsize()
+        self._rank = np.random.randint(1, n + 1)
+        A = np.random.randn(self._rank, n)
+        return A.T @ A
+        
+    def test_logdet(self):
+        for _ in range(100):
+            K = self.randsymmat()
+            sol = np.sum(np.log(np.sort(linalg.eigvalsh(K))[-self._rank:]))
+            result = self.decompclass(K).logdet()
+            assert np.allclose(sol, result)

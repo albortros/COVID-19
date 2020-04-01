@@ -79,7 +79,7 @@ class SVD(Decomposition):
     """
     
     def __init__(self, K):
-        self._U, self._s, self._VT = linalg.svd(K, hermitian=True)
+        self._U, self._s, self._VT = linalg.svd(K)
     
     def solve(self, b):
         if b.dtype != object and (len(b.shape) == 1 or b.shape[1] < b.shape[0]):
@@ -96,7 +96,7 @@ class SVD(Decomposition):
     
     def _default_svdcut(self):
         s = self._s
-        return 2 * len(s) * np.finfo(s.dtype).eps * np.max(s)
+        return len(s) * np.finfo(s.dtype).eps * np.max(s)
 
 class SVDFullRank(SVD):
     """
@@ -152,7 +152,7 @@ class DiagLowRank(Decomposition):
         tracemissing = self._trace - np.sum(self._w)
         return np.sum(np.log(self._w)) + nmissing * np.log(tracemissing / nmissing)
 
-def Chol(Decomposition):
+class Chol(Decomposition):
     """
     Cholesky decomposition.
     """
@@ -161,19 +161,19 @@ def Chol(Decomposition):
         self._L = linalg.cholesky(K)
     
     def solve(self, b):
-        invLb = linalg.solve_triangular(self._L, b)
-        return linalg.solve_triangular(self._L.T, invLb)
+        invLTb = linalg.solve_triangular(self._L.T, b, lower=True)
+        return linalg.solve_triangular(self._L, invLTb)
     
     def usolve(self, b):
         invL = linalg.solve_triangular(self._L, np.eye(len(self._L)))
-        return (invL.T @ invL) @ b
+        return (invL @ invL.T) @ b
     
     def quad(self, b):
-        invLb = linalg.solve_triangular(self._L, b)
-        return invLb.T @ invLb
+        invLTb = linalg.solve_triangular(self._L.T, b, lower=True)
+        return invLTb.T @ invLTb
     
     def logdet(self):
-        return 2 * np.sum(np.log(np.diag(self.L)))
+        return 2 * np.sum(np.log(np.diag(self._L)))
 
 class CholMaxEig(Chol):
     """
@@ -183,8 +183,8 @@ class CholMaxEig(Chol):
     """
     
     def __init__(self, K, epsfactor=1):
-        w = slinalg.eigvalsh(K, k=1, which='LM')
-        eps = 2 * epsfactor * len(K) * np.finfo(K.dtype).eps * w[0]
+        w = slinalg.eigsh(K, k=1, which='LM', return_eigenvectors=False)
+        eps = epsfactor * len(K) * np.finfo(K.dtype).eps * w[0]
         super().__init__(K + np.diag(np.full(len(K), eps)))
 
 
@@ -198,7 +198,7 @@ class CholGersh(Chol):
     
     def __init__(self, K, epsfactor=1):
         maxeigv = _gershgorin_eigval_bound(K)
-        eps = 2 * epsfactor * len(K) * np.finfo(K.dtype).eps * maxeigv
+        eps = epsfactor * len(K) * np.finfo(K.dtype).eps * maxeigv
         super().__init__(K + np.diag(np.full(len(K), eps)))
 
 def _gershgorin_eigval_bound(K):

@@ -165,10 +165,10 @@ for num in range(Num_plots):
 #Plot with log predictions
 plt.figure('time evolution infected')
 for time in range(Num_plots):
-    Ymin = Prediction_curves[3*time] - Prediction_std[time]
-    Ymax = Prediction_curves[3*time] + Prediction_std[time]
+#    Ymin = Prediction_curves[3*time] - Prediction_std[time]
+#    Ymax = Prediction_curves[3*time] + Prediction_std[time]
 #    plt.fill_between(xTOT,Ymin,Ymax,facecolor='blue', alpha = 0.3 )
-    plt.semilogy(xTOT,Prediction_curves[3*time])
+    plt.semilogy(xTOT,Prediction_curves[3*time], alpha = time/Num_plots)
 plt.xlabel("Days since 1 January 2020")
 #plt.ylabel('Total number of '+NomeIng[iteration]+' people')
 plt.ylim((100,max(Prediction_curves[-3])*20))
@@ -179,10 +179,10 @@ plt.gcf().show()
 
 plt.figure('time evolution dead')
 for time in range(Num_plots):
-    Ymin = Prediction_curves[1+3*time] - Prediction_std[time]
-    Ymax = Prediction_curves[1+3*time] + Prediction_std[time]
+#    Ymin = Prediction_curves[1+3*time] - Prediction_std[time]
+#    Ymax = Prediction_curves[1+3*time] + Prediction_std[time]
 #    plt.fill_between(xTOT,Ymin,Ymax,facecolor='blue', alpha = 0.3 )
-    plt.semilogy(xTOT,Prediction_curves[1+3*time])
+    plt.semilogy(xTOT,Prediction_curves[1+3*time], alpha = time/Num_plots)
 plt.xlabel("Days since 1 January 2020")
 #plt.ylabel('Total number of '+NomeIng[iteration]+' people')
 plt.ylim((1,max(Prediction_curves[-2])*2))
@@ -193,10 +193,10 @@ plt.gcf().show()
 
 plt.figure('time evolution recovered')
 for time in range(Num_plots):
-    Ymin = Prediction_curves[2+3*time] - Prediction_std[time]
-    Ymax = Prediction_curves[2+3*time] + Prediction_std[time]
+#    Ymin = Prediction_curves[2+3*time] - Prediction_std[time]
+#    Ymax = Prediction_curves[2+3*time] + Prediction_std[time]
 #    plt.fill_between(xTOT,Ymin,Ymax,facecolor='blue', alpha = 0.3 )
-    plt.semilogy(xTOT,Prediction_curves[2+3*time])
+    plt.semilogy(xTOT,Prediction_curves[2+3*time], alpha = time/Num_plots)
 plt.xlabel("Days since 1 January 2020")
 #plt.ylabel('Total number of '+NomeIng[iteration]+' people')
 plt.ylim((1,max(Prediction_curves[-1])*2))

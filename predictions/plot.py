@@ -187,6 +187,8 @@ for date_directory in directories:
                 if dtype == 'dati-regioni':
                     condition = table['denominazione_regione'] == region
                     regiontable = table[condition]
+                    if len(regiontable) == 0:
+                        continue
                 else:
                     regiontable = table
             
@@ -271,7 +273,7 @@ for date_directory in directories:
         
         lazy_models = set(files) - models_who_did_something
         for file in lazy_models:
-            eprint(f'region {region}: model {model}: no prediction for any labels')
+            eprint(f'region {region}: model {file}: no prediction for any labels')
 
 # Final report.
 end = time.time()

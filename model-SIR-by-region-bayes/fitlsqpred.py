@@ -22,7 +22,7 @@ for region, fit in tqdm.tqdm(fits.items()):
 
     # Dates at which to predict.
     lastdate = fit['table']['data'].max()
-    futuredates_full = pd.date_range(start=lastdate, periods=15, freq='1D')
+    futuredates_full = pd.date_range(start=lastdate, periods=22, freq='1D')
     futuredates = futuredates_full[1:]
     x = fitlsqdefs.time_to_number(futuredates_full) - fit['time_zero']
     

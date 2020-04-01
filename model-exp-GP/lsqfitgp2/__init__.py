@@ -101,4 +101,5 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # marginal likelihood derivatives
 # _concatenate_noop to avoid copying arrays (in general remove unneeded copies)
 # finite support kernels
-# pred does not create the gvar prior when raw=True
+# method GP._covblock to get covariance matrix that builds it one piece at a
+# time as required

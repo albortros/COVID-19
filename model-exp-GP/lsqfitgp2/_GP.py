@@ -328,7 +328,6 @@ class GP:
             raise TypeError('`given` must be array or dict')
         
         ylist = []
-        yslices = []
         kdlist = []
         for k, l in given.items():
             if isinstance(k, tuple):
@@ -363,10 +362,9 @@ class GP:
                 raise ValueError('`given[{}]` is not 1D nonempty array'.formay(k))
             
             ylist.append(l)
-            yslices.append(self._slices[key, deriv])
             kdlist.append((key, deriv))
             
-        return ylist, yslices, kdlist
+        return ylist, kdlist
     
     def _compatslices(self, sliceslist):
         i = 0
@@ -459,24 +457,22 @@ class GP:
         strippedkd = self._stripkeyderiv(kdlist, key, deriv, strip0)
         assert strippedkd or len(kdlist) == 1
         
-        ylist, yslices, inkdl = self._flatgiven(given)
+        ylist, inkdl = self._flatgiven(given)
+        yslices = [self._slices[kd] for kd in inkdl]
         cyslices = self._compatslices(yslices)
-        yplist = [self._prior[kd] for kd in inkdl]
         
         yspslices = [self._slices[kd] for kd in kdlist]
         cyspslices = self._compatslices(yspslices)
-        ysplist = [self._prior[kd] for kd in kdlist]
+        ysplen = sum(s.stop - s.start for s in cyspslices)
         
         y = np.concatenate(ylist)
-        yp = np.concatenate(yplist)
-        ysp = np.concatenate(ysplist)
         
-        Kxsx = np.full((len(ysp), len(yp)), np.nan)
+        Kxsx = np.full((ysplen, len(y)), np.nan)
         for ss, css in zip(yspslices, cyspslices):
             for s, cs in zip(yslices, cyslices):
                 Kxsx[css, cs] = self._cov[ss, s]
         
-        Kxx = np.full((len(yp), len(yp)), np.nan)
+        Kxx = np.full((len(y), len(y)), np.nan)
         for s1, cs1 in zip(yslices, cyslices):
             for s2, cs2 in zip(yslices, cyslices):
                 Kxx[cs1, cs2] = self._cov[s1, s2]
@@ -489,7 +485,7 @@ class GP:
         
         if raw or not keepcorr:
             
-            Kxsxs = np.nan * np.empty((len(ysp), len(ysp)))
+            Kxsxs = np.nan * np.empty((ysplen, ysplen))
             for s1, cs1 in zip(yspslices, cyspslices):
                 for s2, cs2 in zip(yspslices, cyspslices):
                     Kxsxs[cs1, cs2] = self._cov[s1, s2]
@@ -505,6 +501,11 @@ class GP:
                 mean = A @ gvar.mean(y)
             
         else: # (keepcorr and not raw)        
+            yplist = [self._prior[kd] for kd in inkdl]
+            ysplist = [self._prior[kd] for kd in kdlist]
+            yp = np.concatenate(yplist)
+            ysp = np.concatenate(ysplist)
+        
             flatout = Kxsx @ gvar.linalg.solve(Kxx + S, y - yp) + ysp
         
         if raw and strippedkd:
@@ -580,7 +581,8 @@ class GP:
             The marginal likelihood.
             
         """        
-        ylist, yslices, inkdl = self._flatgiven(given)
+        ylist, inkdl = self._flatgiven(given)
+        yslices = [self._slices[kd] for kd in inkdl]
         cyslices = self._compatslices(yslices)
                 
         y = np.concatenate(ylist)

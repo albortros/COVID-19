@@ -6,6 +6,13 @@ from autograd.scipy import special
 from scipy import special as special_noderiv
 from autograd import extend
 
+def _forced_reshape(a, shape):
+    if a.shape != shape:
+        newa = np.empty(shape, a.dtype)
+        newa[:] = a
+        a = newa
+    return a
+
 class Kernel:
     """
     
@@ -16,16 +23,21 @@ class Kernel:
     
     This class can be used directly by passing a callable at initialization,
     or it can be subclassed. Subclasses need to assign the member `_kernel` with
-    a callable which will be called when the Kernel object is called. `_kernel`
+    a callable that will be called when the Kernel object is called. `_kernel`
     will be called with two arguments x, y that are two broadcastable float
     numpy arrays. It must return Cov[f(x), f(y)] where `f` is the gaussian
     process.
     
     The decorator `@kernel` can be used to make quickly subclasses.
     
+    Methods
+    -------
+    diff :
+        Derivatives of the kernel.
+    
     """
     
-    def __init__(self, kernel, *, loc=0, scale=1, **kw):
+    def __init__(self, kernel, *, loc=0, scale=1, forcebroadcast=False, dtype=None, **kw):
         """
         
         Initialize the object with callable `kernel`.
@@ -33,11 +45,15 @@ class Kernel:
         Parameters
         ----------
         kernel : callable
-            A function with signature f(x, y) where x and y are two
-            broadcastable float numpy arrays which computes the covariance of
-            f(x) with f(y).
+            A function with signature `kernel(x, y)` where x and y are two
+            broadcastable numpy arrays which computes the covariance of f(x)
+            with f(y) where f is the gaussian process.
         loc, scale : scalars
             The inputs to `kernel` are transformed as (x - loc) / scale.
+        forcebroadcast : bool
+            If True, the inputs to `kernel` will always have the same shape.
+        dtype : numpy data type
+            If specified, the inputs to `kernel` will be coerced to that type.
         **kw :
             Other keyword arguments are passed to `kernel`: kernel(x, y, **kw).
         
@@ -49,17 +65,23 @@ class Kernel:
         assert scale > 0
         transf = lambda x: (x - loc) / scale
         self._kernel = lambda x, y: kernel(transf(x), transf(y), **kw)
+        self._forcebroadcast = bool(forcebroadcast)
+        self._dtype = None if dtype is None else np.dtype(dtype)
     
     def __call__(self, x, y):
-        x = np.array(x, copy=False, dtype=float)
-        y = np.array(y, copy=False, dtype=float)
-        np.broadcast(x, y)
+        x = np.array(x, copy=False, dtype=self._dtype)
+        y = np.array(y, copy=False, dtype=self._dtype)
+        shape = np.broadcast(x, y).shape
+        if self._forcebroadcast:
+            x = _forced_reshape(x, shape)
+            y = _forced_reshape(y, shape)
         return self._kernel(x, y)
     
     def __add__(self, value):
         if isinstance(value, Kernel):
             return Kernel(lambda x, y: self._kernel(x, y) + value._kernel(x, y))
         elif np.isscalar(value):
+            assert np.isfinite(value)
             return Kernel(lambda x, y: self._kernel(x, y) + value)
         else:
             return NotImplemented
@@ -85,6 +107,36 @@ class Kernel:
             return Kernel(lambda x, y: self._kernel(x, y) ** value)
         else:
             return NotImplemented
+    
+    def diff(self, xorder=0, yorder=0):
+        """
+        
+        Return a Kernel object that computes the derivatives of this kernel.
+        The derivatives are computed automatically with `autograd`. If `xorder`
+        and `yorder` are 0, this is a no-op and returns the object itself.
+        
+        Parameters
+        ----------
+        xorder, yorder :
+            How many times the kernel is derived w.r.t the first and second
+            arguments respectively.
+        
+        Returns
+        -------
+        diffkernel : Kernel
+            Another Kernel object representing the derivatives of this one.
+        """
+        for order in xorder, yorder:
+            if int(order) != order or order < 0:
+                raise ValueError('derivative orders must be nonnegative integers')
+        if xorder == yorder == 0:
+            return self
+        fun = self._kernel
+        for _ in range(int(xorder)):
+            fun = autograd.elementwise_grad(fun, 0)
+        for _ in range(int(yorder)):
+            fun = autograd.elementwise_grad(fun, 1)
+        return Kernel(fun, forcebroadcast=True, dtype=float)
             
 class StationaryKernel(Kernel):
     """
@@ -95,7 +147,7 @@ class StationaryKernel(Kernel):
     
     """
     
-    def __init__(self, kernel, *, scale=1, **kw):
+    def __init__(self, kernel, **kw):
         """
         
         Parameters
@@ -103,13 +155,11 @@ class StationaryKernel(Kernel):
         kernel : callable
             A function taking one argument `r = x - y` (so it can be negative),
             plus optionally keyword arguments.
-        scale : scalar
-            The input to `kernel` is rescaled as `r / scale`.
         **kw :
-            Other keyword arguments are passed to `kernel`.
+            Other keyword arguments are passed to the `Kernel` init.
         
         """
-        super().__init__(lambda x, y: kernel(x - y, **kw), scale=scale)
+        super().__init__(lambda x, y, **kwargs: kernel(x - y, **kwargs), **kw)
     
 def makekernel(kernel, superclass):
     supername = 'Specific' + superclass.__name__

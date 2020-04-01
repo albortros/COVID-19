@@ -5,7 +5,6 @@ import itertools
 import sys
 
 import gvar
-import autograd
 import numpy as np
 from scipy import linalg
 
@@ -162,16 +161,6 @@ class GP:
             self._slicesdict = self._makeslices()
         return self._slicesdict
     
-    def _covfunderiv(self, xderiv, yderiv):
-        assert isinstance(xderiv, int)
-        assert isinstance(yderiv, int)
-        fun = self._covfun
-        for _ in range(xderiv):
-            fun = autograd.elementwise_grad(fun, 0)
-        for _ in range(yderiv):
-            fun = autograd.elementwise_grad(fun, 1)
-        return fun
-    
     def _buildcov(self):
         if not self._x:
             raise ValueError('process is empty, add values with `addx`')
@@ -183,12 +172,10 @@ class GP:
                 np.concatenate(self._x[key][deriv])
                 for key, deriv in kdkd
             ]
-            xy[0] = xy[0].reshape(-1, 1) * np.ones(len(xy[1])).reshape(1, -1)
-            xy[1] = xy[1].reshape(1, -1) * np.ones(len(xy[0])).reshape(-1, 1)
             assert len(xy) == 2
-            kernel = self._covfunderiv(kdkd[0][1], kdkd[1][1])
-            slices = [self._slices[k, d] for k, d in kdkd]
-            thiscov = kernel(xy[0], xy[1])
+            slices = [self._slices[kd] for kd in kdkd]
+            kernel = self._covfun.diff(kdkd[0][1], kdkd[1][1])
+            thiscov = kernel(xy[0].reshape(-1, 1), xy[1].reshape(1, -1))
             if not np.all(np.isfinite(thiscov)):
                 raise ValueError('covariance block ({}, {}) is not finite'.format(*kdkd))
             cov[slices[0], slices[1]] = thiscov

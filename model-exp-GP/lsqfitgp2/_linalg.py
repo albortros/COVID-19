@@ -94,31 +94,32 @@ class SVD(Decomposition):
     def logdet(self):
         return np.sum(np.log(self._s))
     
-    def _default_svdcut(self):
+    def _default_svdcut(self, svdcut):
         s = self._s
-        return len(s) * np.finfo(s.dtype).eps * np.max(s)
+        if svdcut is None:
+            svdcut = len(s) * np.finfo(s.dtype).eps
+        return svdcut * np.max(s)
 
 class SVDFullRank(SVD):
     """
     Singular value decomposition. Singular values below `svdcut` are set to
-    `svdcut`.
+    `svdcut`, where `svdcut` is relative to the largest singular value.
     """
     
     def __init__(self, K, svdcut=None):
         super().__init__(K)
-        if svdcut is None:
-            svdcut = self._default_svdcut()
+        svdcut = self._default_svdcut(svdcut)
         self._s[self._s < svdcut] = svdcut
             
 class SVDLowRank(SVD):
     """
-    Singular value decomposition. Singular values below `svdcut` are removed.
+    Singular value decomposition. Singular values below `svdcut` are removed,
+    where `svdcut` is relative to the largest singular value.
     """
     
     def __init__(self, K, svdcut=None):
         super().__init__(K)
-        if svdcut is None:
-            svdcut = self._default_svdcut()
+        svdcut = self._default_svdcut(svdcut)
         subset = self._s >= svdcut
         self._U = self._U[:, subset]
         self._s = self._s[subset]

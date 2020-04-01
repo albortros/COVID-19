@@ -6,6 +6,10 @@ start = time.time()
 import arguments
 cmdargs = arguments.parseargs()
 
+# Set matplotlib in non-interactive mode.
+import matplotlib
+matplotlib.use('Agg')
+
 from matplotlib import pyplot as plt
 import glob
 import pandas as pd
@@ -35,7 +39,7 @@ def eprint(*args):
 if cmdargs.outputdir:
     savedir = cmdargs.outputdir[0]
 else:
-    savedir = 'plots-' + str(pd.Timestamp.today()).replace(':', ';')
+    savedir = 'plots-' + str(pd.Timestamp.today()).replace(':', ',').replace(' ', '_')
     os.makedirs(savedir, exist_ok=False)
 os.makedirs(savedir, exist_ok=True)
 print(f'Will save plots in {savedir}')

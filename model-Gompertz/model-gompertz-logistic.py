@@ -311,8 +311,8 @@ gompertz_ParD              = gompertz_fit_derivative[0]
 gompertz_CovD              = gompertz_fit_derivative[1]
 gompertz_simulated_par_D   = np.random.multivariate_normal(gompertz_ParD, gompertz_CovD, size=SIZE)
 gompertz_simulated_curve_D = [[gompertz_derivative(ii,par) for ii in xTOT] for par in gompertz_simulated_par_D]
-#gompertz_std_fit_D         = np.std(gompertz_simulated_curve_D, axis=0)
-gompertz_std_fit_D         = np.median(np.abs([gompertz_simulated_curve_D[ii] - np.median(gompertz_simulated_curve_D,axis=0) for ii in range(SIZE)]))/alphasigma
+gompertz_std_fit_D         = np.std(gompertz_simulated_curve_D, axis=0)
+#gompertz_std_fit_D         = np.median(np.abs([gompertz_simulated_curve_D[ii] - np.median(gompertz_simulated_curve_D,axis=0) for ii in range(SIZE)]))/alphasigma
 gompertz_YminD             = np.array([gompertz_derivative(i,gompertz_ParD) for i in xTOT])-np.array(gompertz_std_fit_D)
 gompertz_YmaxD             = np.array([gompertz_derivative(i,gompertz_ParD) for i in xTOT])+np.array(gompertz_std_fit_D)
 
@@ -340,7 +340,7 @@ plt.fill_between(xTOT,gompertz_YminD,gompertz_YmaxD,facecolor='blue', alpha = 0.
 plt.legend()
 plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Increase of dead people per day")
-plt.ylim((min(Y3)*0.9,3*max([logistic_derivative(i,logistic_ParD) for i in xTOT])*1.1))
+plt.ylim((min(Y3)*0.9,1.5*max([logistic_derivative(i,logistic_ParD) for i in xTOT])*1.1))
 plt.grid(linestyle='--',which='both')
 plt.savefig(namefile+case[1]+types[1]+region+ext, dpi=DPI)
 plt.show()
@@ -464,8 +464,8 @@ gompertz_CovD              = gompertz_fit_derivative[1]
 gompertz_simulated_par_D   = np.random.multivariate_normal(gompertz_ParD, gompertz_CovD, size=SIZE)
 #print(gompertz_simulated_par_D,'\n')
 gompertz_simulated_curve_D = [[gompertz_derivative(ii,par) for ii in xTOT] for par in gompertz_simulated_par_D]
-#gompertz_std_fit_D         = np.std(gompertz_simulated_curve_D, axis=0)
-gompertz_std_fit_D         = np.median(np.abs([gompertz_simulated_curve_D[ii] - np.median(gompertz_simulated_curve_D,axis=0) for ii in range(SIZE)]))/alphasigma
+gompertz_std_fit_D         = np.std(gompertz_simulated_curve_D, axis=0)
+#gompertz_std_fit_D         = np.median(np.abs([gompertz_simulated_curve_D[ii] - np.median(gompertz_simulated_curve_D,axis=0) for ii in range(SIZE)]))/alphasigma
 
 gompertz_YminD             = np.array([gompertz_derivative(i,gompertz_ParD) for i in xTOT])-np.array(gompertz_std_fit_D)
 gompertz_YmaxD             = np.array([gompertz_derivative(i,gompertz_ParD) for i in xTOT])+np.array(gompertz_std_fit_D)
@@ -494,7 +494,7 @@ plt.fill_between(xTOT,gompertz_YminD,gompertz_YmaxD,facecolor='blue', alpha = 0.
 plt.legend()
 plt.xlabel("Days since 1 January 2020")
 plt.ylabel("Increase of recovered people per day")
-plt.ylim((min(Y3)*0.9,3*max([logistic_derivative(i,logistic_ParD) for i in xTOT])*1.1))
+plt.ylim((min(Y3)*0.9,1.5*max([logistic_derivative(i,logistic_ParD) for i in xTOT])*1.1))
 plt.grid(linestyle='--',which='both')
 plt.savefig(namefile+case[2]+types[1]+region+ext, dpi=DPI)
 plt.show()

@@ -76,7 +76,7 @@ for TYPE in TypeOfData:
 #    DATE = df['data'][len(date)-1][:10]
 #    df['data'] = date.map(lambda x : (datetime.strptime(x, FMT) - datetime.strptime("2020-01-01 00:00:00", FMT)).days  )
     namefile=path+DATE+name+model
-    
+
     # tiene conto di che iterazione stiamo facendo
     x = list(df.iloc[:,0])
     y = list(df.iloc[:,1])
@@ -94,7 +94,7 @@ for TYPE in TypeOfData:
     
     #quanti punti considero: fino a che la differenza tra l'asintoto e la funzione non è < 1
     sol = int(fsolve(lambda x : gompertz(x,Par) - int(Par[2]),Par[1]))
-    pred_x = list(range(max(x),int(sol/1.5)))
+    pred_x = list(range(max(x),min(int(sol/1.5),160)))
     xTOT= x+pred_x
     
     # Calcoliamo SIZE funzioni estraendo parametri a caso e facendo la std

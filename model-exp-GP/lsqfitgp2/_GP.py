@@ -269,7 +269,7 @@ class GP:
             return [(k, d) if d else k for k, d in kdlist] if strip0 else kdlist
         assert False
 
-    def prior(self, key=None, deriv=None, strip0=None):
+    def prior(self, key=None, deriv=None, strip0=None, raw=False):
         """
         
         Return an array or a dictionary of arrays of `gvar`s representing the
@@ -297,24 +297,39 @@ class GP:
             all) are stripped (example: `{0: array}` becomes just `array`, and
             `{(A, 0): array1, (B, 1): array2}` becomes `{A: array1, (B, 1):
             array2}`), unless `deriv` is specified explicitly.
+        raw : bool
+            If True, instead of returning a collection of `gvar`s it returns
+            their covariance matrix as would be returned by `gvar.evalcov`.
         
         Returns
         -------
         prior : np.ndarray or gvar.BufferDict
             A collection of `gvar`s representing the prior.
         """
+        raw = bool(raw)
+        
         key, deriv = self._checkkeyderiv(key, deriv)
         kdlist = self._getkeyderivlist(key, deriv)
         assert kdlist
         strippedkd = self._stripkeyderiv(kdlist, key, deriv, strip0)
+        assert strippedkd or len(kdlist) == 1
         
-        if strippedkd:
+        if raw and strippedkd:
+            return gvar.BufferDict({
+                (strippedkd[i], strippedkd[j]):
+                self._cov[self._slices[kdlist[i]], self._slices[kdlist[j]]]
+                for i in range(len(kdlist))
+                for j in range(len(kdlist))
+            })
+        elif raw:
+            s = self._slices[kdlist[0]]
+            return self._cov[s, s]
+        elif strippedkd:
             return gvar.BufferDict({
                 strippedkd[i]: self._prior[kdlist[i]]
                 for i in range(len(kdlist))
             })
         else:
-            assert len(kdlist) == 1
             return self._prior[kdlist[0]]
         
     def _flatgiven(self, given):

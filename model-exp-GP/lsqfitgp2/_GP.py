@@ -53,7 +53,9 @@ class GP:
         checkpos : bool
             If True (default), raise a `ValueError` if the covariance matrix
             turns out non positive within numerical error. The exception will
-            be raised the first time you call `prior` or `pred`.
+            be raised the first time you call `prior`, `pred` or
+            `marginal_likelihood`. Setting `checkpos=False` can give a large
+            speed benefit if you have more than ~1000 points in the GP.
         
         """
         if not isinstance(covfun, _kernels.Kernel):
@@ -89,9 +91,8 @@ class GP:
         Array of points for different differentiation orders are kept separate,
         both in array and in dictionary mode.
         
-        Once `prior` or `pred` or have been called, `addx` raises a
-        RuntimeError, unless they were called with `raw=True` or
-        `keepcorr=False`.
+        Once `prior` or `pred` have been called, `addx` raises a RuntimeError,
+        unless they were called with `raw=True` or `keepcorr=False`.
         
         `addx` never copies the input arrays if they are numpy arrays, so if
         you change their contents before doing something with the GP, the
@@ -200,18 +201,16 @@ class GP:
             raise ValueError('covariance matrix is not symmetric')
 
         # check covariance matrix is positive definite
-        eigv = linalg.eigvalsh(cov)
-        mineigv = np.min(eigv)
-        if mineigv < 0:
-            bound = -len(cov) * np.finfo(float).eps * np.max(eigv)
-            if mineigv < bound:
-                message = 'covariance matrix is not positive definite: '
-                message += f'mineigv = {mineigv:.4g} < {bound:.4g}'
-                if self._checkpositive:
+        if self._checkpositive:
+            eigv = linalg.eigvalsh(cov)
+            mineigv = np.min(eigv)
+            if mineigv < 0:
+                bound = -len(cov) * np.finfo(float).eps * np.max(eigv)
+                if mineigv < bound:
+                    message = 'covariance matrix is not positive definite: '
+                    message += f'mineigv = {mineigv:.4g} < {bound:.4g}'
                     raise ValueError(message)
-                else:
-                    print(message, file=sys.stderr)
-            cov[np.diag_indices(len(cov))] += -mineigv
+                cov[np.diag_indices(len(cov))] += -mineigv
         
         return cov
     

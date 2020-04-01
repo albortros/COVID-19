@@ -62,25 +62,6 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 
 # TODO
 #
-# Remove full diagonalization step and make positive only Kxx in `pred`
-# and `marginal_likelihood`. Provide options to do one of the following:
-#  1) Compute maximum eigenvalue with eigh/eigsh (decided based on size) and
-#     add to the diagonal 2 * n * eps * maxeigv.
-#  2) Estimate maxeigv with an approximate method (faster, but won't remove
-#     the O(n^3) asymptotic bottleneck of the Cholesky, and may be too brutal).
-#  3) Reduce the rank with eigsh (possibly difficult to use, but reduces from
-#     O(n^3) to O(n^2 * rank)). How good is the approximation is determined
-#     by computing the trace.
-#  4) Rank-reducing svdcut. This may make sense as default since there can be
-#     effectively quite degenerate cases, like when evaluating derivatives.
-#  5) Rank-enforcing svdcut (what lsqfit would do).
-#  6) Sparse covariance (useful only if I add finite support kernels).
-# I could also try in any case the Cholesky first (except for options 3, 6) and
-# do something only if it fails. Write all this in a new private method.
-# Question: when I do the svdcut, should I do a diagonalization or really an
-# SVD? Is there a numerical stability difference? Interface: string keyword
-# argument, additional keyword arguments to specify rank and threshold.
-#
 # Multidimensional input, both multidim and structured arrays. The first
 # axis is the dimesion axis: this way caching makes sense with separated
 # kernels, and it works also in exactly the same way with structured arrays
@@ -99,7 +80,11 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # GP._cov stored 1D? (lower triangular)
 # non-real input kernels (there are some examples in GPML)
 # marginal likelihood derivatives
-# finite support kernels
 # method GP._covblock to get covariance matrix that builds it one piece at a
 # time as required
 # delete the _x as soon as they are not needed any more
+# kronecker optimization
+# sparse algorithms (after adding finite support kernels)
+#
+# Question: when I do the svdcut, should I do a diagonalization or really an
+# SVD? Is there a numerical stability difference?

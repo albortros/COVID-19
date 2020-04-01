@@ -10,15 +10,14 @@ y = np.sin(xdata)
 
 def makegp(par):
     scale = np.exp(par[0])
-    nu = np.exp(par[1])
-    return lgp.GP(lgp.Matern(scale=scale, nu=nu))
+    return lgp.GP(lgp.Matern52(scale=scale))
 
 def fun(par):
     gp = makegp(par)
     gp.addx(xdata)
     return -gp.marginal_likelihood(y)
 
-result = optimize.minimize(fun, np.log([5, 5]), method='Nelder-Mead')
+result = optimize.minimize(fun, np.log([5]), method='Nelder-Mead')
 print(result)
 
 gp = makegp(result.x)

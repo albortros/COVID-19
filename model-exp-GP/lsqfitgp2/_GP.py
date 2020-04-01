@@ -44,7 +44,7 @@ class GP:
     
     """
     
-    def __init__(self, covfun, checkpos=True):
+    def __init__(self, covfun, checkpos=True, solver='svdcut+', **kw):
         """
         
         Parameters
@@ -57,6 +57,43 @@ class GP:
             be raised the first time you call `prior`, `pred` or
             `marginal_likelihood`. Setting `checkpos=False` can give a large
             speed benefit if you have more than ~1000 points in the GP.
+        solver : str
+            A solver used to invert the covariance matrix. See list below for
+            the available solvers. Default is `svdcut+` which is slow but
+            robust.
+        
+        Solvers
+        -------
+        svdcut+ :
+            Promote small eigenvalues to a minimum value (default). What
+            `lsqfit` does by default.
+        svdcut- :
+            Remove small eigenvalues.
+        lowrank :
+            Reduce the rank of the matrix. The complexity is O(n^2 r) where
+            `n` is the matrix size and `r` the required rank, while other
+            algorithms are O(n^3). Slow for small sizes.
+        gersh :
+            Cholesky decomposition after regularizing the matrix with a
+            Gershgorin estimate of the maximum eigenvalue. The fastest of the
+            O(n^3) algorithms.
+        maxeigv :
+            Cholesky decomposition regularizing the matrix with the maximum
+            eigenvalue. Slow for small sizes.
+        
+        Keyword arguments
+        -----------------
+        svdcut : positive float
+            For the `svdcut*` solvers. Specifies the threshold for considering
+            small the singular values, relative to the maximum singular value.
+            The default is matrix size * float epsilon.
+        rank : positive integer
+            For the `lowrank` solver, the target rank. It should be much
+            smaller than the matrix size for the method to be convenient.
+        epsfactor : positive float
+            For the `gersh` and `maxeigv` solvers, default 1. The covariance
+            matrix is made numerically positive definite by adding a small
+            number to the diagonal, which is multiplied by `epsfactor`.
         
         """
         if not isinstance(covfun, _kernels.Kernel):
@@ -65,8 +102,17 @@ class GP:
         self._x = collections.defaultdict(lambda: collections.defaultdict(list))
         # self._x: label -> (derivative order -> list of arrays)
         self._canaddx = True
-        self._checkpositive = checkpos
-    
+        self._checkpositive = bool(checkpos)
+        decomp = {
+            'svdcut+': _linalg.SVDFullRank,
+            'svdcut-': _linalg.SVDLowRank,
+            'lowrank': _linalg.DiagLowRank,
+            'gersh'  : _linalg.CholGersh,
+            'maxeigv': _linalg.CholMaxEig
+        }[solver]
+        decomp(np.eye(2), **kw) # to check kw is valid
+        self._solver = lambda K: decomp(K, **kw)
+            
     def _checkderiv(self, deriv):
         if deriv != int(deriv):
             raise ValueError('derivative order {} is not an integer'.format(deriv))
@@ -211,7 +257,6 @@ class GP:
                     message = 'covariance matrix is not positive definite: '
                     message += f'mineigv = {mineigv:.4g} < {bound:.4g}'
                     raise ValueError(message)
-                cov[np.diag_indices(len(cov))] += -mineigv
         
         return cov
     
@@ -516,7 +561,7 @@ class GP:
             for s2, cs2 in zip(yslices, cyslices):
                 Kxx[cs1, cs2] = self._cov[s1, s2]
         assert np.allclose(Kxx, Kxx.T)
-        
+                
         if (fromdata or raw or not keepcorr) and y.dtype == object:
             S = gvar.evalcov(gvar.gvar(y))
         else:
@@ -531,11 +576,11 @@ class GP:
             assert np.allclose(Kxsxs, Kxsxs.T)
 
             if fromdata:
-                B = linalg.solve(Kxx + S, Kxsx.T, assume_a='pos').T
+                B = self._solver(Kxx + S).solve(Kxsx.T).T
                 cov = Kxsxs - Kxsx @ B.T
                 mean = B @ gvar.mean(y)
             else:
-                A = linalg.solve(Kxx, Kxsx.T, assume_a='pos').T
+                A = self._solver(Kxx).solve(Kxsx.T).T
                 cov = Kxsxs + A @ (S - Kxx) @ A.T
                 mean = A @ gvar.mean(y)
             
@@ -545,7 +590,7 @@ class GP:
             yp = _concatenate_noop(yplist)
             ysp = _concatenate_noop(ysplist)
         
-            flatout = Kxsx @ gvar.linalg.solve(Kxx + S, y - yp) + ysp
+            flatout = Kxsx @ self._solver(Kxx + S).usolve(y - yp) + ysp
         
         if raw and strippedkd:
             meandict = gvar.BufferDict({
@@ -617,7 +662,7 @@ class GP:
         Returns
         -------
         marglike : scalar
-            The marginal likelihood.
+            The logarithm of the marginal likelihood.
             
         """        
         ylist, inkdl = self._flatgiven(given)
@@ -641,17 +686,5 @@ class GP:
             ymean = y
         
         Kxx += ycov
-        try:
-            L = linalg.cholesky(Kxx)
-            logdet = 2 * np.sum(np.log(np.diag(L)))
-            res = linalg.solve_triangular(L, ymean)
-            return -1/2 * (np.sum(res ** 2) + logdet + len(L) * np.log(2 * np.pi))
-        except linalg.LinAlgError:
-            w, v = linalg.eigh(Kxx)
-            bound = len(w) * np.finfo(Kxx.dtype).eps * np.max(w)
-            w[w < bound] = bound
-            logdet = np.sum(np.log(w))
-            res = v.T @ ymean
-            return -1/2 + (np.sum(res ** 2 / w) + logdet + len(w) * np.log(2 * np.pi))
-            # maybe LU decomposition is a faster solution, but would it give
-            # positive determinant?
+        decomp = self._solver(Kxx)
+        return -1/2 * (decomp.quad(ymean) + decomp.logdet() + len(y) * np.log(2 * np.pi))

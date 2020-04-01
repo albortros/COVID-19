@@ -79,7 +79,14 @@ class GP:
         Array of points for different differentiation orders are kept separate,
         both in array and in dictionary mode.
         
-        Once `prior` or `pred` have been called, `addx` raises a RuntimeError. 
+        Once `prior` or `pred` or have been called, `addx` raises a
+        RuntimeError, unless they were called with `raw=True` or
+        `keepcorr=False`.
+        
+        `addx` never copies the input arrays if they are numpy arrays, so if
+        you change their contents before doing something with the GP, the
+        change will be reflected on the result. However, after the GP has
+        computed internally its covariance matrix, the x are ignored.
         
         Parameters
         ----------
@@ -164,7 +171,6 @@ class GP:
     def _buildcov(self):
         if not self._x:
             raise ValueError('process is empty, add values with `addx`')
-        self._canaddx = False
         
         cov = np.empty((self._length, self._length))
         for kdkd in itertools.product(self._slices, repeat=2):
@@ -210,6 +216,7 @@ class GP:
     def _prior(self):
         # use gvar.BufferDict instead of dict, otherwise pickling is a mess
         if not hasattr(self, '_priordict'):
+            self._canaddx = False
             flatprior = gvar.gvar(np.zeros(len(self._cov)), self._cov)
             flatprior.flags['WRITEABLE'] = False
             self._priordict = gvar.BufferDict({
@@ -303,8 +310,15 @@ class GP:
         
         Returns
         -------
+        If raw=False (default):
+        
         prior : np.ndarray or gvar.BufferDict
             A collection of `gvar`s representing the prior.
+        
+        If raw=True:
+        
+        cov : np.ndarray or gvar.BufferDict
+            The covariance matrix of the prior.
         """
         raw = bool(raw)
         

@@ -102,3 +102,4 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # finite support kernels
 # method GP._covblock to get covariance matrix that builds it one piece at a
 # time as required
+# delete the _x as soon as they are not needed any more

@@ -132,11 +132,11 @@ class TestCholGersh(DecompTestBase):
     def decompclass(self):
         return _linalg.CholGersh
 
-class TestDiagLowRank(DecompTestBase):
+class TestLowRank(DecompTestBase):
     
     @property
     def decompclass(self):
-        return lambda K: _linalg.DiagLowRank(K, rank=self._rank)
+        return lambda K: _linalg.LowRank(K, rank=self._rank)
     
     def solve(self, K, b):
         invK, rank = linalg.pinv(K, return_rank=True)

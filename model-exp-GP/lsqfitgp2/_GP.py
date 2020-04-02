@@ -106,7 +106,7 @@ class GP:
         decomp = {
             'svdcut+': _linalg.SVDFullRank,
             'svdcut-': _linalg.SVDLowRank,
-            'lowrank': _linalg.DiagLowRank,
+            'lowrank': _linalg.LowRank,
             'gersh'  : _linalg.CholGersh,
             'maxeigv': _linalg.CholMaxEig
         }[solver]

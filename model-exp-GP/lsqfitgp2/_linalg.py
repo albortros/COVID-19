@@ -17,7 +17,7 @@ SVDFullRank :
     SVD rounding up small singular values.
 SVDLowRank :
     SVD removing small singular values.
-DiagLowRank :
+LowRank :
     Partial diagonalization with higher eigenvalues only.
 Chol :
     Cholesky decomposition.
@@ -125,7 +125,7 @@ class SVDLowRank(SVD):
         self._s = self._s[subset]
         self._VT = self._VT[subset, :]
         
-class DiagLowRank(Decomposition):
+class LowRank(Decomposition):
     """
     Keep only the first `rank` higher eigenmodes. If `estmissing=True`, when
     computing the log determinant assume that the ignored eigenvalues are

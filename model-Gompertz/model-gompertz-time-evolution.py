@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 #Quality for plot saving
 DPI=450
 #Averaging N for fits errors
-SIZE = 200
+SIZE = 100
 ##days of prediction
 #NumberOfDaysPredicted=14
 #Plot name format:
@@ -122,7 +122,7 @@ for num in range(Num_plots+1):
         # Calcoliamo SIZE funzioni estraendo parametri a caso e facendo la std
         simulated_par= np.random.multivariate_normal(temp_Par, temp_Cov, size=SIZE)
         simulated_curve=[[gompertz(ii,par) for ii in xTOT] for par in simulated_par]
-        std_fit=np.std(simulated_curve, axis=0)
+        std_fit=np.std(simulated_curve, axis=0)        
         
         Prediction_curves = Prediction_curves + [[gompertz(i,temp_Par) for i in xTOT]]
         Prediction_std    = Prediction_std + [std_fit]
@@ -140,6 +140,7 @@ for num in range(Num_plots+1):
         simulated_curve_D=[[gompertz_derivative(ii,par) for ii in xTOT] for par in simulated_par_D]
         std_fit_D=np.std(simulated_curve_D, axis=0)
         #when MED method needed
+
     
         Ymin= np.array([gompertz_derivative(i,temp_ParD) for i in xTOT])-np.array(std_fit_D)
         Ymax= np.array([gompertz_derivative(i,temp_ParD) for i in xTOT])+np.array(std_fit_D)
@@ -157,8 +158,8 @@ for num in range(Num_plots+1):
 #Plot with log predictions
 plt.figure('time evolution infected')
 for time in range(Num_plots+1):
-    Ymin = Prediction_curves[3*time] - Prediction_std[time]
-    Ymax = Prediction_curves[3*time] + Prediction_std[time]
+    Ymin = Prediction_curves[3*time] - Prediction_std[3*time]
+    Ymax = Prediction_curves[3*time] + Prediction_std[3*time]
     plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
     plt.semilogy(xTOT,Prediction_curves[3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
 plt.xlabel("Days since 1 January 2020")
@@ -171,8 +172,8 @@ plt.gcf().show()
 
 plt.figure('time evolution dead')
 for time in range(Num_plots+1):
-    Ymin = Prediction_curves[1+3*time] - Prediction_std[time]
-    Ymax = Prediction_curves[1+3*time] + Prediction_std[time]
+    Ymin = Prediction_curves[1+3*time] - Prediction_std[1+3*time]
+    Ymax = Prediction_curves[1+3*time] + Prediction_std[1+3*time]
     plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
     plt.semilogy(xTOT,Prediction_curves[1+3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
 plt.xlabel("Days since 1 January 2020")
@@ -185,8 +186,8 @@ plt.gcf().show()
 
 plt.figure('time evolution recovered')
 for time in range(Num_plots+1):
-    Ymin = Prediction_curves[2+3*time] - Prediction_std[time]
-    Ymax = Prediction_curves[2+3*time] + Prediction_std[time]
+    Ymin = Prediction_curves[2+3*time] - Prediction_std[2+3*time]
+    Ymax = Prediction_curves[2+3*time] + Prediction_std[2+3*time]
     plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
     plt.semilogy(xTOT,Prediction_curves[2+3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
 plt.xlabel("Days since 1 January 2020")

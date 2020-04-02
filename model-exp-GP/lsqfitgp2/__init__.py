@@ -9,9 +9,9 @@ possibly nonlinear model with other parameters. In lsqfit style, all the
 results will be properly correlated with prior, data, and other non-gaussian
 process parameters in the fit, even when doing conditional prediction.
 
-The main class is `GP`, which represents a gaussian process over 1D real input.
-It can be used both autonomously and with lsqfit. The inputs/outputs can be
-arrays or dictionaries of arrays. It supports doing inference with the
+The main class is `GP`, which represents a gaussian process over arbitrary
+input. It can be used both autonomously and with lsqfit. The inputs/outputs can
+be arrays or dictionaries of arrays. It supports doing inference with the
 derivatives of the process, using `autograd` to compute automatically
 derivatives of the kernels. Indirectly, this can be used to make inference with
 integrals.
@@ -62,16 +62,6 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 
 # TODO
 #
-# Multidimensional input, both multidim and structured arrays. The first
-# axis is the dimesion axis: this way caching makes sense with separated
-# kernels, and it works also in exactly the same way with structured arrays
-# by using strings instead of numbers. What dimension the kernel operates on
-# is specified by the `dim` keyword at construction, dim=None means all
-# dimensions and can accept 1D x without trying to extract something (I want
-# to avoid having to use 2D x in any case like pymc3). On its part, GP will
-# look at the shape/dtype of the first x it receives and enforce it for all
-# other xs.
-#
 # Matern derivatives for half-integer nu
 # stabilize Matern kernel near r == 0, then Matern derivatives for real nu
 # (quick fix: larger eps in _softabs)
@@ -86,6 +76,8 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # sparse algorithms (after adding finite support kernels)
 # DiagLowRank for low rank matrix + multiple of the identity (multiple rank-1
 # updates to the Cholesky factor?)
+# option to compute only the diagonal of the output covariance matrix
+# decomposition of the posterior covariance matrix
 #
 # Question: when I do the svdcut, should I do a diagonalization or really an
 # SVD? Is there a numerical stability difference?

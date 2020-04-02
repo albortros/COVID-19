@@ -84,9 +84,9 @@ class GP:
         Keyword arguments
         -----------------
         svdcut : positive float
-            For the `svdcut*` solvers. Specifies the threshold for considering
-            small the singular values, relative to the maximum singular value.
-            The default is matrix size * float epsilon.
+            For solvers `svdcut+`, `svdcut-`, `gersh` and `maxeigv`. Specifies
+            the threshold for considering small the eigenvalues, relative to
+            the maximum eigenvalue. The default is matrix size * float epsilon.
         rank : positive integer
             For the `lowrank` solver, the target rank. It should be much
             smaller than the matrix size for the method to be convenient.

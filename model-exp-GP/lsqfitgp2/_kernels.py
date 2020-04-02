@@ -58,23 +58,29 @@ class Kernel:
         
         """
         assert isinstance(dim, (str, int, np.integer, type(None)))
-        self._dim = dim
         assert np.isscalar(scale)
         assert np.isscalar(loc)
         assert np.isfinite(scale)
         assert np.isfinite(loc)
         assert scale > 0
-        transf = lambda x: (x - loc) / scale
-        self._kernel = lambda x, y: kernel(transf(x), transf(y), **kw)
         self._forcebroadcast = bool(forcebroadcast)
         self._dtype = None if dtype is None else np.dtype(dtype)
+        
+        transf = lambda x: x
+        if not (dim is None):
+            transf = lambda x: x[dim]
+        if loc != 0:
+            transf1 = transf
+            transf = lambda x: transf1(x) - loc
+        if scale != 1:
+            transf2 = transf
+            transf = lambda x: transf2(x) / scale
+        
+        self._kernel = lambda x, y: kernel(transf(x), transf(y), **kw)
     
     def __call__(self, x, y):
         x = np.array(x, copy=False, dtype=self._dtype)
         y = np.array(y, copy=False, dtype=self._dtype)
-        if not (self._dim is None):
-            x = x[self._dim]
-            y = y[self._dim]
         shape = np.broadcast(x, y).shape
         if self._forcebroadcast:
             x = _forced_reshape(x, shape)

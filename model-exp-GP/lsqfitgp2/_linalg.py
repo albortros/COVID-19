@@ -59,7 +59,7 @@ class Decomposition:
         `gvar`s.
         """
         inv = self.solve(np.eye(len(ub)))
-        return inv @ ub
+        return inv @ ub ### MATRIX INVERSION!!! BAD!!!
     
     def quad(self, b):
         """
@@ -82,65 +82,55 @@ class SVD(Decomposition):
         self._U, self._s, self._VT = linalg.svd(K)
     
     def solve(self, b):
-        if b.dtype != object and (len(b.shape) == 1 or b.shape[1] < b.shape[0]):
-            UTb = self._U.T @ b
-            UTb /= self._s.reshape(-1, 1) if len(UTb.shape) == 2 else self._s
-            return self._VT.T @ UTb
-        else:
-            return ((self._VT.T / self._s) @ self._U.T) @ b
+        return (self._VT.T / self._s) @ (self._U.T @ b)
     
     usolve = solve
     
     def logdet(self):
         return np.sum(np.log(self._s))
     
-    def _default_svdcut(self, svdcut):
+    def _eps(self, eps):
         s = self._s
-        if svdcut is None:
-            svdcut = len(s) * np.finfo(s.dtype).eps
-        return svdcut * np.max(s)
+        if eps is None:
+            eps = len(s) * np.finfo(s.dtype).eps
+        return eps * np.max(s)
 
 class SVDFullRank(SVD):
     """
-    Singular value decomposition. Singular values below `svdcut` are set to
-    `svdcut`, where `svdcut` is relative to the largest singular value.
+    Singular value decomposition. Singular values below `eps` are set to
+    `eps`, where `eps` is relative to the largest singular value.
     """
     
-    def __init__(self, K, svdcut=None):
+    def __init__(self, K, eps=None):
         super().__init__(K)
-        svdcut = self._default_svdcut(svdcut)
-        self._s[self._s < svdcut] = svdcut
+        eps = self._eps(eps)
+        self._s[self._s < eps] = eps
             
 class SVDLowRank(SVD):
     """
-    Singular value decomposition. Singular values below `svdcut` are removed,
-    where `svdcut` is relative to the largest singular value.
+    Singular value decomposition. Singular values below `eps` are removed,
+    where `eps` is relative to the largest singular value.
     """
     
-    def __init__(self, K, svdcut=None):
+    def __init__(self, K, eps=None):
         super().__init__(K)
-        svdcut = self._default_svdcut(svdcut)
-        subset = self._s >= svdcut
+        eps = self._eps(eps)
+        subset = slice(np.sum(self._s >= eps)) # s is decreasing
         self._U = self._U[:, subset]
         self._s = self._s[subset]
         self._VT = self._VT[subset, :]
         
 class LowRank(Decomposition):
     """
-    Keep only the first `rank` higher eigenmodes. If `estmissing=True`, when
-    computing the log determinant assume that the ignored eigenvalues are
-    uniform. Otherwise, they are not included at all (this changes a lot the
-    result, but the point is that it is stable if you fix the rank).
+    Keep only the first `rank` higher eigenmodes.
     """
     
-    def __init__(self, K, rank=1, estmissing=False):
+    def __init__(self, K, rank=1):
         self._w, self._V = slinalg.eigsh(K, k=rank, which='LM')
         self._trace = np.trace(K)
-        self._estmissing = bool(estmissing)
         
     def solve(self, b):
-        VTb = self._V.T @ b
-        return (self._V / self._w) @ VTb
+        return (self._V / self._w) @ (self._V.T @ b)
     
     usolve = solve
     
@@ -149,13 +139,7 @@ class LowRank(Decomposition):
         return (VTb.T / self._w) @ VTb
     
     def logdet(self):
-        missing = 0
-        if self._estmissing:
-            nmissing = len(self._V) - len(self._w)
-            tracemissing = self._trace - np.sum(self._w)
-            if nmissing and tracemissing > 0:
-                missing = nmissing * np.log(tracemissing / nmissing)
-        return np.sum(np.log(self._w)) + missing
+        return np.sum(np.log(self._w))
 
 class Chol(Decomposition):
     """
@@ -163,19 +147,19 @@ class Chol(Decomposition):
     """
     
     def __init__(self, K):
-        self._L = linalg.cholesky(K)
+        self._L = linalg.cholesky(K, lower=True)
     
     def solve(self, b):
-        invLTb = linalg.solve_triangular(self._L.T, b, lower=True)
-        return linalg.solve_triangular(self._L, invLTb)
+        invLb = linalg.solve_triangular(self._L, b, lower=True)
+        return linalg.solve_triangular(self._L.T, invLb, lower=False)
     
     def usolve(self, b):
-        invL = linalg.solve_triangular(self._L, np.eye(len(self._L)))
-        return (invL @ invL.T) @ b
+        invL = linalg.solve_triangular(self._L, np.eye(len(self._L)), lower=True)
+        return (invL.T @ invL) @ b ### MATRIX INVERSION!!! BAD!!!
     
     def quad(self, b):
-        invLTb = linalg.solve_triangular(self._L.T, b, lower=True)
-        return invLTb.T @ invLTb
+        invLb = linalg.solve_triangular(self._L, b, lower=True)
+        return invLb.T @ invLb
     
     def logdet(self):
         return 2 * np.sum(np.log(np.diag(self._L)))
@@ -187,10 +171,11 @@ class CholMaxEig(Chol):
     `epsfactor` multiplies this number.
     """
     
-    def __init__(self, K, epsfactor=1):
+    def __init__(self, K, eps=None):
         w = slinalg.eigsh(K, k=1, which='LM', return_eigenvectors=False)
-        eps = epsfactor * len(K) * np.finfo(K.dtype).eps * w[0]
-        super().__init__(K + np.diag(np.full(len(K), eps)))
+        if not eps:
+            eps = len(K) * np.finfo(K.dtype).eps
+        super().__init__(K + np.diag(np.full(len(K), eps * w[0])))
 
 
 class CholGersh(Chol):
@@ -201,10 +186,11 @@ class CholGersh(Chol):
     with the Gershgorin theorem.
     """
     
-    def __init__(self, K, epsfactor=1):
+    def __init__(self, K, eps=None):
         maxeigv = _gershgorin_eigval_bound(K)
-        eps = epsfactor * len(K) * np.finfo(K.dtype).eps * maxeigv
-        super().__init__(K + np.diag(np.full(len(K), eps)))
+        if not eps:
+            eps = len(K) * np.finfo(K.dtype).eps
+        super().__init__(K + np.diag(np.full(len(K), eps * maxeigv)))
 
 def _gershgorin_eigval_bound(K):
     return np.max(np.sum(np.abs(K), axis=1))

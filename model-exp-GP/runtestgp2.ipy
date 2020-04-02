@@ -34,3 +34,7 @@ fig.savefig("testgp2plot/o.png")
 fig.savefig("testgp2plot/p.png")
 %run testgp2q.py
 fig.savefig("testgp2plot/q.png")
+%run testgp2r.py
+fig.savefig("testgp2plot/r.png")
+%run testgp2s.py
+fig.savefig("testgp2plot/s.png")

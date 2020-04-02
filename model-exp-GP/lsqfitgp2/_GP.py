@@ -147,7 +147,7 @@ class GP:
         
         Parameters
         ----------
-        x : 1D array or dictionary of 1D arrays
+        x : 1D/2D array or dictionary of 1D/2D arrays
             The points to be added. If a dictionary, the keys can be anything
             except None. Tuple keys must be length 2 and are unpacked in
             key, deriv.
@@ -207,14 +207,18 @@ class GP:
             if d and not np.issubdtype(gx.dtype, np.number):
                 raise ValueError('`x[{}]` has non-numeric type `{}`, but derivatives ({}) are taken'.format(k, gx.dtype, d))
             
-            if hasattr(self, '_firstxshape'):
-                shape = self._firstxshape
+            if hasattr(self, '_firstx'):
+                shape = self._firstx.shape
                 if len(shape) != len(gx.shape):
-                    raise ValueError('`x[{}]` has {} axis but previous inputs had {}'.format(k, len(gx.shape), len(shape)))
+                    raise ValueError('`x[{}]` has {} axes but previous inputs had {}'.format(k, len(gx.shape), len(shape)))
                 if len(gx.shape) == 2 and shape[0] != gx.shape[0]:
                     raise ValueError('`x[{}]` is 2D with {}-sized first axis, while previous size was {}. The first axis represents the dimensionality of the input, so it must be consistent.'.format(k, gx.shape[0], shape[0]))
+                
+                dtype = self._firstx.dtype
+                if len(gx.shape) == 1 and gx.dtype.fields != dtype.fields:
+                    raise ValueError('`x[{}]` is 1D and has fields {} but previous input had {}'.format(k, ', '.join(gx.dtype.fields), ', '.join(dtype.fields)))
             else:
-                self._firstxshape = gx.shape
+                self._firstx = gx
             
             self._x[key][d].append(gx)
     
@@ -249,12 +253,25 @@ class GP:
                 _concatenate_noop(self._x[key][deriv], axis=-1)
                 for key, deriv in kdkd
             ]
-            assert len(xy) == 2
             slices = [self._slices[kd] for kd in kdkd]
+            expdshape = tuple(s.stop - s.start for s in slices)
+            
             kernel = self._covfun.diff(kdkd[0][1], kdkd[1][1])
-            thiscov = kernel(xy[0][..., :, None], xy[1][..., None, :])
+            
+            xshape = (xy[0].shape[-1], xy[1].shape[-1])
+            if len(xy[0].shape) == 2:
+                xshape = (xy[0].shape[0],) + xshape
+            xy[0] = _kernels._forced_reshape(xy[0][..., :, None], xshape)
+            xy[1] = _kernels._forced_reshape(xy[1][..., None, :], xshape)
+            xshape = xshape[:-2] + (xshape[-2] * xshape[-1],)
+            thiscov = kernel(xy[0].reshape(xshape), xy[1].reshape(xshape)).reshape(expdshape)
+            
+            shape = thiscov.shape
+            if shape != expdshape:
+                raise ValueError('covariance block ({}, {}) has shape {}, should be {}'.format(kdkd[0], kdkd[1], shape, expdshape))
             if not np.all(np.isfinite(thiscov)):
                 raise ValueError('covariance block ({}, {}) is not finite'.format(*kdkd))
+            
             cov[slices[0], slices[1]] = thiscov
         
         if not np.allclose(cov, cov.T):

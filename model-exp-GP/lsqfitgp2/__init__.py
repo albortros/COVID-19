@@ -78,6 +78,9 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # updates to the Cholesky factor?)
 # option to compute only the diagonal of the output covariance matrix
 # decomposition of the posterior covariance matrix
+# reintroduce isotropickernel and pass r2 instead of r to support
+# multidimensional input
+# kernel rescaling
 #
 # Question: when I do the svdcut, should I do a diagonalization or really an
 # SVD? Is there a numerical stability difference?

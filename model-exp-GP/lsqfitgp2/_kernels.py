@@ -27,6 +27,11 @@ class Kernel:
     will be called with two arguments x, y that are two broadcastable numpy
     arrays. It must return Cov[f(x), f(y)] where `f` is the gaussian process.
     
+    `x` and `y` can have only 1 or 2 axes. A 1-axis `x` with a numeric datatype
+    represents monodimensional input. A 1-axis `x` with structured datatype or
+    a 2-axes `x` represent multidimensional input, where respectively the
+    fields and the first axis represent the dimensions.
+    
     The decorator `@kernel` can be used to quickly make subclasses.
     
     Methods
@@ -36,7 +41,7 @@ class Kernel:
     
     """
     
-    def __init__(self, kernel, *, dim=None, loc=0, scale=1, forcebroadcast=False, dtype=None, **kw):
+    def __init__(self, kernel, *, dim=None, loc=0, scale=1, forcebroadcast=False, dtype=None, forcenum2d=False, forcekron=False, **kw):
         """
         
         Initialize the object with callable `kernel`.
@@ -47,12 +52,28 @@ class Kernel:
             A function with signature `kernel(x, y)` where x and y are two
             broadcastable numpy arrays which computes the covariance of f(x)
             with f(y) where f is the gaussian process.
+        dim : None, int or str
+            If an int, the kernel operates only on the `dim`-th dimension, i.e.
+            the `kernel` function will see only x[dim], y[dim]. It can be a
+            string for the case of structured numpy arrays. If None, the
+            kernel will operate on all dimensions.
         loc, scale : scalars
             The inputs to `kernel` are transformed as (x - loc) / scale.
         forcebroadcast : bool
             If True, the inputs to `kernel` will always have the same shape.
         dtype : numpy data type
             If specified, the inputs to `kernel` will be coerced to that type.
+        forcenum2d : bool
+            If True, when calling `kernel`, if `x` and `y` have only 1 axis and
+            are not structured arrays, a size-1 axis will be inserted as first
+            axis. Default False.
+        forcekron : bool
+            If True, when calling `kernel`, if `x` and `y` have 2 axes or are
+            structured arrays, i.e. if they represent multidimensional input,
+            `kernel` is invoked separately for each dimension, and the result
+            is the product. Default False. If `dim` is specified, `forcekron`
+            will have no effect. If `forcenum2d=True`, the kernel will be
+            called with a first axis even if it is always size 1.
         **kw :
             Other keyword arguments are passed to `kernel`: kernel(x, y, **kw).
         
@@ -65,27 +86,82 @@ class Kernel:
         assert scale > 0
         self._forcebroadcast = bool(forcebroadcast)
         self._dtype = None if dtype is None else np.dtype(dtype)
+        forcenum2d = bool(forcenum2d)
+        forcekron = bool(forcekron)
         
         transf = lambda x: x
-        if not (dim is None):
-            transf = lambda x: x[dim]
+        
+        if isinstance(dim, (int, np.integer)):
+            def transf(x):
+                if len(x.shape) < 2:
+                    raise IndexError('kernel called on array with shape {} less than 2D but dim={}'.format(x.shape, dim))
+                try:
+                    return x[dim]
+                except IndexError:
+                    raise IndexError('kernel called with dim={} where x.shape={}, can not take x[dim]'.format(dim, x.shape))
+        
+        elif isinstance(dim, str):
+            def transf(x):
+                if x.dtype.fields:
+                    return x[dim]
+                else:
+                    raise ValueError('kernel called on non-structured array but dim="{}"'.format(dim))
+        
         if loc != 0:
             transf1 = transf
             transf = lambda x: transf1(x) - loc
+        
         if scale != 1:
             transf2 = transf
             transf = lambda x: transf2(x) / scale
         
-        self._kernel = lambda x, y: kernel(transf(x), transf(y), **kw)
+        if forcenum2d:
+            transf3 = transf
+            def transf(x):
+                x = transf3(x)
+                if len(x.shape) == 1 and not x.dtype.fields:
+                    return x[None, :]
+                else:
+                    return x
+        
+        if dim is None and forcekron:
+            if forcenum2d:
+                xi = lambda x, i: x[i][None, :] if x.dtype.fields else x[i:i+1]
+            else:
+                xi = lambda x, i: x[i]
+            
+            def _kernel(x, y):
+                x = transf(x)
+                y = transf(y)
+                if len(x.shape) == 1 and not x.dtype.fields:
+                    return kernel(x, y, **kw)
+                elif len(x.shape) == 2:
+                    iterable = range(len(x))
+                else:
+                    iterable = x.dtype.fields
+                return np.array([
+                    kernel(xi(x, i), xi(y, i), **kw)
+                    for i in iterable
+                ])
+        else:
+            _kernel = lambda x, y: kernel(transf(x), transf(y), **kw)
+        
+        self._kernel = _kernel
     
     def __call__(self, x, y):
         x = np.array(x, copy=False, dtype=self._dtype)
         y = np.array(y, copy=False, dtype=self._dtype)
+        assert x.dtype == y.dtype
         shape = np.broadcast(x, y).shape
+        assert len(shape) in (1, 2)
         if self._forcebroadcast:
             x = _forced_reshape(x, shape)
             y = _forced_reshape(y, shape)
-        return self._kernel(x, y)
+        result = self._kernel(x, y)
+        assert isinstance(result, np.ndarray)
+        assert np.issubdtype(result.dtype, np.number)
+        assert len(result.shape) == 1
+        return result
     
     def __add__(self, value):
         if isinstance(value, Kernel):
@@ -148,53 +224,84 @@ class Kernel:
             fun = autograd.elementwise_grad(fun, 1)
         return Kernel(fun, forcebroadcast=True, dtype=float)
             
-class StationaryKernel(Kernel):
+class IsotropicKernel(Kernel):
     """
     
-    Subclass of `Kernel` that represents stationary kernels, i.e. the result
-    only depends on x - y. The decorator for making subclasses is
-    `@stationarykernel`.
+    Subclass of `Kernel` that represents isotropic kernels, i.e. the result
+    only depends on a distance defined between points. The decorator for
+    making subclasses is `isotropickernel`.
     
     """
     
-    def __init__(self, kernel, **kw):
+    def __init__(self, kernel, *, input='squared', **kw):
         """
         
         Parameters
         ----------
         kernel : callable
-            A function taking one argument `r = x - y` (so it can be negative),
-            plus optionally keyword arguments.
+            A function taking one argument `r2` which is the squared distance
+            between x and y, plus optionally keyword arguments. `r2` is a 1D
+            numpy array.
+        input : str
+            See "input options" below.
         **kw :
             Other keyword arguments are passed to the `Kernel` init.
         
+        Input options
+        -------------
+        squared :
+            Pass the squared distance (default).
+        soft :
+            Pass the distance, but instead of 0 it yields a very small number.
+        
         """
-        super().__init__(lambda x, y, **kwargs: kernel(x - y, **kwargs), **kw)
+        allowed_input = ('squared', 'soft')
+        if not (input in allowed_input):
+            raise ValueError('input option `{}` not valid, must be one of {}'.format(input, allowed_input))
+        
+        def function(x, y, **kwargs):
+            if len(x.shape) == 1 and not x.dtype.fields:
+                q = (x - y) ** 2
+            elif len(x.shape) == 2:
+                q = sum((x - y) ** 2)
+            else:
+                q = sum((x[f] - y[f]) ** 2 for f in x.dtype.fields)
+            if input == 'soft':
+                eps = np.finfo(x.dtype).eps
+                q = np.sqrt(q + eps ** 2)
+            return kernel(q, **kwargs)
+        
+        super().__init__(function, **kw)
     
-def makekernel(kernel, superclass):
+def _makekernelsubclass(kernel, superclass, **prekw):
+    assert issubclass(superclass, Kernel)
+    
     supername = 'Specific' + superclass.__name__
     name = getattr(kernel, '__name__', supername)
     if name == '<lambda>':
         name = supername
-    newclass = type(name, (superclass,), dict(
-        __doc__=kernel.__doc__
-    ))
-    newclass.__init__ = lambda self, **kw: super(newclass, self).__init__(kernel, **kw)
+    
+    newclass = type(name, (superclass,), {})
+    
+    def __init__(self, **kw):
+        kwargs = prekw.copy()
+        kwargs.update(kw)
+        return super(newclass, self).__init__(kernel, **kwargs)
+    newclass.__init__ = __init__
+    newclass.__doc__ = kernel.__doc__
+    
     return newclass
 
-def stationarykernel(kernel):
-    """
-    
-    Decorator to convert a function to a subclass of `Kernel`. Use it like this:
-    
-    @stationarykernel
-    def MyKernel(r, cippa=1, lippa=42, ...):
-        return ... # something computing Cov[f(x), f(y)] where x - y = r
-    
-    """
-    return makekernel(kernel, StationaryKernel)
+def _kerneldecoratorimpl(cls, *args, **kw):
+    functional = lambda kernel: _makekernelsubclass(kernel, cls, **kw)
+    if len(args) == 0:
+        return functional
+    elif len(args) == 1:
+        return functional(*args)
+    else:
+        raise ValueError(len(args))
 
-def kernel(kernel):
+def kernel(*args, **kw):
     """
     
     Decorator to convert a function to a subclass of `Kernel`. Use it like this:
@@ -204,40 +311,63 @@ def kernel(kernel):
         return ... # something computing Cov[f(x), f(y)]
     
     """
-    return makekernel(kernel, Kernel)
+    return _kerneldecoratorimpl(Kernel, *args, **kw)
 
-@stationarykernel
-def Constant(r):
+def isotropickernel(*args, **kw):
+    """
+    
+    Decorator to convert a function to a subclass of `IsotropicKernel`. Use it
+    like this:
+    
+    @isotropickernel
+    def MyKernel(rsquared, cippa=1, lippa=42, ...):
+        return ...
+        # something computing Cov[f(x), f(y)] where rsquared = ||x - y||^2
+    
+    """
+    return _kerneldecoratorimpl(IsotropicKernel, *args, **kw)
+
+@isotropickernel
+def Constant(r2):
     """
     Kernel that returns a constant value, so all points are completely
     correlated. Thus it is equivalent to fitting with a horizontal line.
     """
-    return np.ones_like(r)
+    return np.ones_like(r2)
     
-@stationarykernel
-def White(r):
+@isotropickernel
+def White(r2):
     """
-    Kernel that returns 1 when r == 0, zero otherwise, so it represents white
+    Kernel that returns 1 when x == y, zero otherwise, so it represents white
     noise.
     """
-    return np.where(r == 0, 1, 0)
+    return np.where(r2 == 0, 1, 0)
 
-@kernel
-def Linear(x, y):
-    """
-    Kernel which just returns x * y. It is equivalent to fitting with a line
-    passing by the origin.
-    """
-    return x * y
-
-@stationarykernel
-def ExpQuad(r):
+@isotropickernel
+def ExpQuad(r2):
     """
     Gaussian kernel. It is very smooth, and has a strict typical lengthscale:
     under that the process does not oscillate, and over that it completely
     forgets other points.
     """
-    return np.exp(-1/2 * r ** 2)
+    return np.exp(-1/2 * r2)
+
+def _dot(x, y):
+    if len(x.shape) == 1 and x.dtype.fields:
+        return sum(x[f] * y[f] for f in x.dtype.fields)
+    elif len(x.shape) == 1:
+        return x * y
+    elif len(x.shape) == 2:
+        return np.sum(x * y, axis=0)
+    assert False
+
+@kernel
+def Linear(x, y):
+    """
+    Kernel which just returns x * y. It is equivalent to fitting with a
+    line/plane passing by the origin.
+    """
+    return _dot(x, y)
 
 @kernel
 def Polynomial(x, y, exponent=None, sigma0=1):
@@ -245,16 +375,12 @@ def Polynomial(x, y, exponent=None, sigma0=1):
     Kernel which is equivalent to fitting with a polynomial of degree
     `exponent`. The prior on the horizontal intercept has width `sigma0`.
     """
-    for p in exponent, sigma0:
-        assert np.isscalar(p)
-        assert p >= 0
-    return (x * y + sigma0 ** 2) ** exponent
+    assert np.isscalar(exponent)
+    assert esponent >= 0
+    assert np.isscalar(sigma0)
+    assert sigma0 >= 0
+    return (_dot(x, y) + sigma0 ** 2) ** exponent
     
-def _softabs(x, eps=None):
-    if not eps:
-        eps = np.finfo(x.dtype).eps
-    return np.sqrt(x ** 2 + eps ** 2)
-
 # This still does not work with derivatives due to the pole of kv. I need a
 # direct calculation of x ** nu * kv(nu, x).
 _kvp = extend.primitive(special_noderiv.kvp)
@@ -275,7 +401,7 @@ def _maternp(x, p):
         poly += 1
     return np.exp(-x) * poly
 
-@stationarykernel
+@isotropickernel(input='soft')
 def Matern(r, nu=None):
     """
     Matérn kernel of order `nu` > 0. The nearest integer below `nu` indicates
@@ -286,18 +412,17 @@ def Matern(r, nu=None):
     """
     assert np.isscalar(nu)
     assert nu > 0
-    x = np.sqrt(2 * nu) * _softabs(r)
+    x = np.sqrt(2 * nu) * r
     if (2 * nu) % 1 == 0 and nu >= 1/2:
         return _maternp(x, int(nu - 1/2))
     else:
         return 2 ** (1 - nu) / special.gamma(nu) * x ** nu * _kv(nu, x)
 
-@stationarykernel
+@isotropickernel(input='soft')
 def Matern12(r):
     """
     Matérn kernel of order 1/2 (not derivable).
     """
-    r = _softabs(r)
     return np.exp(-r)
 
 @extend.primitive
@@ -309,12 +434,11 @@ extend.defvjp(
     lambda ans, x: lambda g: g * -x * np.exp(-x)
 )
 
-@stationarykernel
+@isotropickernel(input='soft')
 def Matern32(r):
     """
     Matérn kernel of order 3/2 (derivable one time).
     """
-    r = _softabs(r)
     return _matern32(np.sqrt(3) * r)
 
 @extend.primitive
@@ -326,15 +450,14 @@ extend.defvjp(
     lambda ans, x: lambda g: g * -x/3 * _matern32(x)
 )
 
-@stationarykernel
+@isotropickernel(input='soft')
 def Matern52(r):
     """
     Matérn kernel of order 5/2 (derivable two times).
     """
-    r = _softabs(r)
     return _matern52(np.sqrt(5) * r)
 
-@stationarykernel
+@isotropickernel(input='soft')
 def GammaExp(r, gamma=1):
     """
     Return exp(-(r ** gamma)), with 0 < `gamma` <= 2. For `gamma` = 2 it is the
@@ -342,13 +465,12 @@ def GammaExp(r, gamma=1):
     0 it is the constant kernel. The process is differentiable only for `gamma`
     = 2, however as `gamma` gets closer to 2 the "roughness" decreases.
     """
-    r = _softabs(r)
     assert np.isscalar(gamma)
     assert 0 < gamma <= 2
     return np.exp(-(r ** gamma))
 
-@stationarykernel
-def RatQuad(r, alpha=2):
+@isotropickernel
+def RatQuad(r2, alpha=2):
     """
     Rational quadratic kernel. It is equivalent to a lengthscale mixture of
     gaussian kernels where the scale distribution is a gamma with shape
@@ -356,7 +478,7 @@ def RatQuad(r, alpha=2):
     """
     assert np.isscalar(alpha)
     assert alpha > 0
-    return (1 + r ** 2 / (2 * alpha)) ** (-alpha)
+    return (1 + r2 / (2 * alpha)) ** (-alpha)
 
 @kernel
 def NNKernel(x, y, sigma0=1):
@@ -367,11 +489,13 @@ def NNKernel(x, y, sigma0=1):
     dispersion of the centers of the sigmoids.
     """
     assert np.isscalar(sigma0)
+    assert np.isfinite(sigma0)
     assert sigma0 > 0
     q = sigma0 ** 2
-    return 2/np.pi * np.arcsin(2 * (q + x * y) / ((1 + 2 * (q + x**2)) * (1 + 2 * (q + y**2))))
+    denom = (1 + 2 * (q + _dot(x, x))) * (1 + 2 * (q + _dot(y, y)))
+    return 2/np.pi * np.arcsin(2 * (q + _dot(x, y)) / denom)
 
-@kernel
+@kernel(forcekron=True)
 def Wiener(x, y):
     """
     A kernel representing  non-differentiable random walk. It is defined only
@@ -381,7 +505,7 @@ def Wiener(x, y):
     assert np.all(y >= 0)
     return np.minimum(x, y)
 
-@kernel
+@kernel(forcekron=True)
 def Gibbs(x, y, scalefun=lambda x: 1):
     """
     Kernel which in some sense is like a gaussian kernel where the scale
@@ -397,7 +521,7 @@ def Gibbs(x, y, scalefun=lambda x: 1):
     factor = np.sqrt(2 * sx * sy / denom)
     return factor * np.exp(-(x - y) ** 2 / denom)
 
-@stationarykernel
+@isotropickernel(input='soft', forcekron=True)
 def Periodic(r, outerscale=1):
     """
     A gaussian kernel over a transformed periodic space. It represents a

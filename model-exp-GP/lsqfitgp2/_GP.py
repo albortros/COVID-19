@@ -110,7 +110,6 @@ class GP:
             'gersh'  : _linalg.CholGersh,
             'maxeigv': _linalg.CholMaxEig
         }[solver]
-        decomp(np.eye(2), **kw) # to check kw is valid
         self._solver = lambda K: decomp(K, **kw)
             
     def _checkderiv(self, deriv):

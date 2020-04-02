@@ -139,12 +139,8 @@ class DiagLowRank(Decomposition):
         self._estmissing = bool(estmissing)
         
     def solve(self, b):
-        if b.dtype != object and (len(b.shape) == 1 or b.shape[1] < b.shape[0]):
-            VTb = self._V.T @ b
-            VTb /= self._w.reshape(-1, 1) if len(VTb.shape) == 2 else self._w
-            return self._V @ VTb
-        else:
-            return ((self._V / self._w) @ self._V.T) @ b
+        VTb = self._V.T @ b
+        return (self._V / self._w) @ VTb
     
     usolve = solve
     

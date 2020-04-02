@@ -78,13 +78,20 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # GP._prior stored flat?
 # compute only half of the covariance matrices (checksym=True to compute full)
 # GP._cov stored 1D? (lower triangular)
-# non-real input kernels (there are some examples in GPML)
 # marginal likelihood derivatives
 # method GP._covblock to get covariance matrix that builds it one piece at a
 # time as required
 # delete the _x as soon as they are not needed any more
 # kronecker optimization
 # sparse algorithms (after adding finite support kernels)
+# DiagLowRank for low rank matrix + multiple of the identity (multiple rank-1
+# updates to the Cholesky factor?)
 #
 # Question: when I do the svdcut, should I do a diagonalization or really an
 # SVD? Is there a numerical stability difference?
+#
+# New kernels:
+# finite support
+# fractional brownian motion
+# is there a smooth version of the wiener process? like, softmin(x, y)?
+# non-real input kernels (there are some examples in GPML)

@@ -113,7 +113,7 @@ class GP:
         self._solver = lambda K: decomp(K, **kw)
             
     def _checkderiv(self, deriv):
-        if deriv != int(deriv):
+        if not isinstance(deriv, (int, np.integer)):
             raise ValueError('derivative order {} is not an integer'.format(deriv))
         deriv = int(deriv)
         if deriv < 0:
@@ -191,22 +191,36 @@ class GP:
                 if len(k) != 2:
                     raise ValueError('key `{}` in x is tuple but not length 2'.format(k))
                 key, d = k
+                d = self._checkderiv(d)
             else:
                 key, d = k, deriv
             
-            gx = x[key]
+            gx = x[k]
             if not isinstance(gx, (list, np.ndarray)):
                 raise TypeError('`x[{}]` is not array or list'.format(k))
             
-            gx = np.asarray(gx)
-            if len(gx.shape) != 1 or len(gx) == 0:
-                raise ValueError('`x[{}]` is not 1D and nonempty'.format(k))
+            gx = np.array(gx, copy=False)
+            if not (len(gx.shape) in (1, 2)):
+                raise ValueError('`x[{}]` is {}D, only 1D or 2D allowed'.format(k, len(gx.shape)))
+            if not gx.size:
+                raise ValueError('`x[{}]` is empty'.format(k))
+            if d and not np.issubdtype(gx.dtype, np.number):
+                raise ValueError('`x[{}]` has non-numeric type `{}`, but derivatives ({}) are taken'.format(k, gx.dtype, d))
+            
+            if hasattr(self, '_firstxshape'):
+                shape = self._firstxshape
+                if len(shape) != len(gx.shape):
+                    raise ValueError('`x[{}]` has {} axis but previous inputs had {}'.format(k, len(gx.shape), len(shape)))
+                if len(gx.shape) == 2 and shape[0] != gx.shape[0]:
+                    raise ValueError('`x[{}]` is 2D with {}-sized first axis, while previous size was {}. The first axis represents the dimensionality of the input, so it must be consistent.'.format(k, gx.shape[0], shape[0]))
+            else:
+                self._firstxshape = gx.shape
             
             self._x[key][d].append(gx)
     
     @property
     def _length(self):
-        return sum(sum(sum(map(len, l)) for l in d.values()) for d in self._x.values())
+        return sum(sum(sum(x.shape[-1] for x in l) for l in d.values()) for d in self._x.values())
     
     def _makeslices(self):
         slices = dict()
@@ -214,7 +228,7 @@ class GP:
         i = 0
         for key, d in self._x.items():
             for deriv, l in d.items():
-                length = sum(map(len, l))
+                length = sum(x.shape[-1] for x in l)
                 slices[key, deriv] = slice(i, i + length)
                 i += length
         return slices
@@ -232,13 +246,13 @@ class GP:
         cov = np.empty((self._length, self._length))
         for kdkd in itertools.product(self._slices, repeat=2):
             xy = [
-                _concatenate_noop(self._x[key][deriv])
+                _concatenate_noop(self._x[key][deriv], axis=-1)
                 for key, deriv in kdkd
             ]
             assert len(xy) == 2
             slices = [self._slices[kd] for kd in kdkd]
             kernel = self._covfun.diff(kdkd[0][1], kdkd[1][1])
-            thiscov = kernel(xy[0].reshape(-1, 1), xy[1].reshape(1, -1))
+            thiscov = kernel(xy[0][..., :, None], xy[1][..., None, :])
             if not np.all(np.isfinite(thiscov)):
                 raise ValueError('covariance block ({}, {}) is not finite'.format(*kdkd))
             cov[slices[0], slices[1]] = thiscov
@@ -246,16 +260,15 @@ class GP:
         if not np.allclose(cov, cov.T):
             raise ValueError('covariance matrix is not symmetric')
 
-        # check covariance matrix is positive definite
         if self._checkpositive:
             eigv = linalg.eigvalsh(cov)
             mineigv = np.min(eigv)
             if mineigv < 0:
                 bound = -len(cov) * np.finfo(float).eps * np.max(eigv)
                 if mineigv < bound:
-                    message = 'covariance matrix is not positive definite: '
-                    message += f'mineigv = {mineigv:.4g} < {bound:.4g}'
-                    raise ValueError(message)
+                    msg = 'covariance matrix is not positive definite: '
+                    msg += 'mineigv = {:.4g} < {:.4g}'.format(mineigv, bound)
+                    raise ValueError(msg)
         
         return cov
     
@@ -518,10 +531,11 @@ class GP:
         If raw=True:
         
         pmean : array or dictionary of arrays
-            The mean of the posterior.
+            The mean of the posterior. Equivalent to `gvar.mean(posterior)`.
         pcov : 2D array or dictionary of 2D arrays
             The covariance matrix of the posterior. If `pmean` is a dictionary,
-            the keys of `pcov` are pairs of keys of `pmean`.
+            the keys of `pcov` are pairs of keys of `pmean`. Equivalent to
+            `gvar.evalcov(posterior)`.
         
         """
         

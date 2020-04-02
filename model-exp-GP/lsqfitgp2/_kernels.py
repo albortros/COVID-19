@@ -21,14 +21,13 @@ class Kernel:
     multiplied between them and with scalars, or raised to power with a scalar
     exponent.
     
-    This class can be used directly by passing a callable at initialization,
-    or it can be subclassed. Subclasses need to assign the member `_kernel` with
-    a callable that will be called when the Kernel object is called. `_kernel`
-    will be called with two arguments x, y that are two broadcastable float
-    numpy arrays. It must return Cov[f(x), f(y)] where `f` is the gaussian
-    process.
+    This class can be used directly by passing a callable at initialization, or
+    it can be subclassed. Subclasses need to assign the member `_kernel` with a
+    callable that will be called when the Kernel object is called. `_kernel`
+    will be called with two arguments x, y that are two broadcastable numpy
+    arrays. It must return Cov[f(x), f(y)] where `f` is the gaussian process.
     
-    The decorator `@kernel` can be used to make quickly subclasses.
+    The decorator `@kernel` can be used to quickly make subclasses.
     
     Methods
     -------
@@ -37,7 +36,7 @@ class Kernel:
     
     """
     
-    def __init__(self, kernel, *, loc=0, scale=1, forcebroadcast=False, dtype=None, **kw):
+    def __init__(self, kernel, *, dim=None, loc=0, scale=1, forcebroadcast=False, dtype=None, **kw):
         """
         
         Initialize the object with callable `kernel`.
@@ -58,6 +57,8 @@ class Kernel:
             Other keyword arguments are passed to `kernel`: kernel(x, y, **kw).
         
         """
+        assert isinstance(dim, (str, int, np.integer, type(None)))
+        self._dim = dim
         assert np.isscalar(scale)
         assert np.isscalar(loc)
         assert np.isfinite(scale)
@@ -71,6 +72,9 @@ class Kernel:
     def __call__(self, x, y):
         x = np.array(x, copy=False, dtype=self._dtype)
         y = np.array(y, copy=False, dtype=self._dtype)
+        if not (self._dim is None):
+            x = x[self._dim]
+            y = y[self._dim]
         shape = np.broadcast(x, y).shape
         if self._forcebroadcast:
             x = _forced_reshape(x, shape)

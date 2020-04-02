@@ -141,4 +141,12 @@ def variazione_dimessi_guariti(df):
 
 @extractor.register
 def variazione_guariti_o_deceduti(df):
-    return variazione(df, 'guariti_o_deceduti')
+    x, dx = variazione(df, 'guariti_o_deceduti')
+    if dx is None:
+        y, dy = variazione(df, 'dimessi_guariti')
+        z, dz = variazione(df, 'deceduti')
+        if not any(v is None for v in (y, dy, z, dz)):
+            return y + z, np.hypot(dy, dz)
+        elif not any(v is None for v in (y, z)) and x is None:
+            return y + z
+    return x, dx

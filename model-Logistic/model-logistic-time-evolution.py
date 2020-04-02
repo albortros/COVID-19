@@ -22,13 +22,13 @@ import matplotlib.pyplot as plt
 #Quality for plot saving
 DPI=450
 #Averaging N for fits errors
-SIZE = 200
+SIZE = 100
 ##days of prediction
 #NumberOfDaysPredicted=14
 #Plot name format:
 path='Plots/'
 name='-Jacopo'
-model='-model-gompertz'
+model='-model-logistic'
 # cosa vogliamo analizzare: mi servono per dare nomi alle cose
 TypeOfData=['totale_casi','deceduti','dimessi_guariti']
 NomeIng=['infected','dead','recovered']
@@ -38,17 +38,6 @@ region='Italia'
 ext='.png'
 
 # Define analytical model
-def gompertz_model(x,a,b,c):
-    return c*np.exp(-np.exp(-a*(x-b)))
-
-def gompertz(x,Par):
-    return Par[2]*np.exp(-np.exp(-Par[0]*(x-Par[1])))
-
-def gompertz_model_derivative(x,a,b,c):
-    return a*c*np.exp(-a*(x-b)-np.exp(-a*(x-b)))
-
-def gompertz_derivative(x,Par):
-    return Par[0]*Par[2]*np.exp(-Par[0]*(x-Par[1])-np.exp(-Par[0]*(x-Par[1])))
 
 def logistic_model(x,a,b,c):
     return c/(1+np.exp(-(x-b)*a))
@@ -84,8 +73,8 @@ dates_list          = []
 InitialParams=[[0.2,70,6000000],[0.2,70,40000],[0.2,70,40000]]
 
 #quanti grafici vogliamo fare
-Num_plots=4 #considera that the real number is this +1
-start=28
+Num_plots=8 #considera that the real number is this +1
+start=15
 delta = (len(x)-start)/Num_plots
 
 for num in range(Num_plots+1):
@@ -110,21 +99,21 @@ for num in range(Num_plots+1):
         y = list(dF.iloc[:LIM,1])
         YERR = np.sqrt(y)
         
-        # Fitting gompertzo
+        # Fitting logistic
         P0=InitialParams[iteration]
-        temp_Par,temp_Cov = curve_fit(gompertz_model,x,y,P0, sigma=YERR, absolute_sigma=False)
+        temp_Par,temp_Cov = curve_fit(logistic_model,x,y,P0, sigma=YERR, absolute_sigma=False)
 
         #quanti punti considero: fino a che la differenza tra l'asintoto e la funzione non è < 1
-        sol = int(fsolve(lambda x : gompertz(x,temp_Par) - int(temp_Par[2]),temp_Par[1]))
-        pred_x = list(range(max(x)+1,160))
+        sol = int(fsolve(lambda x : logistic(x,temp_Par) - int(temp_Par[2]),temp_Par[1]))
+        pred_x = list(range(max(x)+1,120))
         xTOT= x+pred_x
        
         # Calcoliamo SIZE funzioni estraendo parametri a caso e facendo la std
         simulated_par= np.random.multivariate_normal(temp_Par, temp_Cov, size=SIZE)
-        simulated_curve=[[gompertz(ii,par) for ii in xTOT] for par in simulated_par]
+        simulated_curve=[[logistic(ii,par) for ii in xTOT] for par in simulated_par]
         std_fit=np.std(simulated_curve, axis=0)
         
-        Prediction_curves = Prediction_curves + [[gompertz(i,temp_Par) for i in xTOT]]
+        Prediction_curves = Prediction_curves + [[logistic(i,temp_Par) for i in xTOT]]
         Prediction_std    = Prediction_std + [std_fit]
 
         # differences
@@ -135,35 +124,36 @@ for num in range(Num_plots+1):
         Y3=Y2-Y1
         ERRY3=np.sqrt(Y2+Y1)
         
-        temp_ParD, temp_CovD = curve_fit(gompertz_model_derivative,x,Y3,p0=[0.2,70,64000],sigma=ERRY3, absolute_sigma=False)
+        temp_ParD, temp_CovD = curve_fit(logistic_model_derivative,x,Y3,p0=[0.2,70,64000],sigma=ERRY3, absolute_sigma=False)
         simulated_par_D= np.random.multivariate_normal(temp_ParD, temp_CovD, size=SIZE)
-        simulated_curve_D=[[gompertz_derivative(ii,par) for ii in xTOT] for par in simulated_par_D]
+        simulated_curve_D=[[logistic_derivative(ii,par) for ii in xTOT] for par in simulated_par_D]
         std_fit_D=np.std(simulated_curve_D, axis=0)
         #when MED method needed
     
-        Ymin= np.array([gompertz_derivative(i,temp_ParD) for i in xTOT])-np.array(std_fit_D)
-        Ymax= np.array([gompertz_derivative(i,temp_ParD) for i in xTOT])+np.array(std_fit_D)
+        Ymin= np.array([logistic_derivative(i,temp_ParD) for i in xTOT])-np.array(std_fit_D)
+        Ymax= np.array([logistic_derivative(i,temp_ParD) for i in xTOT])+np.array(std_fit_D)
         
-        Prediction_curves_D = Prediction_curves_D + [[gompertz_derivative(i,temp_ParD) for i in xTOT]]
+        Prediction_curves_D = Prediction_curves_D + [[logistic_derivative(i,temp_ParD) for i in xTOT]]
         Prediction_std_D    = Prediction_std_D + [std_fit_D]
 
         iteration = iteration+1
 #        #FINE CICLO
     dates_list=dates_list+[DATE]
-        
+print('DAJE')    
 #        
 #        
 #PLOTS
-#Plot with log predictions
+#Plot with log prictions
 plt.figure('time evolution infected')
 for time in range(Num_plots+1):
     Ymin = Prediction_curves[3*time] - Prediction_std[time]
     Ymax = Prediction_curves[3*time] + Prediction_std[time]
     plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
-    plt.semilogy(xTOT,Prediction_curves[3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
+#    plt.semilogy(xTOT,Prediction_curves[3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
+    plt.plot(xTOT,Prediction_curves[3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
 plt.xlabel("Days since 1 January 2020")
 plt.ylabel('Total number of infected people')
-plt.ylim((100,max(Prediction_curves[-3])*20))
+plt.ylim((100,max(Prediction_curves[-3])*1.1))
 plt.legend()
 plt.grid(linestyle='--',which='both')
 #plt.savefig(namefile+cases[iteration]+types[0]+region+ext, dpi=DPI)
@@ -174,10 +164,10 @@ for time in range(Num_plots+1):
     Ymin = Prediction_curves[1+3*time] - Prediction_std[time]
     Ymax = Prediction_curves[1+3*time] + Prediction_std[time]
     plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
-    plt.semilogy(xTOT,Prediction_curves[1+3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
+    plt.plot(xTOT,Prediction_curves[1+3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
 plt.xlabel("Days since 1 January 2020")
 plt.ylabel('Total number of dead people')
-plt.ylim((1,max(Prediction_curves[-2])*2))
+plt.ylim((1,max(Prediction_curves[-2])*1.1))
 plt.legend()
 plt.grid(linestyle='--',which='both')
 #plt.savefig(namefile+cases[iteration]+types[0]+region+ext, dpi=DPI)
@@ -188,10 +178,10 @@ for time in range(Num_plots+1):
     Ymin = Prediction_curves[2+3*time] - Prediction_std[time]
     Ymax = Prediction_curves[2+3*time] + Prediction_std[time]
     plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
-    plt.semilogy(xTOT,Prediction_curves[2+3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
+    plt.plot(xTOT,Prediction_curves[2+3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
 plt.xlabel("Days since 1 January 2020")
 plt.ylabel('Total number of recovered people people')
-plt.ylim((1,max(Prediction_curves[-1])*2))
+plt.ylim((1,max(Prediction_curves[-1])*1.1))
 plt.legend()
 plt.grid(linestyle='--',which='both')
 #plt.savefig(namefile+cases[iteration]+types[0]+region+ext, dpi=DPI
@@ -251,4 +241,3 @@ plt.ylim((0,max([max(Prediction_curves_D[2+3*ii]) for ii in range(Num_plots+1)])
 plt.grid(linestyle='--',which='both')
 #plt.savefig(namefile+cases[iteration]+types[1]+region+ext, dpi=DPI)
 plt.gcf().show()
-        

@@ -17,27 +17,37 @@ x['label'][1] = 1
 label_names = ['gatti_comprati', 'gatti_morti']
 
 function = lambda x: np.exp(-1/2 * ((x - 10) / 5)**2)
-data = function(x['time'])
+data_error = 0.05
+data_mean = function(x['time']) + data_error * np.random.randn(*x.shape)
+data_mean[1] += 0.02 * time
+data = gvar.gvar(data_mean, np.full_like(data_mean, data_error))
 
 def makegp(params):
-    time_scale, label_scale = np.exp(params)
-    return lgp.GP(lgp.ExpQuad(scale=time_scale, dim='time') * lgp.ExpQuad(scale=label_scale, dim='label'))
+    time_scale, label_scale = np.exp(params[:2])
+    gp = lgp.GP(lgp.RatQuad(scale=time_scale, dim='time', alpha=1) * lgp.ExpQuad(scale=label_scale, dim='label'))
+    delay = params[2]
+    y = np.copy(x)
+    y['time'][1] = time - delay
+    gp.addx(y.reshape(-1), 'A')
+    return gp
 
 def fun(params):
     gp = makegp(params)
-    gp.addx(x.reshape(-1))
-    return -gp.marginal_likelihood(data.reshape(-1))
+    return -gp.marginal_likelihood({'A': data.reshape(-1)})
 
-result = optimize.minimize(fun, np.log([3, 3]))
+result = optimize.minimize(fun, [2, 2, 10], method='Nelder-Mead')
 print(result)
+print('time scale = {:.3g}'.format(np.exp(result.x[0])))
+corr = lgp.ExpQuad(scale=result.x[1])([0], [1])
+print('correlation = {:.3g}'.format(corr[0]))
+print('delay = {:.3g}'.format(result.x[2]))
 
 gp = makegp(result.x)
-gp.addx(x.reshape(-1), 'A')
 
 xpred = np.empty((2, 100), dtype=x.dtype)
 time_pred = np.linspace(np.min(time), np.max(time) + 1.5 * (np.max(time) - np.min(time)), xpred.shape[1])
 xpred['time'][0] = time_pred
-xpred['time'][1] = time_pred - delay
+xpred['time'][1] = time_pred - result.x[2]
 xpred['label'][0] = 0
 xpred['label'][1] = 1
 gp.addx(xpred.reshape(-1), 'B')
@@ -61,7 +71,7 @@ for _, sample in zip(range(3), gvar.raniter(pred)):
         ax.plot(time_pred, sample[i], color=colors[i])
 
 for i in range(2):
-    ax.plot(time, data[i], '.', color=colors[i], alpha=1)
+    ax.errorbar(time, gvar.mean(data[i]), yerr=gvar.sdev(data[i]), fmt='.', color=colors[i], alpha=1)
 
 ax.legend(loc='best')
 ax.set_xlabel('time')

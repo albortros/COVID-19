@@ -13,6 +13,15 @@ def _forced_reshape(a, shape):
         a = newa
     return a
 
+def _apply2fields(transf, x):
+    if x.dtype.fields:
+        out = np.empty_like(x)
+        for f in x.dtype.fields:
+            out[f] = transf(x[f])
+        return out
+    else:
+        return transf(x)
+
 class Kernel:
     """
     
@@ -27,11 +36,10 @@ class Kernel:
     will be called with two arguments x, y that are two broadcastable numpy
     arrays. It must return Cov[f(x), f(y)] where `f` is the gaussian process.
     
-    `x` and `y` can have only 1 or 2 axes. A 1-axis `x` with a numeric datatype
-    represents monodimensional input. A 1-axis `x` with structured datatype or
-    a 2-axes `x` represent multidimensional input, where respectively the
-    fields and the first axis represent the dimensions.
-    
+    If `x` and `y` are structured arrays, they represent multidimensional
+    input. Kernels can be specified to act only on a field of `x` and `y` or
+    on all of them.
+        
     The decorator `@kernel` can be used to quickly make subclasses.
     
     Methods
@@ -41,7 +49,7 @@ class Kernel:
     
     """
     
-    def __init__(self, kernel, *, dim=None, loc=0, scale=1, forcebroadcast=False, dtype=None, forcenum2d=False, forcekron=False, **kw):
+    def __init__(self, kernel, *, dim=None, loc=0, scale=1, forcebroadcast=False, dtype=None, forcekron=False, **kw):
         """
         
         Initialize the object with callable `kernel`.
@@ -52,33 +60,29 @@ class Kernel:
             A function with signature `kernel(x, y)` where x and y are two
             broadcastable numpy arrays which computes the covariance of f(x)
             with f(y) where f is the gaussian process.
-        dim : None, int or str
-            If an int, the kernel operates only on the `dim`-th dimension, i.e.
-            the `kernel` function will see only x[dim], y[dim]. It can be a
-            string for the case of structured numpy arrays. If None, the
-            kernel will operate on all dimensions.
+        dim : None or str
+            When the input arrays are structured arrays, if dim=None the kernel
+            will operate on all fields, i.e. it will be passed the whole
+            arrays. If `dim` is a string, `kernel` will see only the arrays for
+            the field `dim`. If `dim` is a string and the array is not
+            structured, an exception is raised.
         loc, scale : scalars
             The inputs to `kernel` are transformed as (x - loc) / scale.
         forcebroadcast : bool
             If True, the inputs to `kernel` will always have the same shape.
         dtype : numpy data type
             If specified, the inputs to `kernel` will be coerced to that type.
-        forcenum2d : bool
-            If True, when calling `kernel`, if `x` and `y` have only 1 axis and
-            are not structured arrays, a size-1 axis will be inserted as first
-            axis. Default False.
         forcekron : bool
-            If True, when calling `kernel`, if `x` and `y` have 2 axes or are
-            structured arrays, i.e. if they represent multidimensional input,
-            `kernel` is invoked separately for each dimension, and the result
-            is the product. Default False. If `dim` is specified, `forcekron`
-            will have no effect. If `forcenum2d=True`, the kernel will be
-            called with a first axis even if it is always size 1.
+            If True, when calling `kernel`, if `x` and `y` are structured
+            arrays, i.e. if they represent multidimensional input, `kernel` is
+            invoked separately for each dimension, and the result is the
+            product. Default False. If `dim` is specified, `forcekron` will
+            have no effect.
         **kw :
             Other keyword arguments are passed to `kernel`: kernel(x, y, **kw).
         
         """
-        assert isinstance(dim, (str, int, np.integer, type(None)))
+        assert isinstance(dim, (str, type(None)))
         assert np.isscalar(scale)
         assert np.isscalar(loc)
         assert np.isfinite(scale)
@@ -86,21 +90,11 @@ class Kernel:
         assert scale > 0
         self._forcebroadcast = bool(forcebroadcast)
         self._dtype = None if dtype is None else np.dtype(dtype)
-        forcenum2d = bool(forcenum2d)
         forcekron = bool(forcekron)
         
         transf = lambda x: x
         
-        if isinstance(dim, (int, np.integer)):
-            def transf(x):
-                if len(x.shape) < 2:
-                    raise IndexError('kernel called on array with shape {} less than 2D but dim={}'.format(x.shape, dim))
-                try:
-                    return x[dim]
-                except IndexError:
-                    raise IndexError('kernel called with dim={} where x.shape={}, can not take x[dim]'.format(dim, x.shape))
-        
-        elif isinstance(dim, str):
+        if isinstance(dim, str):
             def transf(x):
                 if x.dtype.fields:
                     return x[dim]
@@ -109,40 +103,23 @@ class Kernel:
         
         if loc != 0:
             transf1 = transf
-            transf = lambda x: transf1(x) - loc
+            transf = lambda x: _apply2fields(lambda x: x - loc, transf1(x))
         
         if scale != 1:
             transf2 = transf
-            transf = lambda x: transf2(x) / scale
-        
-        if forcenum2d:
-            transf3 = transf
-            def transf(x):
-                x = transf3(x)
-                if len(x.shape) == 1 and not x.dtype.fields:
-                    return x[None, :]
-                else:
-                    return x
-        
+            transf = lambda x: _apply2fields(lambda x: x / scale, transf2(x))
+                
         if dim is None and forcekron:
-            if forcenum2d:
-                xi = lambda x, i: x[i][None, :] if x.dtype.fields else x[i:i+1]
-            else:
-                xi = lambda x, i: x[i]
-            
             def _kernel(x, y):
                 x = transf(x)
                 y = transf(y)
-                if len(x.shape) == 1 and not x.dtype.fields:
-                    return kernel(x, y, **kw)
-                elif len(x.shape) == 2:
-                    iterable = range(len(x))
+                if x.dtype.fields:
+                    return np.array([
+                        kernel(x[f], y[f], **kw)
+                        for f in x.dtype.fields
+                    ])
                 else:
-                    iterable = x.dtype.fields
-                return np.array([
-                    kernel(xi(x, i), xi(y, i), **kw)
-                    for i in iterable
-                ])
+                    return kernel(x, y, **kw)
         else:
             _kernel = lambda x, y: kernel(transf(x), transf(y), **kw)
         
@@ -153,14 +130,13 @@ class Kernel:
         y = np.array(y, copy=False, dtype=self._dtype)
         assert x.dtype == y.dtype
         shape = np.broadcast(x, y).shape
-        assert len(shape) in (1, 2)
         if self._forcebroadcast:
             x = _forced_reshape(x, shape)
             y = _forced_reshape(y, shape)
         result = self._kernel(x, y)
         assert isinstance(result, np.ndarray)
         assert np.issubdtype(result.dtype, np.number)
-        assert len(result.shape) == 1
+        assert result.shape == shape
         return result
     
     def __add__(self, value):
@@ -213,14 +189,14 @@ class Kernel:
             Another Kernel object representing the derivatives of this one.
         """
         for order in xorder, yorder:
-            if int(order) != order or order < 0:
+            if not isinstance(order, (int, np.integer)) or order < 0:
                 raise ValueError('derivative orders must be nonnegative integers')
         if xorder == yorder == 0:
             return self
         fun = self._kernel
-        for _ in range(int(xorder)):
+        for _ in range(xorder):
             fun = autograd.elementwise_grad(fun, 0)
-        for _ in range(int(yorder)):
+        for _ in range(yorder):
             fun = autograd.elementwise_grad(fun, 1)
         return Kernel(fun, forcebroadcast=True, dtype=float)
             
@@ -260,12 +236,10 @@ class IsotropicKernel(Kernel):
             raise ValueError('input option `{}` not valid, must be one of {}'.format(input, allowed_input))
         
         def function(x, y, **kwargs):
-            if len(x.shape) == 1 and not x.dtype.fields:
-                q = (x - y) ** 2
-            elif len(x.shape) == 2:
-                q = sum((x - y) ** 2)
-            else:
+            if x.dtype.fields:
                 q = sum((x[f] - y[f]) ** 2 for f in x.dtype.fields)
+            else:
+                q = (x - y) ** 2
             if input == 'soft':
                 eps = np.finfo(x.dtype).eps
                 q = np.sqrt(q + eps ** 2)
@@ -353,13 +327,10 @@ def ExpQuad(r2):
     return np.exp(-1/2 * r2)
 
 def _dot(x, y):
-    if len(x.shape) == 1 and x.dtype.fields:
+    if x.dtype.fields:
         return sum(x[f] * y[f] for f in x.dtype.fields)
-    elif len(x.shape) == 1:
+    else:
         return x * y
-    elif len(x.shape) == 2:
-        return np.sum(x * y, axis=0)
-    assert False
 
 @kernel
 def Linear(x, y):

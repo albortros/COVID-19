@@ -326,6 +326,7 @@ class GP:
     @property 
     def _cov(self):
         if not hasattr(self, '_covmatrix'):
+            self._canaddx = False
             self._covmatrix = self._buildcov()
             self._covmatrix.flags['WRITEABLE'] = False
         return self._covmatrix
@@ -334,7 +335,6 @@ class GP:
     def _prior(self):
         # use gvar.BufferDict instead of dict, otherwise pickling is a mess
         if not hasattr(self, '_priordict'):
-            self._canaddx = False
             flatprior = gvar.gvar(np.zeros(len(self._cov)), self._cov)
             flatprior.flags['WRITEABLE'] = False
             self._priordict = gvar.BufferDict({

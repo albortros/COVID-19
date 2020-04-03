@@ -6,13 +6,6 @@ from autograd.scipy import special
 from scipy import special as special_noderiv
 from autograd import extend
 
-def _forced_reshape(a, shape):
-    if a.shape != shape:
-        newa = np.empty(shape, a.dtype)
-        newa[:] = a
-        a = newa
-    return a
-
 def _apply2fields(transf, x):
     if x.dtype.fields:
         out = np.empty_like(x)
@@ -131,8 +124,7 @@ class Kernel:
         assert x.dtype == y.dtype
         shape = np.broadcast(x, y).shape
         if self._forcebroadcast:
-            x = _forced_reshape(x, shape)
-            y = _forced_reshape(y, shape)
+            x, y = np.broadcast_arrays(x, y)
         result = self._kernel(x, y)
         assert isinstance(result, np.ndarray)
         assert np.issubdtype(result.dtype, np.number)

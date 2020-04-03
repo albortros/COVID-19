@@ -69,20 +69,18 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # GP._buildcovblock builds on request, never compute the whole cov
 # delete the _x as soon as they are not needed any more
 # kronecker optimization: subclass GPKron where addx has a parameter `dim` and
-# it accepts only 1D arrays.
+# it accepts only non-structured arrays.
 # sparse algorithms (after adding finite support kernels)
 # DiagLowRank for low rank matrix + multiple of the identity (multiple rank-1
 # updates to the Cholesky factor?)
 # option to compute only the diagonal of the output covariance matrix
-# decomposition of the posterior covariance matrix
+# decomposition of the posterior covariance matrix, or tool to take samples
 # kernel rescaling
-# require same shape in Kernel.__call__?
 # support taking derivatives along a dimension only in multidim
 # remove the matrix inversion in Chol.usolve (probably I have to write a
 # solve_triangular for object dtype)
 # do not fill the entire matrix when checksym=False
-# remove support for first axis=dimension and accept only structured arrays,
-# then add support for many axes
+# apply isotropic kernels to multivalued fields
 #
 # New kernels:
 # finite support

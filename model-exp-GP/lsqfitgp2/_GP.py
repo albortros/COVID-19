@@ -226,7 +226,7 @@ class GP:
                     raise ValueError("`x[{}]` with shape {} does not concatenate with shape {} along first axis".format(k, gx.shape, shape))
             
             self._derivatives = self._derivatives or d > 0
-            if self._derivatives and self._dtype.fields:
+            if self._derivatives and self._dtype.names is not None:
                 raise ValueError('derivatives supported only with non-structured data')
             
             self._x[key][d].append(gx)

@@ -7,9 +7,9 @@ from scipy import special as special_noderiv
 from autograd import extend
 
 def _apply2fields(transf, x):
-    if x.dtype.fields:
+    if x.dtype.names is not None:
         out = np.empty_like(x)
-        for f in x.dtype.fields:
+        for f in x.dtype.names:
             out[f] = transf(x[f])
         return out
     else:
@@ -89,7 +89,7 @@ class Kernel:
         
         if isinstance(dim, str):
             def transf(x):
-                if x.dtype.fields:
+                if x.dtype.names is not None:
                     return x[dim]
                 else:
                     raise ValueError('kernel called on non-structured array but dim="{}"'.format(dim))
@@ -106,10 +106,10 @@ class Kernel:
             def _kernel(x, y):
                 x = transf(x)
                 y = transf(y)
-                if x.dtype.fields:
+                if x.dtype.names is not None:
                     return np.array([
                         kernel(x[f], y[f], **kw)
-                        for f in x.dtype.fields
+                        for f in x.dtype.names
                     ])
                 else:
                     return kernel(x, y, **kw)
@@ -228,8 +228,8 @@ class IsotropicKernel(Kernel):
             raise ValueError('input option `{}` not valid, must be one of {}'.format(input, allowed_input))
         
         def function(x, y, **kwargs):
-            if x.dtype.fields:
-                q = sum((x[f] - y[f]) ** 2 for f in x.dtype.fields)
+            if x.dtype.names is not None:
+                q = sum((x[f] - y[f]) ** 2 for f in x.dtype.names)
             else:
                 q = (x - y) ** 2
             if input == 'soft':
@@ -319,8 +319,8 @@ def ExpQuad(r2):
     return np.exp(-1/2 * r2)
 
 def _dot(x, y):
-    if x.dtype.fields:
-        return sum(x[f] * y[f] for f in x.dtype.fields)
+    if x.dtype.names is not None:
+        return sum(x[f] * y[f] for f in x.dtype.names)
     else:
         return x * y
 

@@ -81,6 +81,8 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # remove the matrix inversion in Chol.usolve (probably I have to write a
 # solve_triangular for object dtype)
 # do not fill the entire matrix when checksym=False
+# remove support for first axis=dimension and accept only structured arrays,
+# then add support for many axes
 #
 # New kernels:
 # finite support

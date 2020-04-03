@@ -41,7 +41,7 @@ class Decomposition:
     
     """
     
-    def __init__(self, K):
+    def __init__(self, K, overwrite=False):
         """
         Decompose matrix K.
         """
@@ -78,8 +78,8 @@ class SVD(Decomposition):
     Singular value decomposition.
     """
     
-    def __init__(self, K):
-        self._U, self._s, self._VT = linalg.svd(K)
+    def __init__(self, K, overwrite=False):
+        self._U, self._s, self._VT = linalg.svd(K, check_finite=False, overwrite_a=overwrite)
     
     def solve(self, b):
         return (self._VT.T / self._s) @ (self._U.T @ b)
@@ -101,8 +101,8 @@ class SVDFullRank(SVD):
     `eps`, where `eps` is relative to the largest singular value.
     """
     
-    def __init__(self, K, eps=None):
-        super().__init__(K)
+    def __init__(self, K, eps=None, **kw):
+        super().__init__(K, **kw)
         eps = self._eps(eps)
         self._s[self._s < eps] = eps
             
@@ -112,8 +112,8 @@ class SVDLowRank(SVD):
     where `eps` is relative to the largest singular value.
     """
     
-    def __init__(self, K, eps=None):
-        super().__init__(K)
+    def __init__(self, K, eps=None, **kw):
+        super().__init__(K, **kw)
         eps = self._eps(eps)
         subset = slice(np.sum(self._s >= eps)) # s is decreasing
         self._U = self._U[:, subset]
@@ -125,9 +125,8 @@ class LowRank(Decomposition):
     Keep only the first `rank` higher eigenmodes.
     """
     
-    def __init__(self, K, rank=1):
+    def __init__(self, K, rank=1, overwrite=None):
         self._w, self._V = slinalg.eigsh(K, k=rank, which='LM')
-        self._trace = np.trace(K)
         
     def solve(self, b):
         return (self._V / self._w) @ (self._V.T @ b)
@@ -146,8 +145,8 @@ class Chol(Decomposition):
     Cholesky decomposition.
     """
     
-    def __init__(self, K):
-        self._L = linalg.cholesky(K, lower=True)
+    def __init__(self, K, overwrite=False):
+        self._L = linalg.cholesky(K, lower=True, check_finite=False, overwrite_a=overwrite)
     
     def solve(self, b):
         invLb = linalg.solve_triangular(self._L, b, lower=True)
@@ -171,11 +170,11 @@ class CholMaxEig(Chol):
     `epsfactor` multiplies this number.
     """
     
-    def __init__(self, K, eps=None):
+    def __init__(self, K, eps=None, **kw):
         w = slinalg.eigsh(K, k=1, which='LM', return_eigenvectors=False)
         if not eps:
             eps = len(K) * np.finfo(K.dtype).eps
-        super().__init__(K + np.diag(np.full(len(K), eps * w[0])))
+        super().__init__(K + np.diag(np.full(len(K), eps * w[0])), **kw)
 
 
 class CholGersh(Chol):
@@ -186,11 +185,11 @@ class CholGersh(Chol):
     with the Gershgorin theorem.
     """
     
-    def __init__(self, K, eps=None):
+    def __init__(self, K, eps=None, **kw):
         maxeigv = _gershgorin_eigval_bound(K)
         if not eps:
             eps = len(K) * np.finfo(K.dtype).eps
-        super().__init__(K + np.diag(np.full(len(K), eps * maxeigv)))
+        super().__init__(K + np.diag(np.full(len(K), eps * maxeigv)), **kw)
 
 def _gershgorin_eigval_bound(K):
     return np.max(np.sum(np.abs(K), axis=1))

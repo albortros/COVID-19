@@ -66,24 +66,27 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # stabilize Matern kernel near r == 0, then Matern derivatives for real nu
 # (quick fix: larger eps in _softabs)
 # GP._prior stored flat?
-# compute only half of the covariance matrices (checksym=True to compute full)
 # GP._cov stored 1D? (lower triangular)
-# marginal likelihood derivatives
+# marginal likelihood derivatives (hell...)
 # method GP._covblock to get covariance matrix that builds it one piece at a
 # time as required
 # delete the _x as soon as they are not needed any more
-# kronecker optimization
+# kronecker optimization: subclass GPKron where addx has a parameter `dim` and
+# it accepts only 1D arrays.
 # sparse algorithms (after adding finite support kernels)
 # DiagLowRank for low rank matrix + multiple of the identity (multiple rank-1
 # updates to the Cholesky factor?)
 # option to compute only the diagonal of the output covariance matrix
 # decomposition of the posterior covariance matrix
-# reintroduce isotropickernel and pass r2 instead of r to support
-# multidimensional input
 # kernel rescaling
+# require same shape in Kernel.__call__?
+# support taking derivatives along a dimension only (what is it doing now
+# really?)
+# remove the matrix inversion in Chol.usolve (probably I have to write a
+# solve_triangular for object dtype)
 #
 # Question: when I do the svdcut, should I do a diagonalization or really an
-# SVD? Is there a numerical stability difference?
+# SVD? Is there a numerical stability difference? => diagonalization
 #
 # New kernels:
 # finite support

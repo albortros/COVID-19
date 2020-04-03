@@ -44,23 +44,29 @@ class GP:
     
     """
     
-    def __init__(self, covfun, checkpos=True, solver='svdcut+', **kw):
+    def __init__(self, covfun, solver='svdcut+', checkpos=True, checksym=True, checkfinite=True, **kw):
         """
         
         Parameters
         ----------
         covfun : Kernel
             An instance of `Kernel` representing the covariance kernel.
+        solver : str
+            A solver used to invert the covariance matrix. See list below for
+            the available solvers. Default is `svdcut+` which is slow but
+            robust.
         checkpos : bool
             If True (default), raise a `ValueError` if the covariance matrix
             turns out non positive within numerical error. The exception will
             be raised the first time you call `prior`, `pred` or
             `marginal_likelihood`. Setting `checkpos=False` can give a large
             speed benefit if you have more than ~1000 points in the GP.
-        solver : str
-            A solver used to invert the covariance matrix. See list below for
-            the available solvers. Default is `svdcut+` which is slow but
-            robust.
+        checksym : bool
+            If True (default), check the covariance matrix is symmetric. If
+            False, only half of the matrix is computed.
+        checkfinite : bool
+            If True (default), check that the covariance matrix does not
+            contain infs or nans.
         
         Solvers
         -------
@@ -83,17 +89,13 @@ class GP:
         
         Keyword arguments
         -----------------
-        svdcut : positive float
+        eps : positive float
             For solvers `svdcut+`, `svdcut-`, `gersh` and `maxeigv`. Specifies
             the threshold for considering small the eigenvalues, relative to
             the maximum eigenvalue. The default is matrix size * float epsilon.
         rank : positive integer
             For the `lowrank` solver, the target rank. It should be much
             smaller than the matrix size for the method to be convenient.
-        epsfactor : positive float
-            For the `gersh` and `maxeigv` solvers, default 1. The covariance
-            matrix is made numerically positive definite by adding a small
-            number to the diagonal, which is multiplied by `epsfactor`.
         
         """
         if not isinstance(covfun, _kernels.Kernel):
@@ -110,7 +112,9 @@ class GP:
             'gersh'  : _linalg.CholGersh,
             'maxeigv': _linalg.CholMaxEig
         }[solver]
-        self._solver = lambda K: decomp(K, **kw)
+        self._solver = lambda K, **kwargs: decomp(K, **kwargs, **kw)
+        self._checkfinite = bool(checkfinite)
+        self._checksym = bool(checksym)
             
     def _checkderiv(self, deriv):
         if not isinstance(deriv, (int, np.integer)):
@@ -243,39 +247,54 @@ class GP:
             self._slicesdict = self._makeslices()
         return self._slicesdict
     
-    def _buildcov(self):
-        if not self._x:
-            raise ValueError('process is empty, add values with `addx`')
+    def _buildcovblock(self, kdkd, cov):
+        xy = [
+            _concatenate_noop(self._x[key][deriv], axis=-1)
+            for key, deriv in kdkd
+        ]
+        kernel = self._covfun.diff(kdkd[0][1], kdkd[1][1])
         
-        cov = np.empty((self._length, self._length))
-        for kdkd in itertools.product(self._slices, repeat=2):
-            xy = [
-                _concatenate_noop(self._x[key][deriv], axis=-1)
-                for key, deriv in kdkd
-            ]
-            slices = [self._slices[kd] for kd in kdkd]
-            expdshape = tuple(s.stop - s.start for s in slices)
-            
-            kernel = self._covfun.diff(kdkd[0][1], kdkd[1][1])
-            
-            xshape = (xy[0].shape[-1], xy[1].shape[-1])
+        slices = [self._slices[kd] for kd in kdkd]
+        shape = tuple(s.stop - s.start for s in slices)
+
+        if slices[0] == slices[1] and not self._checksym:
+            indices = np.triu_indices(shape[0])
+            xy = [x[..., i] for x, i in zip(xy, indices)]
+            thiscov = kernel(xy[0], xy[1])
+            cov[indices] = thiscov
+            cov[tuple(reversed(indices))] = thiscov
+        else:
+            xshape = shape
             if len(xy[0].shape) == 2:
                 xshape = (xy[0].shape[0],) + xshape
             xy[0] = _kernels._forced_reshape(xy[0][..., :, None], xshape)
             xy[1] = _kernels._forced_reshape(xy[1][..., None, :], xshape)
             xshape = xshape[:-2] + (xshape[-2] * xshape[-1],)
-            thiscov = kernel(xy[0].reshape(xshape), xy[1].reshape(xshape)).reshape(expdshape)
-            
-            shape = thiscov.shape
-            if shape != expdshape:
-                raise ValueError('covariance block ({}, {}) has shape {}, should be {}'.format(kdkd[0], kdkd[1], shape, expdshape))
-            if not np.all(np.isfinite(thiscov)):
-                raise ValueError('covariance block ({}, {}) is not finite'.format(*kdkd))
-            
-            cov[slices[0], slices[1]] = thiscov
+            thiscov = kernel(xy[0].reshape(xshape), xy[1].reshape(xshape)).reshape(shape)
+            cov[:] = thiscov
         
-        if not np.allclose(cov, cov.T):
-            raise ValueError('covariance matrix is not symmetric')
+        if self._checkfinite and not np.all(np.isfinite(thiscov)):
+            raise RuntimeError('covariance block ({}, {}) is not finite'.format(*kdkd))
+        if self._checksym and slices[0] == slices[1] and not np.allclose(thiscov, thiscov.T):
+            raise RuntimeError('covariance block ({}, {}) is not symmetric'.format(*kdkd))
+            
+    def _buildcov(self):
+        if not self._x:
+            raise ValueError('process is empty, add values with `addx`')
+        
+        cov = np.empty((self._length, self._length))
+        for kdkd in itertools.combinations_with_replacement(self._slices, 2):
+            slices = tuple(self._slices[kd] for kd in kdkd)
+            self._buildcovblock(kdkd, cov[slices])
+            
+            if slices[0] != slices[1]:
+                revslices = tuple(reversed(slices))
+                if not self._checksym:
+                    cov[revslices] = cov[slices].T
+                else:
+                    self._buildcovblock(tuple(reversed(kdkd)), cov[revslices])
+                    if not np.allclose(cov[slices], cov[revslices].T):
+                        raise ValueError('covariance block ({}, {}) is not symmetric'.format(*kdkd))
 
         if self._checkpositive:
             eigv = linalg.eigvalsh(cov)
@@ -590,12 +609,15 @@ class GP:
         for s1, cs1 in zip(yslices, cyslices):
             for s2, cs2 in zip(yslices, cyslices):
                 Kxx[cs1, cs2] = self._cov[s1, s2]
-        assert np.allclose(Kxx, Kxx.T)
+        if self._checksym:
+            assert np.allclose(Kxx, Kxx.T)
                 
         if (fromdata or raw or not keepcorr) and y.dtype == object:
-            S = gvar.evalcov(gvar.gvar(y))
+            ycov = gvar.evalcov(gvar.gvar(y)) ## TODO use evalcov_block?
+            if self._checkfinite and not np.all(np.isfinite(ycov)):
+                raise ValueError('covariance matrix of `given` is not finite')
         else:
-            S = 0
+            ycov = 0
         
         if raw or not keepcorr:
             
@@ -603,16 +625,23 @@ class GP:
             for s1, cs1 in zip(yspslices, cyspslices):
                 for s2, cs2 in zip(yspslices, cyspslices):
                     Kxsxs[cs1, cs2] = self._cov[s1, s2]
-            assert np.allclose(Kxsxs, Kxsxs.T)
-
+            if self._checksym:
+                assert np.allclose(Kxsxs, Kxsxs.T)
+            
+            ymean = gvar.mean(y)
+            if self._checkfinite and not np.all(np.isfinite(ymean)):
+                raise ValueError('mean of `given` is not finite')
+            
             if fromdata:
-                B = self._solver(Kxx + S).solve(Kxsx.T).T
+                Kxx += ycov
+                B = self._solver(Kxx, overwrite=True).solve(Kxsx.T).T
                 cov = Kxsxs - Kxsx @ B.T
-                mean = B @ gvar.mean(y)
+                mean = B @ ymean
             else:
-                A = self._solver(Kxx).solve(Kxsx.T).T
-                cov = Kxsxs + A @ (S - Kxx) @ A.T
-                mean = A @ gvar.mean(y)
+                A = self._solver(Kxx, overwrite=False).solve(Kxsx.T).T
+                Kxx -= ycov
+                cov = Kxsxs - A @ Kxx @ A.T
+                mean = A @ ymean
             
         else: # (keepcorr and not raw)        
             yplist = [self._prior[kd] for kd in inkdl]
@@ -620,7 +649,8 @@ class GP:
             yp = _concatenate_noop(yplist)
             ysp = _concatenate_noop(ysplist)
         
-            flatout = Kxsx @ self._solver(Kxx + S).usolve(y - yp) + ysp
+            Kxx += ycov
+            flatout = Kxsx @ self._solver(Kxx, overwrite=True).usolve(y - yp) + ysp
         
         if raw and strippedkd:
             meandict = gvar.BufferDict({
@@ -705,7 +735,8 @@ class GP:
         for s1, cs1 in zip(yslices, cyslices):
             for s2, cs2 in zip(yslices, cyslices):
                 Kxx[cs1, cs2] = self._cov[s1, s2]
-        assert np.allclose(Kxx, Kxx.T)
+        if self._checksym:
+            assert np.allclose(Kxx, Kxx.T)
         
         if y.dtype == object:
             gvary = gvar.gvar(y)
@@ -715,6 +746,11 @@ class GP:
             ycov = 0
             ymean = y
         
+        if self._checkfinite and not np.all(np.isfinite(ymean)):
+            raise ValueError('mean of `given` is not finite')
+        if self._checkfinite and not np.all(np.isfinite(ycov)):
+            raise ValueError('covariance matrix of `given` is not finite')
+        
         Kxx += ycov
-        decomp = self._solver(Kxx)
+        decomp = self._solver(Kxx, overwrite=True)
         return -1/2 * (decomp.quad(ymean) + decomp.logdet() + len(y) * np.log(2 * np.pi))

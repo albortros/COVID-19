@@ -65,11 +65,8 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # Matern derivatives for half-integer nu
 # stabilize Matern kernel near r == 0, then Matern derivatives for real nu
 # (quick fix: larger eps in _softabs)
-# GP._prior stored flat?
-# GP._cov stored 1D? (lower triangular)
 # marginal likelihood derivatives (hell...)
-# method GP._covblock to get covariance matrix that builds it one piece at a
-# time as required
+# GP._buildcovblock builds on request, never compute the whole cov
 # delete the _x as soon as they are not needed any more
 # kronecker optimization: subclass GPKron where addx has a parameter `dim` and
 # it accepts only 1D arrays.
@@ -83,6 +80,7 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # support taking derivatives along a dimension only in multidim
 # remove the matrix inversion in Chol.usolve (probably I have to write a
 # solve_triangular for object dtype)
+# do not fill the entire matrix when checksym=False
 #
 # New kernels:
 # finite support

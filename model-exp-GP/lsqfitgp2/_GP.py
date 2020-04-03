@@ -212,16 +212,18 @@ class GP:
             if len(gx.shape) == 0:
                 raise ValueError('`x[{}]` is 0d'.format(k))
             
-            if hasattr(self, '_shape'):
-                if gx.shape[1:] != self._shape[1:]:
-                    raise ValueError("`x[{}]` with shape {} does not concatenate with shape {} along first axis".format(k, gx.shape, self._broadcast.shape))
-                
+            if hasattr(self, '_dtype'):
                 if not all(np.issubdtype(t, np.number) for t in (self._dtype, gx.dtype)):
                     if gx.dtype != self._dtype:
                         raise ValueError('`x[{}]` has dtype {} but previous dtype used was {}'.format(k, gx.dtype, self._dtype))
             else:
-                self._shape = gx.shape
                 self._dtype = gx.dtype
+            
+            prev = self._x.get(key, {}).get(d, [])
+            if prev:
+                shape = prev[0].shape
+                if gx.shape[1:] != shape[1:]:
+                    raise ValueError("`x[{}]` with shape {} does not concatenate with shape {} along first axis".format(k, gx.shape, shape))
             
             self._derivatives = self._derivatives or d > 0
             if self._derivatives and self._dtype.fields:

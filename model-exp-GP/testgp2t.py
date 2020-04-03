@@ -28,12 +28,12 @@ def makegp(params):
     delay = params[2]
     y = np.copy(x)
     y['time'][1] = time - delay
-    gp.addx(y.reshape(-1), 'A')
+    gp.addx(y, 'A')
     return gp
 
 def fun(params):
     gp = makegp(params)
-    return -gp.marginal_likelihood({'A': data.reshape(-1)})
+    return -gp.marginal_likelihood({'A': data})
 
 result = optimize.minimize(fun, [2, 2, 10], method='Nelder-Mead')
 print(result)
@@ -50,10 +50,9 @@ xpred['time'][0] = time_pred
 xpred['time'][1] = time_pred - result.x[2]
 xpred['label'][0] = 0
 xpred['label'][1] = 1
-gp.addx(xpred.reshape(-1), 'B')
+gp.addx(xpred, 'B')
 
-pred = gp.predfromdata({'A': data.reshape(-1)}, 'B')
-pred = pred.reshape(xpred.shape)
+pred = gp.predfromdata({'A': data}, 'B')
 
 fig = plt.figure('testgp2t')
 fig.clf()

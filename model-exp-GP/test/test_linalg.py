@@ -90,29 +90,23 @@ class DecompTestBase:
             result = self.decompclass(K).logdet()
             assert np.allclose(sol, result)
 
-class TestSVD(DecompTestBase):
+class TestDiag(DecompTestBase):
     
     @property
     def decompclass(self):
-        return _linalg.SVD
+        return _linalg.Diag
 
-class TestSVDFullRank(DecompTestBase):
+class TestEigCutFullRank(DecompTestBase):
     
     @property
     def decompclass(self):
-        return _linalg.SVDFullRank
+        return _linalg.EigCutFullRank
 
-class TestSVDLowRank(DecompTestBase):
+class TestEigCutLowRank(DecompTestBase):
     
     @property
     def decompclass(self):
-        return _linalg.SVDLowRank
-
-class TestSVD(DecompTestBase):
-    
-    @property
-    def decompclass(self):
-        return _linalg.SVD
+        return _linalg.EigCutLowRank
 
 class TestChol(DecompTestBase):
     
@@ -132,11 +126,11 @@ class TestCholGersh(DecompTestBase):
     def decompclass(self):
         return _linalg.CholGersh
 
-class TestLowRank(DecompTestBase):
+class TestReduceRank(DecompTestBase):
     
     @property
     def decompclass(self):
-        return lambda K: _linalg.LowRank(K, rank=self._rank)
+        return lambda K: _linalg.ReduceRank(K, rank=self._rank)
     
     def solve(self, K, b):
         invK, rank = linalg.pinv(K, return_rank=True)

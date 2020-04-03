@@ -80,13 +80,9 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # decomposition of the posterior covariance matrix
 # kernel rescaling
 # require same shape in Kernel.__call__?
-# support taking derivatives along a dimension only (what is it doing now
-# really?)
+# support taking derivatives along a dimension only in multidim
 # remove the matrix inversion in Chol.usolve (probably I have to write a
 # solve_triangular for object dtype)
-#
-# Question: when I do the svdcut, should I do a diagonalization or really an
-# SVD? Is there a numerical stability difference? => diagonalization
 #
 # New kernels:
 # finite support

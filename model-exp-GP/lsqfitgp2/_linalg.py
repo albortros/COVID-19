@@ -11,13 +11,13 @@ Classes
 -------
 Decomposition :
     Abstract base class.
-SVD :
-    Singular value decomposition.
-SVDFullRank :
-    SVD rounding up small singular values.
-SVDLowRank :
-    SVD removing small singular values.
-LowRank :
+Diag :
+    Diagonalization.
+EigCutFullRank :
+    Diagonalization rounding up small eigenvalues.
+EigCutLowRank :
+    Diagonalization removing small eigenvalues.
+ReduceRank :
     Partial diagonalization with higher eigenvalues only.
 Chol :
     Cholesky decomposition.
@@ -73,61 +73,14 @@ class Decomposition:
         """
         raise NotImplementedError()
 
-class SVD(Decomposition):
+class Diag(Decomposition):
     """
-    Singular value decomposition.
+    Diagonalization.
     """
     
     def __init__(self, K, overwrite=False):
-        self._U, self._s, self._VT = linalg.svd(K, check_finite=False, overwrite_a=overwrite)
+        self._w, self._V = linalg.eigh(K, check_finite=False, overwrite_a=overwrite)
     
-    def solve(self, b):
-        return (self._VT.T / self._s) @ (self._U.T @ b)
-    
-    usolve = solve
-    
-    def logdet(self):
-        return np.sum(np.log(self._s))
-    
-    def _eps(self, eps):
-        s = self._s
-        if eps is None:
-            eps = len(s) * np.finfo(s.dtype).eps
-        return eps * np.max(s)
-
-class SVDFullRank(SVD):
-    """
-    Singular value decomposition. Singular values below `eps` are set to
-    `eps`, where `eps` is relative to the largest singular value.
-    """
-    
-    def __init__(self, K, eps=None, **kw):
-        super().__init__(K, **kw)
-        eps = self._eps(eps)
-        self._s[self._s < eps] = eps
-            
-class SVDLowRank(SVD):
-    """
-    Singular value decomposition. Singular values below `eps` are removed,
-    where `eps` is relative to the largest singular value.
-    """
-    
-    def __init__(self, K, eps=None, **kw):
-        super().__init__(K, **kw)
-        eps = self._eps(eps)
-        subset = slice(np.sum(self._s >= eps)) # s is decreasing
-        self._U = self._U[:, subset]
-        self._s = self._s[subset]
-        self._VT = self._VT[subset, :]
-        
-class LowRank(Decomposition):
-    """
-    Keep only the first `rank` higher eigenmodes.
-    """
-    
-    def __init__(self, K, rank=1, overwrite=None):
-        self._w, self._V = slinalg.eigsh(K, k=rank, which='LM')
-        
     def solve(self, b):
         return (self._V / self._w) @ (self._V.T @ b)
     
@@ -139,7 +92,45 @@ class LowRank(Decomposition):
     
     def logdet(self):
         return np.sum(np.log(self._w))
+    
+    def _eps(self, eps):
+        w = self._w
+        if eps is None:
+            eps = len(w) * np.finfo(w.dtype).eps
+        return eps * np.max(w)
 
+class EigCutFullRank(Diag):
+    """
+    Diagonalization. Eigenvalues below `eps` are set to `eps`, where `eps` is
+    relative to the largest eigenvalue.
+    """
+    
+    def __init__(self, K, eps=None, **kw):
+        super().__init__(K, **kw)
+        eps = self._eps(eps)
+        self._w[self._w < eps] = eps
+            
+class EigCutLowRank(Diag):
+    """
+    Diagonalization. Eigenvalues below `eps` are removed, where `eps` is
+    relative to the largest eigenvalue.
+    """
+    
+    def __init__(self, K, eps=None, **kw):
+        super().__init__(K, **kw)
+        eps = self._eps(eps)
+        subset = slice(np.sum(self._w < eps), None) # w is sorted ascending
+        self._w = self._w[subset]
+        self._V = self._V[:, subset]
+        
+class ReduceRank(Diag):
+    """
+    Keep only the first `rank` higher eigenmodes.
+    """
+    
+    def __init__(self, K, rank=1, overwrite=None):
+        self._w, self._V = slinalg.eigsh(K, k=rank, which='LM')
+        
 class Chol(Decomposition):
     """
     Cholesky decomposition.

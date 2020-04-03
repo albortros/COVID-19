@@ -44,7 +44,7 @@ class GP:
     
     """
     
-    def __init__(self, covfun, solver='svdcut+', checkpos=True, checksym=True, checkfinite=True, **kw):
+    def __init__(self, covfun, solver='eigcut+', checkpos=True, checksym=True, checkfinite=True, **kw):
         """
         
         Parameters
@@ -70,10 +70,10 @@ class GP:
         
         Solvers
         -------
-        svdcut+ :
+        eigcut+ :
             Promote small eigenvalues to a minimum value (default). What
             `lsqfit` does by default.
-        svdcut- :
+        eigcut- :
             Remove small eigenvalues.
         lowrank :
             Reduce the rank of the matrix. The complexity is O(n^2 r) where
@@ -90,7 +90,7 @@ class GP:
         Keyword arguments
         -----------------
         eps : positive float
-            For solvers `svdcut+`, `svdcut-`, `gersh` and `maxeigv`. Specifies
+            For solvers `eigcut+`, `eigcut-`, `gersh` and `maxeigv`. Specifies
             the threshold for considering small the eigenvalues, relative to
             the maximum eigenvalue. The default is matrix size * float epsilon.
         rank : positive integer
@@ -106,15 +106,16 @@ class GP:
         self._canaddx = True
         self._checkpositive = bool(checkpos)
         decomp = {
-            'svdcut+': _linalg.SVDFullRank,
-            'svdcut-': _linalg.SVDLowRank,
-            'lowrank': _linalg.LowRank,
+            'eigcut+': _linalg.EigCutFullRank,
+            'eigcut-': _linalg.EigCutLowRank,
+            'lowrank': _linalg.ReduceRank,
             'gersh'  : _linalg.CholGersh,
             'maxeigv': _linalg.CholMaxEig
         }[solver]
         self._solver = lambda K, **kwargs: decomp(K, **kwargs, **kw)
         self._checkfinite = bool(checkfinite)
         self._checksym = bool(checksym)
+        self._derivatives = False
             
     def _checkderiv(self, deriv):
         if not isinstance(deriv, (int, np.integer)):
@@ -223,6 +224,10 @@ class GP:
                     raise ValueError('`x[{}]` is 1D and has fields {} but previous input had {}'.format(k, ', '.join(gx.dtype.fields), ', '.join(dtype.fields)))
             else:
                 self._firstx = gx
+            
+            self._derivatives = self._derivatives or d > 0
+            if self._derivatives and (len(gx.shape) == 2 or (len(gx.shape) == 1 and gx.dtype.fields)):
+                raise ValueError('derivatives supported only with 1D data')
             
             self._x[key][d].append(gx)
     

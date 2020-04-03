@@ -73,8 +73,8 @@ dates_list          = []
 InitialParams=[[0.2,70,6000000],[0.2,70,40000],[0.2,70,40000]]
 
 #quanti grafici vogliamo fare
-Num_plots=8 #considera that the real number is this +1
-start=15
+Num_plots=4 #considera that the real number is this +1
+start=18
 delta = (len(x)-start)/Num_plots
 
 for num in range(Num_plots+1):
@@ -146,8 +146,8 @@ print('DAJE')
 #Plot with log prictions
 plt.figure('time evolution infected')
 for time in range(Num_plots+1):
-    Ymin = Prediction_curves[3*time] - Prediction_std[time]
-    Ymax = Prediction_curves[3*time] + Prediction_std[time]
+    Ymin = Prediction_curves[3*time] - Prediction_std[3*time]
+    Ymax = Prediction_curves[3*time] + Prediction_std[3*time]
     plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
 #    plt.semilogy(xTOT,Prediction_curves[3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
     plt.plot(xTOT,Prediction_curves[3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
@@ -161,8 +161,8 @@ plt.gcf().show()
 
 plt.figure('time evolution dead')
 for time in range(Num_plots+1):
-    Ymin = Prediction_curves[1+3*time] - Prediction_std[time]
-    Ymax = Prediction_curves[1+3*time] + Prediction_std[time]
+    Ymin = Prediction_curves[1+3*time] - Prediction_std[1+3*time]
+    Ymax = Prediction_curves[1+3*time] + Prediction_std[1+3*time]
     plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
     plt.plot(xTOT,Prediction_curves[1+3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
 plt.xlabel("Days since 1 January 2020")
@@ -175,8 +175,8 @@ plt.gcf().show()
 
 plt.figure('time evolution recovered')
 for time in range(Num_plots+1):
-    Ymin = Prediction_curves[2+3*time] - Prediction_std[time]
-    Ymax = Prediction_curves[2+3*time] + Prediction_std[time]
+    Ymin = Prediction_curves[2+3*time] - Prediction_std[2+3*time]
+    Ymax = Prediction_curves[2+3*time] + Prediction_std[2+3*time]
     plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
     plt.plot(xTOT,Prediction_curves[2+3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
 plt.xlabel("Days since 1 January 2020")

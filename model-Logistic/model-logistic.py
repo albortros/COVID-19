@@ -56,13 +56,14 @@ def logistic_derivative(x,Par):
 
 # Prendiamo i dati da Github
 url = "https://raw.githubusercontent.com/pcm-dpc/COVID-19/master/dati-andamento-nazionale/dpc-covid19-ita-andamento-nazionale.csv"
+dF = pd.read_csv(url, parse_dates=['data'])
 
-
-
+LIM=28
 iteration=0
 for TYPE in TypeOfData:
-    df = pd.read_csv(url, parse_dates=['data'])
-    df = df.loc[:,['data',TYPE]]
+
+    df = dF.loc[:,['data',TYPE]]
+    df = dF.loc[:LIM,['data',TYPE]]
     # Formato dati csv
     FMT = '%Y-%m-%dT%H:%M:%S'
     # Formato dati salvataggio
@@ -140,7 +141,7 @@ for TYPE in TypeOfData:
     plt.legend()
     plt.xlabel("Days since 1 January 2020")
     plt.ylabel('Total number of '+NomeIng[iteration]+' people')
-    plt.ylim((min(y)*0.9,Par[2]*1.1))
+    plt.ylim((min(y)*0.9,Par[2]*2))
     plt.grid(linestyle='--',which='both')
     plt.savefig(namefile+cases[iteration]+types[1]+region+ext, dpi=DPI)
     plt.gcf().show()
@@ -162,7 +163,7 @@ for TYPE in TypeOfData:
     plt.ylabel('Ratio of '+NomeIng[iteration]+' people respect to the day before')
     plt.ylim((min(Y2/Y1)*0.9,max(Y2/Y1)*1.1))
     plt.grid(linestyle='--',which='both')
-    plt.savefig(namefile+cases[iteration]+types[2]+region+ext, dpi=DPI)
+    plt.savefig(path+DATE+name+cases[iteration]+types[2]+region+ext, dpi=DPI)
     plt.gcf().show()
     
     # differences

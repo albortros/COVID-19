@@ -55,17 +55,18 @@ def gompertz_derivative(x,Par):
 
 # Prendiamo i dati da Github
 url = "https://raw.githubusercontent.com/pcm-dpc/COVID-19/master/dati-andamento-nazionale/dpc-covid19-ita-andamento-nazionale.csv"
+dF = pd.read_csv(url, parse_dates=['data'])
+# Formato dati csv
+FMT = '%Y-%m-%dT%H:%M:%S'
+# Formato dati salvataggio
+FMD = '%Y-%m-%d'
 
-
-
+LIM=37
 iteration=0
 for TYPE in TypeOfData:
-    df = pd.read_csv(url, parse_dates=['data'])
-    df = df.loc[:,['data',TYPE]]
-    # Formato dati csv
-    FMT = '%Y-%m-%dT%H:%M:%S'
-    # Formato dati salvataggio
-    FMD = '%Y-%m-%d'
+
+    df = dF.loc[:LIM,['data',TYPE]]
+    #df = dF.loc[:,['data',TYPE]]
     date = df['data']
     DATE = df['data'][len(date)-1].strftime(FMD)
     df['data'] = date.map(lambda x : (x - datetime.strptime("2020-01-01T00:00:00", FMT)).days  )
@@ -76,8 +77,8 @@ for TYPE in TypeOfData:
 #    DATE = df['data'][len(date)-1][:10]
 #    df['data'] = date.map(lambda x : (datetime.strptime(x, FMT) - datetime.strptime("2020-01-01 00:00:00", FMT)).days  )
     namefile=path+DATE+name+model
-
     # tiene conto di che iterazione stiamo facendo
+
     x = list(df.iloc[:,0])
     y = list(df.iloc[:,1])
     YERR = np.sqrt(y)

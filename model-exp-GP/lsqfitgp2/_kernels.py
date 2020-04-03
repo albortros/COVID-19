@@ -15,6 +15,18 @@ def _apply2fields(transf, x):
     else:
         return transf(x)
 
+class _StructuredArrayWrap(dict):
+    pass
+
+def _wrap_structured(x):
+    wrap = _StructuredArrayWrap({
+        name: x[name] for name in x.dtype.names
+    })
+    wrap.dtype = x.dtype
+    wrap.shape = x.shape
+    wrap.size = x.size
+    return wrap
+
 class Kernel:
     """
     
@@ -126,7 +138,7 @@ class Kernel:
         if self._forcebroadcast:
             x, y = np.broadcast_arrays(x, y)
         result = self._kernel(x, y)
-        assert isinstance(result, np.ndarray)
+        assert isinstance(result, np.ndarray) # TODO use autograd isinstance?
         assert np.issubdtype(result.dtype, np.number)
         assert result.shape == shape
         return result
@@ -162,7 +174,7 @@ class Kernel:
         else:
             return NotImplemented
     
-    def diff(self, xorder=0, yorder=0):
+    def diff(self, xorder=0, yorder=0, xdim=None, ydim=None):
         """
         
         Return a Kernel object that computes the derivatives of this kernel.
@@ -171,9 +183,12 @@ class Kernel:
         
         Parameters
         ----------
-        xorder, yorder :
+        xorder, yorder : int
             How many times the kernel is derived w.r.t the first and second
             arguments respectively.
+        xdim, ydim : None or str
+            When the inputs are structured arrays, indicate which field to
+            derivate.
         
         Returns
         -------
@@ -183,13 +198,40 @@ class Kernel:
         for order in xorder, yorder:
             if not isinstance(order, (int, np.integer)) or order < 0:
                 raise ValueError('derivative orders must be nonnegative integers')
+        for dim in xdim, ydim:
+            assert isinstance(dim, (str, type(None)))
+        
         if xorder == yorder == 0:
             return self
-        fun = self._kernel
-        for _ in range(xorder):
-            fun = autograd.elementwise_grad(fun, 0)
-        for _ in range(yorder):
-            fun = autograd.elementwise_grad(fun, 1)
+        
+        kernel = self._kernel
+        def fun(x, y):
+            if x.dtype.names is not None:
+                for order, dim, z in zip((xorder, yorder), (xdim, ydim), (x, y)):
+                    if order and dim is None:
+                        raise ValueError('can not differentiate w.r.t structured input ({}) if dim not specified'.format(', '.join(z.dtype.names)))
+                    if order and dim not in z.dtype.names:
+                        raise ValueError('differentiation dimension `{}` missing in fields ({})'.format(dim, ', '.join(z.dtype.names)))
+                if xorder:
+                    x = _wrap_structured(x)
+                if yorder:
+                    y = _wrap_structured(y)
+                def f(a, b):
+                    if xorder:
+                        x[xdim] = a
+                    if yorder:
+                        y[ydim] = b
+                    return kernel(x, y)
+            else:
+                f = kernel
+            
+            for _ in range(xorder):
+                f = autograd.elementwise_grad(f, 0)
+            for _ in range(yorder):
+                f = autograd.elementwise_grad(f, 1)
+            
+            return f(x, y)
+        
         return Kernel(fun, forcebroadcast=True, dtype=float)
             
 class IsotropicKernel(Kernel):

@@ -17,7 +17,7 @@ def _concatenate_noop(alist, **kw):
     array.
     """
     if len(alist) == 1:
-        return np.asarray(alist[0])
+        return np.array(alist[0], copy=False)
     else:
         return np.concatenate(alist, **kw)
 
@@ -53,7 +53,7 @@ class GP:
             An instance of `Kernel` representing the covariance kernel.
         solver : str
             A solver used to invert the covariance matrix. See list below for
-            the available solvers. Default is `svdcut+` which is slow but
+            the available solvers. Default is `eigcut+` which is slow but
             robust.
         checkpos : bool
             If True (default), raise a `ValueError` if the covariance matrix
@@ -132,10 +132,10 @@ class GP:
         added in two ways: "array mode" or "dictionary mode". The mode is
         decided the first time you call `addx`: if you just pass an array,
         `addx` expects to receive again only an array in eventual subsequent
-        calls, and concatenates the arrays. If you either pass a dictionary or
-        an array and a key, `addx` will organize arrays of points in an
-        internal dictionary, and when you give an array for an already used
-        key, the old array and the new one will be concatenated.
+        calls, and concatenates the arrays along the first axis. If you either
+        pass a dictionary or an array and a key, `addx` will organize arrays of
+        points in an internal dictionary, and when you give an array for an
+        already used key, the old array and the new one will be concatenated.
         
         You can specify if the points are used to evaluate the gaussian process
         itself or its derivatives by passing a nonzero `deriv` argument.
@@ -205,35 +205,33 @@ class GP:
                 raise TypeError('`x[{}]` is not array or list'.format(k))
             
             gx = np.array(gx, copy=False)
-            if not (len(gx.shape) in (1, 2)):
-                raise ValueError('`x[{}]` is {}D, only 1D or 2D allowed'.format(k, len(gx.shape)))
             if not gx.size:
                 raise ValueError('`x[{}]` is empty'.format(k))
             if d and not np.issubdtype(gx.dtype, np.number):
                 raise ValueError('`x[{}]` has non-numeric type `{}`, but derivatives ({}) are taken'.format(k, gx.dtype, d))
+            if len(gx.shape) == 0:
+                raise ValueError('`x[{}]` is 0d'.format(k))
             
-            if hasattr(self, '_firstx'):
-                shape = self._firstx.shape
-                if len(shape) != len(gx.shape):
-                    raise ValueError('`x[{}]` has {} axes but previous inputs had {}'.format(k, len(gx.shape), len(shape)))
-                if len(gx.shape) == 2 and shape[0] != gx.shape[0]:
-                    raise ValueError('`x[{}]` is 2D with {}-sized first axis, while previous size was {}. The first axis represents the dimensionality of the input, so it must be consistent.'.format(k, gx.shape[0], shape[0]))
+            if hasattr(self, '_shape'):
+                if gx.shape[1:] != self._shape[1:]:
+                    raise ValueError("`x[{}]` with shape {} does not concatenate with shape {} along first axis".format(k, gx.shape, self._broadcast.shape))
                 
-                dtype = self._firstx.dtype
-                if len(gx.shape) == 1 and gx.dtype.fields != dtype.fields:
-                    raise ValueError('`x[{}]` is 1D and has fields {} but previous input had {}'.format(k, ', '.join(gx.dtype.fields), ', '.join(dtype.fields)))
+                if not all(np.issubdtype(t, np.number) for t in (self._dtype, gx.dtype)):
+                    if gx.dtype != self._dtype:
+                        raise ValueError('`x[{}]` has dtype {} but previous dtype used was {}'.format(k, gx.dtype, self._dtype))
             else:
-                self._firstx = gx
+                self._shape = gx.shape
+                self._dtype = gx.dtype
             
             self._derivatives = self._derivatives or d > 0
-            if self._derivatives and (len(gx.shape) == 2 or (len(gx.shape) == 1 and gx.dtype.fields)):
-                raise ValueError('derivatives supported only with 1D data')
+            if self._derivatives and self._dtype.fields:
+                raise ValueError('derivatives supported only with non-structured data')
             
             self._x[key][d].append(gx)
     
     @property
     def _length(self):
-        return sum(sum(sum(x.shape[-1] for x in l) for l in d.values()) for d in self._x.values())
+        return sum(sum(sum(x.size for x in l) for l in d.values()) for d in self._x.values())
     
     def _makeslices(self):
         slices = dict()
@@ -241,7 +239,7 @@ class GP:
         i = 0
         for key, d in self._x.items():
             for deriv, l in d.items():
-                length = sum(x.shape[-1] for x in l)
+                length = sum(x.size for x in l)
                 slices[key, deriv] = slice(i, i + length)
                 i += length
         return slices
@@ -252,9 +250,24 @@ class GP:
             self._slicesdict = self._makeslices()
         return self._slicesdict
     
+    def _makeshapes(self):
+        shapes = dict()
+        # shapes: (key, derivative order) -> shape of x
+        for key, d in self._x.items():
+            for deriv, l in d.items():
+                shape = (sum(x.shape[0] for x in l),) + l[0].shape[1:]
+                shapes[key, deriv] = shape
+        return shapes
+
+    @property
+    def _shapes(self):
+        if not hasattr(self, '_shapesdict'):
+            self._shapesdict = self._makeshapes()
+        return self._shapesdict
+    
     def _buildcovblock(self, kdkd, cov):
         xy = [
-            _concatenate_noop(self._x[key][deriv], axis=-1)
+            _concatenate_noop(self._x[key][deriv], axis=0)
             for key, deriv in kdkd
         ]
         kernel = self._covfun.diff(kdkd[0][1], kdkd[1][1])
@@ -264,18 +277,13 @@ class GP:
 
         if slices[0] == slices[1] and not self._checksym:
             indices = np.triu_indices(shape[0])
-            xy = [x[..., i] for x, i in zip(xy, indices)]
-            thiscov = kernel(xy[0], xy[1])
+            xy = [x.reshape(-1)[i] for x, i in zip(xy, indices)]
+            thiscov = kernel(*xy)
             cov[indices] = thiscov
             cov[tuple(reversed(indices))] = thiscov
         else:
-            xshape = shape
-            if len(xy[0].shape) == 2:
-                xshape = (xy[0].shape[0],) + xshape
-            xy[0] = _kernels._forced_reshape(xy[0][..., :, None], xshape)
-            xy[1] = _kernels._forced_reshape(xy[1][..., None, :], xshape)
-            xshape = xshape[:-2] + (xshape[-2] * xshape[-1],)
-            thiscov = kernel(xy[0].reshape(xshape), xy[1].reshape(xshape)).reshape(shape)
+            xy = [x.reshape(-1)[t] for x, t in zip(xy, itertools.permutations([slice(None), None]))]
+            thiscov = kernel(*xy)
             cov[:] = thiscov
         
         if self._checkfinite and not np.all(np.isfinite(thiscov)):
@@ -328,8 +336,8 @@ class GP:
             flatprior = gvar.gvar(np.zeros(len(self._cov)), self._cov)
             flatprior.flags['WRITEABLE'] = False
             self._priordict = gvar.BufferDict({
-                (key, deriv): flatprior[s]
-                for (key, deriv), s in self._slices.items()
+                kd: flatprior[s].reshape(self._shapes[kd])
+                for kd, s in self._slices.items()
             })
         return self._priordict
     
@@ -489,16 +497,15 @@ class GP:
 
             if not isinstance(l, (list, np.ndarray)):
                 raise TypeError('element `given[{}]` is not list or array'.format(k))
-            s = self._slices[key, deriv]
-            xlen = s.stop - s.start
-            if len(l) != xlen:
-                raise ValueError('`given[{}]` has length {} different from x length {}'.format(k, len(l), xlen))
-        
-            l = np.asarray(l)
-            if not len(l.shape) == 1 and len(l) >= 1:
-                raise ValueError('`given[{}]` is not 1D nonempty array'.formay(k))
             
-            ylist.append(l)
+            l = np.array(l, copy=False)
+            shape = self._shapes[key, deriv]
+            if l.shape != shape:
+                raise ValueError('`given[{}]` has shape {} different from x shape {}'.format(k, l.shape, shape))
+            if l.dtype != object and not np.issubdtype(l.dtype, np.number):
+                    raise ValueError('`given[{}]` has non-numerical dtype {}'.format(k, l.dtype))
+            
+            ylist.append(l.reshape(-1))
             kdlist.append((key, deriv))
             
         return ylist, kdlist
@@ -626,7 +633,7 @@ class GP:
         
         if raw or not keepcorr:
             
-            Kxsxs = np.nan * np.empty((ysplen, ysplen))
+            Kxsxs = np.full((ysplen, ysplen), np.nan)
             for s1, cs1 in zip(yspslices, cyspslices):
                 for s2, cs2 in zip(yspslices, cyspslices):
                     Kxsxs[cs1, cs2] = self._cov[s1, s2]
@@ -649,8 +656,8 @@ class GP:
                 mean = A @ ymean
             
         else: # (keepcorr and not raw)        
-            yplist = [self._prior[kd] for kd in inkdl]
-            ysplist = [self._prior[kd] for kd in kdlist]
+            yplist = [self._prior[kd].reshape(-1) for kd in inkdl]
+            ysplist = [self._prior[kd].reshape(-1) for kd in kdlist]
             yp = _concatenate_noop(yplist)
             ysp = _concatenate_noop(ysplist)
         
@@ -659,13 +666,13 @@ class GP:
         
         if raw and strippedkd:
             meandict = gvar.BufferDict({
-                strippedkd[i]: mean[cyspslices[i]]
+                strippedkd[i]: mean[cyspslices[i]].reshape(self._shapes[kdlist[i]])
                 for i in range(len(kdlist))
             })
             
             covdict = gvar.BufferDict({
                 (strippedkd[i], strippedkd[j]):
-                cov[cyspslices[i], cyspslices[j]]
+                cov[cyspslices[i], cyspslices[j]].reshape(self._shapes[kdlist[i]] + self._shapes[kdlist[j]])
                 for i in range(len(kdlist))
                 for j in range(len(kdlist))
             })
@@ -680,11 +687,12 @@ class GP:
         
         if strippedkd:
             return gvar.BufferDict({
-                strippedkd[i]: flatout[cyspslices[i]]
+                strippedkd[i]:
+                flatout[cyspslices[i]].reshape(self._shapes[kdlist[i]])
                 for i in range(len(kdlist))
             })
         else:
-            return flatout
+            return flatout.reshape(self._shapes[kdlist[0]])
         
     def predfromfit(self, *args, **kw):
         """

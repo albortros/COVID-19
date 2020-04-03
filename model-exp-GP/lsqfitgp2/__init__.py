@@ -24,8 +24,8 @@ raised to a power.
 To make a custom kernel, you can instantiate one of the two general classes by
 passing them a function, or subclass them. For convenience, decorators are
 provided to convert a function to a covariance kernel. Otherwise, use one of
-the already available subclasses. They are normalized to have unit variance
-and roughly unit lengthscale.
+the already available subclasses. Isotropic kernels are normalized to have unit
+variance and roughly unit lengthscale.
 
     Constant :
         Equivalent to fitting with a constant.

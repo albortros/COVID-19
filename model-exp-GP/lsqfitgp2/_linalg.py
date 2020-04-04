@@ -6,6 +6,7 @@ __doc__ = """
 
 Decompositions of positive definite matrices. A decomposition object is
 initialized with a matrix and then can solve linear systems for that matrix.
+These classes never check for infs/nans in the matrices.
 
 Classes
 -------

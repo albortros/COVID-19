@@ -230,7 +230,12 @@ class Kernel:
             for _ in range(yorder):
                 f = autograd.elementwise_grad(f, 1)
             
-            return f(x, y)
+            if x.dtype.names is not None:
+                X = x[xdim] if xorder else None
+                Y = y[ydim] if yorder else None
+                return f(X, Y)
+            else:
+                return f(x, y)
         
         return Kernel(fun, forcebroadcast=True, dtype=float)
             

@@ -27,6 +27,9 @@ def _wrap_structured(x):
     wrap.size = x.size
     return wrap
 
+def _asfloat(x):
+    return np.array(x, copy=False, dtype=float)
+
 class Kernel:
     """
     
@@ -138,7 +141,7 @@ class Kernel:
         if self._forcebroadcast:
             x, y = np.broadcast_arrays(x, y)
         result = self._kernel(x, y)
-        assert isinstance(result, np.ndarray) # TODO use autograd isinstance?
+        assert isinstance(result, (np.ndarray, np.number)) # TODO use autograd isinstance?
         assert np.issubdtype(result.dtype, np.number)
         assert result.shape == shape
         return result
@@ -211,7 +214,7 @@ class Kernel:
                     if order and dim is None:
                         raise ValueError('can not differentiate w.r.t structured input ({}) if dim not specified'.format(', '.join(z.dtype.names)))
                     if order and dim not in z.dtype.names:
-                        raise ValueError('differentiation dimension `{}` missing in fields ({})'.format(dim, ', '.join(z.dtype.names)))
+                        raise ValueError('differentiation dimension "{}" missing in fields ({})'.format(dim, ', '.join(z.dtype.names)))
                 if xorder:
                     x = _wrap_structured(x)
                 if yorder:
@@ -231,13 +234,13 @@ class Kernel:
                 f = autograd.elementwise_grad(f, 1)
             
             if x.dtype.names is not None:
-                X = x[xdim] if xorder else None
-                Y = y[ydim] if yorder else None
+                X = _asfloat(x[xdim]) if xorder else None
+                Y = _asfloat(y[ydim]) if yorder else None
                 return f(X, Y)
             else:
-                return f(x, y)
+                return f(_asfloat(x) if xorder else x, _asfloat(y) if yorder else y)
         
-        return Kernel(fun, forcebroadcast=True, dtype=float)
+        return Kernel(fun, forcebroadcast=True)
             
 class IsotropicKernel(Kernel):
     """

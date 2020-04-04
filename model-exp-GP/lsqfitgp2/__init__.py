@@ -65,7 +65,8 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # Matern derivatives for half-integer nu
 # stabilize Matern kernel near r == 0, then Matern derivatives for real nu
 # (quick fix: larger eps in _softabs)
-# marginal likelihood derivatives (hell...)
+# marginal likelihood derivatives, if I check everything I can probably use
+# autograd out of the box
 # GP._buildcovblock builds on request, never compute the whole cov
 # delete the _x as soon as they are not needed any more
 # kronecker optimization: subclass GPKron where addx has a parameter `dim` and
@@ -76,7 +77,6 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # option to compute only the diagonal of the output covariance matrix
 # decomposition of the posterior covariance matrix, or tool to take samples
 # kernel rescaling
-# support taking derivatives along a dimension only in multidim
 # remove the matrix inversion in Chol.usolve (probably I have to write a
 # solve_triangular for object dtype)
 # do not fill the entire matrix when checksym=False
@@ -87,3 +87,4 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # fractional brownian motion
 # is there a smooth version of the wiener process? like, softmin(x, y)?
 # non-real input kernels (there are some examples in GPML)
+# fixed covariance matrix over list of values, and version for two values only

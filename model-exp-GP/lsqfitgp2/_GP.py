@@ -21,6 +21,9 @@ def _concatenate_noop(alist, **kw):
     else:
         return np.concatenate(alist, **kw)
 
+def _unpackif1item(*tup):
+    return tup[0] if len(tup) == 1 else tup
+
 class GP:
     """
     
@@ -426,15 +429,24 @@ class GP:
             return [(key, deriv, dim)]
         assert False
     
-    def _stripkeyderiv(self, kdlist, key, deriv, strip0):
+    def _stripkeyderiv(self, kdlist, key, deriv, strip0, stripdim):
         if strip0 is None:
             strip0 = deriv is None
         strip0 = bool(strip0)
+        stripdim = bool(stripdim)
         
         names = self._dtype.names is not None
         
+        if stripdim:
+            stripf = lambda f: () if f is None else (f,)
+        else:
+            stripf = lambda f: (f,)
+        
         if None in self._x or key is not None and deriv is None:
-            outlist = [(d, f) if names else d for _, d, f in kdlist]
+            outlist = [
+                _unpackif1item(d, *stripf(f)) if names else d
+                for _, d, f in kdlist
+            ]
             return [] if outlist in ([0], [(0, None)]) and strip0 else outlist
         if key is not None and deriv is not None:
             return []
@@ -442,15 +454,15 @@ class GP:
             return [k for k, _, _ in kdlist]
         if key is None and deriv is None:
             return [
-                ((k, d, f) if names else (k, d)) if d else k
+                (k, d, *stripf(f)) if d else k
                 for k, d, f in kdlist
             ] if strip0 else [
-                (k, d, f) if names else (k, d)
+                (k, d, *stripf(f))
                 for k, d, f in kdlist
             ]
         assert False
 
-    def prior(self, key=None, deriv=None, strip0=None, raw=False):
+    def prior(self, key=None, deriv=None, strip0=None, stripdim=True, raw=False):
         """
         
         Return an array or a dictionary of arrays of `gvar`s representing the
@@ -500,7 +512,7 @@ class GP:
         key, deriv, dim = self._checkkeyderiv(key, deriv)
         kdlist = self._getkeyderivlist(key, deriv, dim)
         assert kdlist
-        strippedkd = self._stripkeyderiv(kdlist, key, deriv, strip0)
+        strippedkd = self._stripkeyderiv(kdlist, key, deriv, strip0, stripdim)
         assert strippedkd or len(kdlist) == 1
         
         if raw and strippedkd:
@@ -595,7 +607,7 @@ class GP:
             i += length
         return out
     
-    def pred(self, given, key=None, deriv=None, strip0=None, fromdata=None, raw=False, keepcorr=None):
+    def pred(self, given, key=None, deriv=None, strip0=None, stripdim=True, fromdata=None, raw=False, keepcorr=None):
         """
         
         Compute the posterior for the gaussian process, either on all points,
@@ -676,7 +688,7 @@ class GP:
         key, deriv, dim = self._checkkeyderiv(key, deriv)
         kdlist = self._getkeyderivlist(key, deriv, dim)
         assert kdlist
-        strippedkd = self._stripkeyderiv(kdlist, key, deriv, strip0)
+        strippedkd = self._stripkeyderiv(kdlist, key, deriv, strip0, stripdim)
         assert strippedkd or len(kdlist) == 1
         
         ylist, inkdl = self._flatgiven(given)
@@ -843,4 +855,5 @@ class GP:
         
         Kxx += ycov
         decomp = self._solver(Kxx, overwrite=True)
+        ## TODO autograd probably wants no `+=` and overwrite=False
         return -1/2 * (decomp.quad(ymean) + decomp.logdet() + len(y) * np.log(2 * np.pi))

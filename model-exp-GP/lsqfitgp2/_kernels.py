@@ -5,6 +5,7 @@ from autograd import numpy as np
 from autograd.scipy import special
 from scipy import special as special_noderiv
 from autograd import extend
+from autograd.builtins import isinstance
 
 def _apply2fields(transf, x):
     if x.dtype.names is not None:

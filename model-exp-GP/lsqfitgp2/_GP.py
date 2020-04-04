@@ -5,8 +5,8 @@ import itertools
 import sys
 
 import gvar
-import numpy as np
-from scipy import linalg
+from autograd import numpy as np
+from autograd.scipy import linalg
 
 from . import _kernels
 from . import _linalg
@@ -23,6 +23,17 @@ def _concatenate_noop(alist, **kw):
 
 def _unpackif1item(*tup):
     return tup[0] if len(tup) == 1 else tup
+
+def _triu_indices_and_back(n):
+    indices = np.triu_indices(n)
+    q = np.empty((n, n), int)
+    a = np.arange(len(indices[0]))
+    q[indices] = a
+    q[tuple(reversed(indices))] = a
+    return indices, q
+
+def _list_matrix(nrow, ncol, fill=None):
+    return [ncol * [fill] for _ in range(nrow)]
 
 class GP:
     """
@@ -299,6 +310,11 @@ class GP:
             self._slicesdict = self._makeslices()
         return self._slicesdict
     
+    def _makeindices(self):
+        slices = list(self._slices.items())
+        slices.sort(key=lambda kv: kv[1])
+        return {k: i for i, (k, _) in enumerate(slices)}
+    
     def _makeshapes(self):
         shapes = dict()
         # shapes: (key, derivative order, derivative dim) -> shape of x
@@ -314,7 +330,7 @@ class GP:
             self._shapesdict = self._makeshapes()
         return self._shapesdict
     
-    def _buildcovblock(self, kdkd, cov):
+    def _buildcovblock(self, kdkd):
         xy = [
             _concatenate_noop(self._x[key][deriv, dim], axis=0)
             for key, deriv, dim in kdkd
@@ -325,39 +341,41 @@ class GP:
         shape = tuple(s.stop - s.start for s in slices)
 
         if slices[0] == slices[1] and not self._checksym:
-            indices = np.triu_indices(shape[0])
+            indices, back = _triu_indices_and_back(shape[0])
             xy = [x.reshape(-1)[i] for x, i in zip(xy, indices)]
-            thiscov = kernel(*xy)
-            cov[indices] = thiscov
-            cov[tuple(reversed(indices))] = thiscov
+            halfcov = kernel(*xy)
+            cov = halfcov[back]
         else:
             xy = [x.reshape(-1)[t] for x, t in zip(xy, itertools.permutations([slice(None), None]))]
-            thiscov = kernel(*xy)
-            cov[:] = thiscov
+            cov = kernel(*xy)
         
-        if self._checkfinite and not np.all(np.isfinite(thiscov)):
+        if self._checkfinite and not np.all(np.isfinite(cov)):
             raise RuntimeError('covariance block ({}, {}) is not finite'.format(*kdkd))
-        if self._checksym and slices[0] == slices[1] and not np.allclose(thiscov, thiscov.T):
+        if self._checksym and slices[0] == slices[1] and not np.allclose(cov, cov.T):
             raise RuntimeError('covariance block ({}, {}) is not symmetric'.format(*kdkd))
-            
+        
+        return cov
+        
     def _buildcov(self):
         if not self._x:
             raise ValueError('process is empty, add values with `addx`')
         
-        cov = np.empty((self._length, self._length))
-        for kdkd in itertools.combinations_with_replacement(self._slices, 2):
-            slices = tuple(self._slices[kd] for kd in kdkd)
-            self._buildcovblock(kdkd, cov[slices])
+        indices = self._makeindices()
+        blocks = _list_matrix(len(indices), len(indices))
+        for kdkd in itertools.combinations_with_replacement(indices, 2):
+            i, j = (indices[kd] for kd in kdkd)
+            blocks[i][j] = self._buildcovblock(kdkd)
             
-            if slices[0] != slices[1]:
-                revslices = tuple(reversed(slices))
+            if i != j:
                 if not self._checksym:
-                    cov[revslices] = cov[slices].T
+                    blocks[j][i] = blocks[i][j].T
                 else:
-                    self._buildcovblock(tuple(reversed(kdkd)), cov[revslices])
-                    if not np.allclose(cov[slices], cov[revslices].T):
+                    blocks[j][i] = self._buildcovblock(tuple(reversed(kdkd)))
+                    if not np.allclose(blocks[i][j], blocks[j][i].T):
                         raise ValueError('covariance block ({}, {}) is not symmetric'.format(*kdkd))
 
+        cov = np.block(blocks)
+        
         # Check the covariance matrix is positive definite.
         if self._checkpositive:
             eigv = linalg.eigvalsh(cov)

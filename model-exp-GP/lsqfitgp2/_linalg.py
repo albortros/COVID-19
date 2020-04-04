@@ -131,6 +131,21 @@ class ReduceRank(Diag):
     
     def __init__(self, K, rank=1, overwrite=None):
         self._w, self._V = slinalg.eigsh(K, k=rank, which='LM')
+
+def solve_triangular(a, b, lower=False):
+    x = np.copy(b)
+    a = a.reshape(a.shape + x.shape[1:])
+    if lower:
+        x[0] /= a[0, 0]
+        for i in range(1, len(x)):
+            x[i:] -= x[i - 1] * a[i:, i - 1]
+            x[i] /= a[i, i]
+    else:
+        x[-1] /= a[-1, -1]
+        for i in range(len(x) - 1, 0, -1):
+            x[:i] -= x[i] * a[:i, i]
+            x[i - 1] /= a[i - 1, i - 1]
+    return x
         
 class Chol(Decomposition):
     """
@@ -145,8 +160,8 @@ class Chol(Decomposition):
         return linalg.solve_triangular(self._L.T, invLb, lower=False)
     
     def usolve(self, b):
-        invL = linalg.solve_triangular(self._L, np.eye(len(self._L)), lower=True)
-        return (invL.T @ invL) @ b ### MATRIX INVERSION!!! BAD!!!
+        invLb = solve_triangular(self._L, b, lower=True)
+        return solve_triangular(self._L.T, invLb, lower=False)
     
     def quad(self, b):
         invLb = linalg.solve_triangular(self._L, b, lower=True)

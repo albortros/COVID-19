@@ -77,8 +77,6 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # option to compute only the diagonal of the output covariance matrix
 # decomposition of the posterior covariance matrix, or tool to take samples
 # kernel rescaling
-# remove the matrix inversion in Chol.usolve (probably I have to write a
-# solve_triangular for object dtype)
 # do not fill the entire matrix when checksym=False
 # apply isotropic kernels to multivalued fields
 #

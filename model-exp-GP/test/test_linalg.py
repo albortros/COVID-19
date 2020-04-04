@@ -43,7 +43,7 @@ class DecompTestBase:
             b = self.randvec(len(K))
             sol = self.solve(K, b)
             result = self.decompclass(K).solve(b)
-            assert np.allclose(sol, result)
+            assert np.allclose(sol, result, rtol=1e-4)
     
     def test_solve_matrix(self):
         for _ in range(100):

@@ -63,7 +63,7 @@ iteration=0
 for TYPE in TypeOfData:
 
     df = dF.loc[:,['data',TYPE]]
-    df = dF.loc[:LIM,['data',TYPE]]
+    #df = dF.loc[:LIM,['data',TYPE]]
     # Formato dati csv
     FMT = '%Y-%m-%dT%H:%M:%S'
     # Formato dati salvataggio

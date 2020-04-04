@@ -65,8 +65,8 @@ LIM=37
 iteration=0
 for TYPE in TypeOfData:
 
-    df = dF.loc[:LIM,['data',TYPE]]
-    #df = dF.loc[:,['data',TYPE]]
+    #df = dF.loc[:LIM,['data',TYPE]]
+    df = dF.loc[:,['data',TYPE]]
     date = df['data']
     DATE = df['data'][len(date)-1].strftime(FMD)
     df['data'] = date.map(lambda x : (x - datetime.strptime("2020-01-01T00:00:00", FMT)).days  )

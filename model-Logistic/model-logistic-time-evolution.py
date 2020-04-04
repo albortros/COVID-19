@@ -26,9 +26,9 @@ SIZE = 100
 ##days of prediction
 #NumberOfDaysPredicted=14
 #Plot name format:
-path='Plots/'
+path='Time_Evolution/'
 name='-Jacopo'
-model='-model-logistic'
+model='-model-logistic-time-evolution'
 # cosa vogliamo analizzare: mi servono per dare nomi alle cose
 TypeOfData=['totale_casi','deceduti','dimessi_guariti']
 NomeIng=['infected','dead','recovered']
@@ -143,101 +143,138 @@ print('DAJE')
 #        
 #        
 #PLOTS
-#Plot with log prictions
-plt.figure('time evolution infected')
-for time in range(Num_plots+1):
-    Ymin = Prediction_curves[3*time] - Prediction_std[3*time]
-    Ymax = Prediction_curves[3*time] + Prediction_std[3*time]
-    plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
-#    plt.semilogy(xTOT,Prediction_curves[3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
-    plt.plot(xTOT,Prediction_curves[3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
-plt.xlabel("Days since 1 January 2020")
-plt.ylabel('Total number of infected people')
-plt.ylim((100,max(Prediction_curves[-3])*1.1))
-plt.legend()
-plt.grid(linestyle='--',which='both')
-#plt.savefig(namefile+cases[iteration]+types[0]+region+ext, dpi=DPI)
-plt.gcf().show()
-
-plt.figure('time evolution dead')
-for time in range(Num_plots+1):
-    Ymin = Prediction_curves[1+3*time] - Prediction_std[1+3*time]
-    Ymax = Prediction_curves[1+3*time] + Prediction_std[1+3*time]
-    plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
-    plt.plot(xTOT,Prediction_curves[1+3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
-plt.xlabel("Days since 1 January 2020")
-plt.ylabel('Total number of dead people')
-plt.ylim((1,max(Prediction_curves[-2])*1.1))
-plt.legend()
-plt.grid(linestyle='--',which='both')
-#plt.savefig(namefile+cases[iteration]+types[0]+region+ext, dpi=DPI)
-plt.gcf().show()
-
-plt.figure('time evolution recovered')
-for time in range(Num_plots+1):
-    Ymin = Prediction_curves[2+3*time] - Prediction_std[2+3*time]
-    Ymax = Prediction_curves[2+3*time] + Prediction_std[2+3*time]
-    plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
-    plt.plot(xTOT,Prediction_curves[2+3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
-plt.xlabel("Days since 1 January 2020")
-plt.ylabel('Total number of recovered people people')
-plt.ylim((1,max(Prediction_curves[-1])*1.1))
-plt.legend()
-plt.grid(linestyle='--',which='both')
-#plt.savefig(namefile+cases[iteration]+types[0]+region+ext, dpi=DPI
-plt.gcf().show()
+##Plot with log prictions
+#Plot with log predictions
+for Iter in range(len(TypeOfData)):
+    plt.figure('time evolution '+TypeOfData[Iter]+types[0])
+    for time in range(Num_plots+1):
+        Ymin = Prediction_curves[Iter+3*time] - Prediction_std[Iter+3*time]
+        Ymax = Prediction_curves[Iter+3*time] + Prediction_std[Iter+3*time]
+        plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
+        plt.semilogy(xTOT,Prediction_curves[Iter+3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
+    plt.xlabel("Days since 1 January 2020")
+    plt.ylabel('Total number of '+cases[Iter]+' people')
+    plt.ylim((0.9*min(Prediction_curves[-3+Iter]),max(Prediction_curves[-3+Iter])*20))
+    plt.legend()
+    plt.grid(linestyle='--',which='both')
+    plt.savefig(namefile+cases[Iter]+types[0]+region+ext, dpi=DPI)
+    plt.gcf().show()
+    
+    
+for Iter in range(len(TypeOfData)):
+    plt.figure('time evolution '+TypeOfData[Iter]+types[1])
+    for time in range(Num_plots+1):
+        Ymin = Prediction_curves_D[Iter+3*time] - Prediction_std_D[Iter+3*time]
+        Ymax = Prediction_curves_D[Iter+3*time] + Prediction_std_D[Iter+3*time]
+        plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
+        plt.plot(xTOT,Prediction_curves_D[Iter+3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
+    plt.xlabel("Days since 1 January 2020")
+    plt.ylabel('New '+cases[Iter]+' people')
+    plt.ylim((0,max(Prediction_curves_D[-3+Iter])*1.5))
+    plt.legend()
+    plt.grid(linestyle='--',which='both')
+    plt.savefig(namefile+cases[Iter]+types[1]+region+ext, dpi=DPI)
+    plt.gcf().show()
 
 
 
 
 
-        
-        
-# Real data
-plt.figure('derivatives_')
-for time in range(Num_plots +1):
-    Ymin = Prediction_curves_D[3*time] - Prediction_std_D[3*Num_plots]
-    Ymax = Prediction_curves_D[3*time] + Prediction_std_D[3*Num_plots]
-    plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3, )
-    plt.plot(xTOT,Prediction_curves_D[3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
-plt.legend()
-plt.xlabel("Days since 1 January 2020")
-plt.ylabel('Increase of infected people')
-plt.ylim((0,max([max(Prediction_curves_D[3*ii]) for ii in range(Num_plots+1)])*1.1))
-plt.grid(linestyle='--',which='both')
-#plt.savefig(namefile+cases[iteration]+types[1]+region+ext, dpi=DPI)
-plt.gcf().show()
 
-
-
-# Real data
-plt.figure('derivatives_deaths')
-for time in range(Num_plots +1):
-    Ymin = Prediction_curves_D[1+3*time] - Prediction_std_D[1+3*time]
-    Ymax = Prediction_curves_D[1+3*time] + Prediction_std_D[1+3*time]
-    plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
-    plt.plot(xTOT,Prediction_curves_D[1+3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
-plt.legend()
-plt.xlabel("Days since 1 January 2020")
-plt.ylabel('Increase of dead people')
-plt.ylim((0,max([max(Prediction_curves_D[1+3*ii]) for ii in range(Num_plots+1)])*1.1))
-plt.grid(linestyle='--',which='both')
-#plt.savefig(namefile+cases[iteration]+types[1]+region+ext, dpi=DPI)
-plt.gcf().show()
-
-
-
-# Real data
-plt.figure('derivatives_recovered')
-for time in range(Num_plots +1):
-    Ymin = Prediction_curves_D[2+3*time] - Prediction_std_D[2+3*time]
-    Ymax = Prediction_curves_D[2+3*time] + Prediction_std_D[2+3*time]
-    plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
-    plt.plot(xTOT,Prediction_curves_D[2+3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
-plt.legend()
-plt.xlabel("Days since 1 January 2020")
-plt.ylabel('Increase of recovered people')
-plt.ylim((0,max([max(Prediction_curves_D[2+3*ii]) for ii in range(Num_plots+1)])*1.1))
-plt.grid(linestyle='--',which='both')
-#plt.savefig(namefile+cases[iteration]+types[1]+region+ext, dpi=DPI)
-plt.gcf().show()
+#plt.figure('time evolution infected')
+#for time in range(Num_plots+1):
+#    Ymin = Prediction_curves[3*time] - Prediction_std[3*time]
+#    Ymax = Prediction_curves[3*time] + Prediction_std[3*time]
+#    plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
+##    plt.semilogy(xTOT,Prediction_curves[3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
+#    plt.plot(xTOT,Prediction_curves[3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
+#plt.xlabel("Days since 1 January 2020")
+#plt.ylabel('Total number of infected people')
+#plt.ylim((100,max(Prediction_curves[-3])*1.1))
+#plt.legend()
+#plt.grid(linestyle='--',which='both')
+##plt.savefig(namefile+cases[iteration]+types[0]+region+ext, dpi=DPI)
+#plt.gcf().show()
+#
+#plt.figure('time evolution dead')
+#for time in range(Num_plots+1):
+#    Ymin = Prediction_curves[1+3*time] - Prediction_std[1+3*time]
+#    Ymax = Prediction_curves[1+3*time] + Prediction_std[1+3*time]
+#    plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
+#    plt.plot(xTOT,Prediction_curves[1+3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
+#plt.xlabel("Days since 1 January 2020")
+#plt.ylabel('Total number of dead people')
+#plt.ylim((1,max(Prediction_curves[-2])*1.1))
+#plt.legend()
+#plt.grid(linestyle='--',which='both')
+##plt.savefig(namefile+cases[iteration]+types[0]+region+ext, dpi=DPI)
+#plt.gcf().show()
+#
+#plt.figure('time evolution recovered')
+#for time in range(Num_plots+1):
+#    Ymin = Prediction_curves[2+3*time] - Prediction_std[2+3*time]
+#    Ymax = Prediction_curves[2+3*time] + Prediction_std[2+3*time]
+#    plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
+#    plt.plot(xTOT,Prediction_curves[2+3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
+#plt.xlabel("Days since 1 January 2020")
+#plt.ylabel('Total number of recovered people people')
+#plt.ylim((1,max(Prediction_curves[-1])*1.1))
+#plt.legend()
+#plt.grid(linestyle='--',which='both')
+##plt.savefig(namefile+cases[iteration]+types[0]+region+ext, dpi=DPI
+#plt.gcf().show()
+#
+#
+#
+#
+#
+#        
+#        
+## Real data
+#plt.figure('derivatives_')
+#for time in range(Num_plots +1):
+#    Ymin = Prediction_curves_D[3*time] - Prediction_std_D[3*Num_plots]
+#    Ymax = Prediction_curves_D[3*time] + Prediction_std_D[3*Num_plots]
+#    plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3, )
+#    plt.plot(xTOT,Prediction_curves_D[3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
+#plt.legend()
+#plt.xlabel("Days since 1 January 2020")
+#plt.ylabel('Increase of infected people')
+#plt.ylim((0,max([max(Prediction_curves_D[3*ii]) for ii in range(Num_plots+1)])*1.1))
+#plt.grid(linestyle='--',which='both')
+##plt.savefig(namefile+cases[iteration]+types[1]+region+ext, dpi=DPI)
+#plt.gcf().show()
+#
+#
+#
+## Real data
+#plt.figure('derivatives_deaths')
+#for time in range(Num_plots +1):
+#    Ymin = Prediction_curves_D[1+3*time] - Prediction_std_D[1+3*time]
+#    Ymax = Prediction_curves_D[1+3*time] + Prediction_std_D[1+3*time]
+#    plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
+#    plt.plot(xTOT,Prediction_curves_D[1+3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
+#plt.legend()
+#plt.xlabel("Days since 1 January 2020")
+#plt.ylabel('Increase of dead people')
+#plt.ylim((0,max([max(Prediction_curves_D[1+3*ii]) for ii in range(Num_plots+1)])*1.1))
+#plt.grid(linestyle='--',which='both')
+##plt.savefig(namefile+cases[iteration]+types[1]+region+ext, dpi=DPI)
+#plt.gcf().show()
+#
+#
+#
+## Real data
+#plt.figure('derivatives_recovered')
+#for time in range(Num_plots +1):
+#    Ymin = Prediction_curves_D[2+3*time] - Prediction_std_D[2+3*time]
+#    Ymax = Prediction_curves_D[2+3*time] + Prediction_std_D[2+3*time]
+#    plt.fill_between(xTOT,Ymin,Ymax,facecolor=str(1-(time+1)/(Num_plots+2.1)), alpha = 0.3 )
+#    plt.plot(xTOT,Prediction_curves_D[2+3*time], label='up to '+dates_list[time], c = str(1-(time+1)/(Num_plots+2.1)))
+#plt.legend()
+#plt.xlabel("Days since 1 January 2020")
+#plt.ylabel('Increase of recovered people')
+#plt.ylim((0,max([max(Prediction_curves_D[2+3*ii]) for ii in range(Num_plots+1)])*1.1))
+#plt.grid(linestyle='--',which='both')
+##plt.savefig(namefile+cases[iteration]+types[1]+region+ext, dpi=DPI)
+#plt.gcf().show()

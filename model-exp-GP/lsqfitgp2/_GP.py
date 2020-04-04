@@ -105,7 +105,7 @@ class GP:
             raise TypeError('covariance function must be of class Kernel')
         self._covfun = covfun
         self._x = collections.defaultdict(lambda: collections.defaultdict(list))
-        # self._x: label -> (derivative order -> list of arrays)
+        # self._x: label -> (derivative order, derivative dim -> list of arrays)
         self._canaddx = True
         self._checkpositive = bool(checkpos)
         decomp = {
@@ -168,8 +168,9 @@ class GP:
         change will be reflected on the result. However, after the GP has
         computed internally its covariance matrix, the x are ignored.
         
-        Once `prior` or `pred` have been called, `addx` raises a RuntimeError,
-        because the covariance matrix has already been computed.
+        Once `prior`, `pred` or `marginal_likelihood` have been called, `addx`
+        raises a RuntimeError, because the covariance matrix has already been
+        computed.
         
         Parameters
         ----------
@@ -196,15 +197,15 @@ class GP:
         deriv, dim = self._unpackderiv(deriv)
         
         if isinstance(x, (list, np.ndarray)): # TODO autograd isinstance?
-            if None in self._x and not (key is None):
+            if None in self._x and key is not None:
                 raise ValueError("previous x is array, can't add key")
-            if key is None and (len(self._x) >= 2 or self._x and not (None in self._x)):
+            if key is None and (len(self._x) >= 2 or self._x and None not in self._x):
                 raise ValueError("previous x is dictionary, can't append array")
                 
             x = {key: x}
                     
         elif isinstance(x, (dict, gvar.BufferDict)):
-            if not (key is None):
+            if key is not None:
                 raise ValueError('can not specify key if x is a dictionary')
             if None in x:
                 raise ValueError('`None` key in x not allowed')
@@ -220,7 +221,7 @@ class GP:
             if isinstance(k, tuple):
                 if len(k) not in (2, 3):
                     raise ValueError('key {} in x is tuple but not length 2 or 3'.format(k))
-                if not (deriv is None):
+                if deriv is not None:
                     raise ValueError('key {} in x containts derivative already specified to be {}'.format(k, deriv))
                 if len(k) == 2:
                     key, d = k
@@ -474,7 +475,9 @@ class GP:
         on the mode set by the first call to `addx`, representing the complete
         prior. If you have specified nonzero derivatives, the returned object
         is a dictionary where the keys are the derivative orders if in array
-        mode, and the pairs `(key, deriv)` if in dictionary mode.
+        mode, and the pairs `(key, deriv)` if in dictionary mode, and
+        (key, deriv, field) if the arrays are structured to specify along which
+        field the derivative is taken.
         
         By specifying the `key` and `deriv` parameters you can get a subset
         of the prior.
@@ -491,6 +494,10 @@ class GP:
             all) are stripped (example: `{0: array}` becomes just `array`, and
             `{(A, 0): array1, (B, 1): array2}` becomes `{A: array1, (B, 1):
             array2}`), unless `deriv` is specified explicitly.
+        stripdim : bool
+            If True (default), when the output is a dictionary with derivatives
+            in the keys, there are 0 order derivatives, and the arrays are
+            structured, the `None` field specification is dropped.
         raw : bool
             If True, instead of returning a collection of `gvar`s it returns
             their covariance matrix as would be returned by `gvar.evalcov`.
@@ -644,6 +651,9 @@ class GP:
         strip0 : bool
             By default, 0th order derivatives are stripped from returned
             dictionary keys, unless `deriv` is explicitly specified to be 0.
+        stripdim : bool
+            If True (default), drop the `None` field specification for 0-th
+            order derivatives.
         fromdata : bool
             Mandatory. Specify if the contents of `given` are data or already
             a posterior.

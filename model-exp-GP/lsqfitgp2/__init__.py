@@ -69,16 +69,25 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # autograd out of the box
 # GP._buildcovblock builds on request, never compute the whole cov
 # delete the _x as soon as they are not needed any more
-# kronecker optimization: subclass GPKron where addx has a parameter `dim` and
-# it accepts only non-structured arrays.
+#
+# Kronecker optimization: subclass GPKron where addx has a parameter `dim` and
+# it accepts only non-structured arrays. Or, more flexible: make a class
+# Lattice that is structured-array-like but different shapes for each field,
+# and a field _kronok in Kernel update automatically when doing operations with
+# kernels. Also, take a look at the pymc3 implementation.
+#
 # sparse algorithms (after adding finite support kernels)
 # DiagLowRank for low rank matrix + multiple of the identity (multiple rank-1
 # updates to the Cholesky factor?)
 # option to compute only the diagonal of the output covariance matrix
-# decomposition of the posterior covariance matrix, or tool to take samples
+#
+# Decomposition of the posterior covariance matrix, or tool to take samples.
+# maybe a class for matrices?
+#
 # kernel rescaling
 # do not fill the entire matrix when checksym=False
 # apply isotropic kernels to multivalued fields
+# multidim support in Gibbs kernel
 #
 # New kernels:
 # finite support

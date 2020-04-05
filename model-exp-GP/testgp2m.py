@@ -1,8 +1,9 @@
 import lsqfitgp2 as lgp
 from matplotlib import pyplot as plt
-import numpy as np
+from autograd import numpy as np
 import gvar
 from scipy import optimize
+import autograd
 
 xdata = np.linspace(0, 10, 10)
 xpred = np.linspace(-15, 25, 500)
@@ -17,7 +18,7 @@ def fun(par):
     gp.addx(xdata)
     return -gp.marginal_likelihood(y)
 
-result = optimize.minimize(fun, np.log([5]), method='Nelder-Mead')
+result = optimize.minimize(fun, np.log([5]), jac=autograd.grad(fun))
 print(result)
 
 gp = makegp(result.x)

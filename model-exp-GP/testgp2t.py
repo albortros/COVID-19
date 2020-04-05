@@ -1,8 +1,9 @@
 import lsqfitgp2 as lgp
 from matplotlib import pyplot as plt
-import numpy as np
+from autograd import numpy as np
 import gvar
 from scipy import optimize
+import autograd
 
 time = np.arange(21)
 x = np.empty((2, len(time)), dtype=[

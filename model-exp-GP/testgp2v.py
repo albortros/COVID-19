@@ -3,8 +3,7 @@ import autograd
 from autograd import numpy as np
 
 def fun(params):
-    scale = params[0]
-    gp = lgp.GP(lgp.ExpQuad(scale=scale))
+    gp = lgp.GP(lgp.ExpQuad(scale=params[0]) + lgp.ExpQuad(scale=params[1]))
     x = np.arange(10)
     gp.addx(x)
     y = np.sin(x)
@@ -12,5 +11,5 @@ def fun(params):
 
 fungrad = autograd.grad(fun)
 
-params = np.array([3], dtype=float)
+params = np.array([3, 2], dtype=float)
 print(fungrad(params))

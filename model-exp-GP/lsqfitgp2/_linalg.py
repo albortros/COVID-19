@@ -1,5 +1,6 @@
-import numpy as np
-from scipy import linalg
+from autograd import numpy as np
+from autograd.scipy import linalg
+from autograd import extend
 from scipy.sparse import linalg as slinalg
 
 __doc__ = """
@@ -29,8 +30,93 @@ CholGersh :
 
 """
 
-class Decomposition:
+class DecompMeta(type):
+    
+    def __new__(cls, name, bases, dct):
+        subclass = super().__new__(cls, name, bases, dct)
+        
+        old__init__ = subclass.__init__
+        def __init__(self, K, **kw):
+            if isinstance(K, np.numpy_boxes.ArrayBox):
+                self._boxedK = K
+                K = K._value
+            old__init__(self, K, **kw)
+        subclass.__init__ = __init__
+        
+        oldsolve = subclass.solve
+        if not hasattr(oldsolve, '_autograd'):
+            @extend.primitive
+            def solve_autograd(self, K, b):
+                return oldsolve(self, b)
+            def solve_vjp(ans, self, K, b):
+                assert ans.shape == b.shape
+                assert b.shape[0] == K.shape[0] == K.shape[1]
+                def vjp(g):
+                    assert g.shape[-len(b.shape):] == b.shape
+                    A = self.solve(np.moveaxis(g, -len(b.shape), 0), _K=K)
+                    B = np.moveaxis(ans, 0, -1)
+                    AB = np.tensordot(A, B, len(b.shape) - 1)
+                    AB = np.moveaxis(AB, 0, -2)
+                    assert AB.shape == g.shape[:-len(b.shape)] + K.shape
+                    return AB
+                return vjp
+            extend.defvjp(
+                solve_autograd,
+                solve_vjp,
+                argnums=[1]
+            )
+            def solve(self, b, *, _K=None):
+                if hasattr(self, '_boxedK'):
+                    K = self._boxedK if _K is None else _K
+                    return solve_autograd(self, K, b)
+                else:
+                    return oldsolve(self, b)
+            solve._autograd = True
+            subclass.solve = solve
+        
+        oldquad = subclass.quad
+        if not hasattr(oldquad, '_autograd'):
+            def quad(self, b):
+                if hasattr(self, '_boxedK'):
+                    return b.T @ self.solve(b)
+                else:
+                    return oldquad(self, b)
+            quad._autograd = True
+            subclass.quad = quad
+        
+        oldlogdet = subclass.logdet
+        if not hasattr(oldlogdet, '_autograd'):
+            @extend.primitive
+            def logdet_autograd(self, K):
+                return oldlogdet(self)
+            def logdet_vjp(ans, self, K):
+                assert ans.shape == ()
+                assert K.shape[0] == K.shape[1]
+                def vjp(g):
+                    invK = self.solve(np.eye(len(K)), _K=K)
+                    return g[..., None, None] * invK
+                return vjp
+                # TODO this is not stable because we take the inverse. If I
+                # define only jvp, will autograd continue working without
+                # complaining?
+            extend.defvjp(
+                logdet_autograd,
+                logdet_vjp,
+                argnums=[1]
+            )
+            def logdet(self):
+                if hasattr(self, '_boxedK'):
+                    return logdet_autograd(self, self._boxedK)
+                else:
+                    return oldlogdet(self)
+            logdet._autograd = True
+            subclass.logdet = logdet
+        
+        return subclass
+
+class Decomposition(metaclass=DecompMeta):
     """
+    
     Abstract base class for positive definite symmetric matrices decomposition.
     
     Methods
@@ -42,12 +128,12 @@ class Decomposition:
     
     """
     
-    def __init__(self, K, overwrite=False):
+    def __init__(self, K):
         """
         Decompose matrix K.
         """
         raise NotImplementedError()
-    
+        
     def solve(self, b):
         """
         Solve the linear system K @ x = b.
@@ -59,12 +145,11 @@ class Decomposition:
         Solve the linear system K @ x = b where b is possibly an array of
         `gvar`s.
         """
-        inv = self.solve(np.eye(len(ub)))
-        return inv @ ub ### MATRIX INVERSION!!! BAD!!!
+        raise NotImplementedError()
     
     def quad(self, b):
         """
-        Compute the quadratic form b.T @ K**(-1) @ b.
+        Compute the quadratic form b.T @ inv(K) @ b.
         """
         return b.T @ self.solve(b)
     
@@ -79,8 +164,8 @@ class Diag(Decomposition):
     Diagonalization.
     """
     
-    def __init__(self, K, overwrite=False):
-        self._w, self._V = linalg.eigh(K, check_finite=False, overwrite_a=overwrite)
+    def __init__(self, K):
+        self._w, self._V = linalg.eigh(K, check_finite=False)
     
     def solve(self, b):
         return (self._V / self._w) @ (self._V.T @ b)
@@ -129,7 +214,7 @@ class ReduceRank(Diag):
     Keep only the first `rank` higher eigenmodes.
     """
     
-    def __init__(self, K, rank=1, overwrite=None):
+    def __init__(self, K, rank=1):
         self._w, self._V = slinalg.eigsh(K, k=rank, which='LM')
 
 def solve_triangular(a, b, lower=False):
@@ -146,14 +231,21 @@ def solve_triangular(a, b, lower=False):
             x[:i] -= x[i] * a[:i, i]
             x[i - 1] /= a[i - 1, i - 1]
     return x
+
+def grad_chol(L):
+    n = len(L)
+    I = np.eye(n)
+    s1 = I[:, None, :, None] * L[None, :, None, :]
+    s2 = I[None, :, :, None] * L[:, None, None, :]
+    return (s1 + s2).reshape(2 * (n**2,))
         
 class Chol(Decomposition):
     """
     Cholesky decomposition.
     """
     
-    def __init__(self, K, overwrite=False):
-        self._L = linalg.cholesky(K, lower=True, check_finite=False, overwrite_a=overwrite)
+    def __init__(self, K):
+        self._L = linalg.cholesky(K, lower=True, check_finite=False)
     
     def solve(self, b):
         invLb = linalg.solve_triangular(self._L, b, lower=True)

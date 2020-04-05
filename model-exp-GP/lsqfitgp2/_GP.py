@@ -35,6 +35,15 @@ def _triu_indices_and_back(n):
 def _list_matrix(nrow, ncol, fill=None):
     return [ncol * [fill] for _ in range(nrow)]
 
+def _block_matrix(blocks):
+    return _concatenate_noop([_concatenate_noop(row, axis=1) for row in blocks], axis=0)
+
+def _noautograd(x):
+    if isinstance(x, np.numpy_boxes.ArrayBox):
+        return x._value
+    else:
+        return x
+
 class GP:
     """
     
@@ -289,32 +298,6 @@ class GP:
             
             self._x[key][d, f].append(gx)
     
-    @property
-    def _length(self):
-        return sum(sum(sum(x.size for x in l) for l in d.values()) for d in self._x.values())
-    
-    def _makeslices(self):
-        slices = dict()
-        # slices: (key, derivative order, derivative dim) -> slice
-        i = 0
-        for key, d in self._x.items():
-            for (deriv, dim), l in d.items():
-                length = sum(x.size for x in l)
-                slices[key, deriv, dim] = slice(i, i + length)
-                i += length
-        return slices
-    
-    @property
-    def _slices(self):
-        if not hasattr(self, '_slicesdict'):
-            self._slicesdict = self._makeslices()
-        return self._slicesdict
-    
-    def _makeindices(self):
-        slices = list(self._slices.items())
-        slices.sort(key=lambda kv: kv[1])
-        return {k: i for i, (k, _) in enumerate(slices)}
-    
     def _makeshapes(self):
         shapes = dict()
         # shapes: (key, derivative order, derivative dim) -> shape of x
@@ -327,20 +310,20 @@ class GP:
     @property
     def _shapes(self):
         if not hasattr(self, '_shapesdict'):
+            self._canaddx = False
             self._shapesdict = self._makeshapes()
         return self._shapesdict
     
-    def _buildcovblock(self, kdkd):
+    def _makecovblock(self, kdkd):
         xy = [
             _concatenate_noop(self._x[key][deriv, dim], axis=0)
             for key, deriv, dim in kdkd
         ]
         kernel = self._covfun.diff(kdkd[0][1], kdkd[1][1], kdkd[0][2], kdkd[1][2])
         
-        slices = [self._slices[kd] for kd in kdkd]
-        shape = tuple(s.stop - s.start for s in slices)
+        shape = tuple(np.prod(self._shapes[kd]) for kd in kdkd)
 
-        if slices[0] == slices[1] and not self._checksym:
+        if kdkd[0] == kdkd[1] and not self._checksym:
             indices, back = _triu_indices_and_back(shape[0])
             xy = [x.reshape(-1)[i] for x, i in zip(xy, indices)]
             halfcov = kernel(*xy)
@@ -351,62 +334,63 @@ class GP:
         
         if self._checkfinite and not np.all(np.isfinite(cov)):
             raise RuntimeError('covariance block ({}, {}) is not finite'.format(*kdkd))
-        if self._checksym and slices[0] == slices[1] and not np.allclose(cov, cov.T):
+        if self._checksym and kdkd[0] == kdkd[1] and not np.allclose(cov, cov.T):
             raise RuntimeError('covariance block ({}, {}) is not symmetric'.format(*kdkd))
         
         return cov
-        
-    def _buildcov(self):
+    
+    def _covblock(self, row, col):
         if not self._x:
-            raise ValueError('process is empty, add values with `addx`')
-        
-        indices = self._makeindices()
-        blocks = _list_matrix(len(indices), len(indices))
-        for kdkd in itertools.combinations_with_replacement(indices, 2):
-            i, j = (indices[kd] for kd in kdkd)
-            blocks[i][j] = self._buildcovblock(kdkd)
-            
-            if i != j:
-                if not self._checksym:
-                    blocks[j][i] = blocks[i][j].T
-                else:
-                    blocks[j][i] = self._buildcovblock(tuple(reversed(kdkd)))
-                    if not np.allclose(blocks[i][j], blocks[j][i].T):
-                        raise ValueError('covariance block ({}, {}) is not symmetric'.format(*kdkd))
+            raise RuntimeError('process is empty, add values with `addx`')
 
-        cov = np.block(blocks)
+        if not hasattr(self, '_covblocks'):
+            self._covblocks = {}
+            # _covblocks : ((key, deriv, field), (key, deriv, field)) -> mat
         
-        # Check the covariance matrix is positive definite.
-        if self._checkpositive:
-            eigv = linalg.eigvalsh(cov)
-            mineigv = np.min(eigv)
-            if mineigv < 0:
-                bound = -len(cov) * np.finfo(float).eps * np.max(eigv)
-                if mineigv < bound:
-                    msg = 'covariance matrix is not positive definite: '
-                    msg += 'mineigv = {:.4g} < {:.4g}'.format(mineigv, bound)
-                    raise ValueError(msg)
+        if (row, col) not in self._covblocks:
+            block = self._makecovblock([row, col])
+            if row != col:
+                if self._checksym:
+                    blockT = self._makecovblock([col, row])
+                    if not np.allclose(block.T, blockT):
+                        raise RuntimeError('covariance block ({}, {}) is not symmetric'.format(*kdkd))
+                self._covblocks[col, row] = block.T
+            self._covblocks[row, col] = block
         
-        return cov
-    
-    @property 
-    def _cov(self):
-        if not hasattr(self, '_covmatrix'):
-            self._canaddx = False
-            self._covmatrix = self._buildcov()
-            self._covmatrix.flags['WRITEABLE'] = False
-        return self._covmatrix
-    
+        return self._covblocks[row, col]
+        
+    def _assemblecovblocks(self, kdlistrow, kdlistcol=None):
+        if kdlistcol is None:
+            kdlistcol = kdlistrow
+        blocks = [[self._covblock(row, col) for col in kdlistcol] for row in kdlistrow]
+        return _block_matrix(blocks)
+        
+    def _checkpos(self, cov):
+        eigv = linalg.eigvalsh(_noautograd(cov))
+        mineigv = np.min(eigv)
+        if mineigv < 0:
+            bound = -len(cov) * np.finfo(float).eps * np.max(eigv)
+            if mineigv < bound:
+                msg = 'covariance matrix is not positive definite: '
+                msg += 'mineigv = {:.4g} < {:.4g}'.format(mineigv, bound)
+                raise ValueError(msg)
+        
     @property
     def _prior(self):
-        # use gvar.BufferDict instead of dict, otherwise pickling is a mess
         if not hasattr(self, '_priordict'):
-            flatprior = gvar.gvar(np.zeros(len(self._cov)), self._cov)
-            flatprior.flags['WRITEABLE'] = False
-            self._priordict = gvar.BufferDict({
-                kd: flatprior[s].reshape(self._shapes[kd])
-                for kd, s in self._slices.items()
-            })
+            if self._checkpositive:
+                fullcov = self._assemblecovblocks(list(self._shapes))
+                self._checkpos(fullcov)
+            mean = {
+                kd: np.zeros(s)
+                for kd, s in self._shapes.items()
+            }
+            cov = {
+                (row, col): self._covblock(row, col).reshape(rs + ls)
+                for row, rs in self._shapes.items()
+                for col, ls in self._shapes.items()
+            }
+            self._priordict = gvar.gvar(mean, cov)
         return self._priordict
     
     def _checkkeyderiv(self, key, deriv):
@@ -422,15 +406,15 @@ class GP:
         
         if deriv is not None:
             deriv, dim = self._unpackderiv(deriv)
-            if dim is None and self._dtype.names is not None:
+            if deriv and dim is None and self._dtype.names is not None:
                 raise ValueError('x have fields {} but field not specified for derivative order {}'.format(self._dtype.names, deriv))
             if key is None:
-                for k, d, f in self._slices:
+                for k, d, f in self._shapes:
                     if (deriv, dim) == (d, f):
                         break
                 else:
                     raise ValueError("there's no derivative {} on field \"{}\" in process".format(deriv, dim))
-            elif not ((deriv, dim) in self._x[key]):
+            elif (deriv, dim) not in self._x[key]:
                 raise ValueError('no derivative {} on field "{}" for key {}'.format(deriv, dim, key))
         else:
             dim = None
@@ -439,7 +423,7 @@ class GP:
     
     def _getkeyderivlist(self, key, deriv, dim):
         if key is None and deriv is None:
-            return list(self._slices)
+            return list(self._shapes)
         elif key is None and deriv is not None:
             return [(k, deriv, dim) for k in self._x if (deriv, dim) in self._x[k]]
         elif key is not None and deriv is None:
@@ -543,13 +527,12 @@ class GP:
         if raw and strippedkd:
             return gvar.BufferDict({
                 (strippedkd[i], strippedkd[j]):
-                self._cov[self._slices[kdlist[i]], self._slices[kdlist[j]]]
+                self._covblock(kdlist[i], kdlist[j])
                 for i in range(len(kdlist))
                 for j in range(len(kdlist))
             })
         elif raw:
-            s = self._slices[kdlist[0]]
-            return self._cov[s, s]
+            return self._covblock(kdlist[0], kdlist[0])
         elif strippedkd:
             return gvar.BufferDict({
                 strippedkd[i]: self._prior[kdlist[i]]
@@ -623,14 +606,10 @@ class GP:
             
         return ylist, kdlist
     
-    def _compatslices(self, sliceslist):
-        i = 0
-        out = []
-        for s in sliceslist:
-            length = s.stop - s.start
-            out.append(slice(i, i + length))
-            i += length
-        return out
+    def _slices(self, kdlist):
+        sizes = [np.prod(self._shapes[kd]) for kd in kdlist]
+        stops = np.concatenate([[0], np.cumsum(sizes)])
+        return [slice(stops[i - 1], stops[i]) for i in range(1, len(stops))]
     
     def pred(self, given, key=None, deriv=None, strip0=None, stripdim=True, fromdata=None, raw=False, keepcorr=None):
         """
@@ -714,32 +693,21 @@ class GP:
             raise ValueError('both keepcorr=True and raw=True')
         
         key, deriv, dim = self._checkkeyderiv(key, deriv)
-        kdlist = self._getkeyderivlist(key, deriv, dim)
-        assert kdlist
-        strippedkd = self._stripkeyderiv(kdlist, key, deriv, strip0, stripdim)
-        assert strippedkd or len(kdlist) == 1
+        outkd = self._getkeyderivlist(key, deriv, dim)
+        assert outkd
+        strippedkd = self._stripkeyderiv(outkd, key, deriv, strip0, stripdim)
+        assert strippedkd or len(outkd) == 1
+        outslices = self._slices(outkd)
         
-        ylist, inkdl = self._flatgiven(given)
-        yslices = [self._slices[kd] for kd in inkdl]
-        cyslices = self._compatslices(yslices)
-        
-        yspslices = [self._slices[kd] for kd in kdlist]
-        cyspslices = self._compatslices(yspslices)
-        ysplen = sum(s.stop - s.start for s in cyspslices)
-        
+        ylist, inkd = self._flatgiven(given)
         y = _concatenate_noop(ylist)
         
-        Kxsx = np.full((ysplen, len(y)), np.nan)
-        for ss, css in zip(yspslices, cyspslices):
-            for s, cs in zip(yslices, cyslices):
-                Kxsx[css, cs] = self._cov[ss, s]
+        Kxsx = self._assemblecovblocks(outkd, inkd)
+        Kxx = self._assemblecovblocks(inkd)
         
-        Kxx = np.full((len(y), len(y)), np.nan)
-        for s1, cs1 in zip(yslices, cyslices):
-            for s2, cs2 in zip(yslices, cyslices):
-                Kxx[cs1, cs2] = self._cov[s1, s2]
-        if self._checksym:
-            assert np.allclose(Kxx, Kxx.T)
+        # TODO remove
+        assert np.allclose(Kxx, Kxx.T)
+        assert np.allclose(Kxsx, self._assemblecovblocks(inkd, outkd).T)
                 
         if (fromdata or raw or not keepcorr) and y.dtype == object:
             ycov = gvar.evalcov(gvar.gvar(y)) ## TODO use evalcov_block?
@@ -750,53 +718,50 @@ class GP:
         
         if raw or not keepcorr:
             
-            Kxsxs = np.full((ysplen, ysplen), np.nan)
-            for s1, cs1 in zip(yspslices, cyspslices):
-                for s2, cs2 in zip(yspslices, cyspslices):
-                    Kxsxs[cs1, cs2] = self._cov[s1, s2]
-            if self._checksym:
-                assert np.allclose(Kxsxs, Kxsxs.T)
+            Kxsxs = self._assemblecovblocks(outkd)
+
+            assert np.allclose(Kxsxs, Kxsxs.T) # TODO remove
             
             ymean = gvar.mean(y)
             if self._checkfinite and not np.all(np.isfinite(ymean)):
                 raise ValueError('mean of `given` is not finite')
             
             if fromdata:
-                Kxx += ycov
-                B = self._solver(Kxx, overwrite=True).solve(Kxsx.T).T
+                B = self._solver(Kxx + ycov).solve(Kxsx.T).T
                 cov = Kxsxs - Kxsx @ B.T
                 mean = B @ ymean
             else:
-                A = self._solver(Kxx, overwrite=False).solve(Kxsx.T).T
-                Kxx -= ycov
-                cov = Kxsxs - A @ Kxx @ A.T
+                A = self._solver(Kxx).solve(Kxsx.T).T
+                cov = Kxsxs - A @ (Kxx - ycov) @ A.T
                 mean = A @ ymean
             
         else: # (keepcorr and not raw)        
-            yplist = [self._prior[kd].reshape(-1) for kd in inkdl]
-            ysplist = [self._prior[kd].reshape(-1) for kd in kdlist]
+            yplist = [self._prior[kd].reshape(-1) for kd in inkd]
+            ysplist = [self._prior[kd].reshape(-1) for kd in outkd]
             yp = _concatenate_noop(yplist)
             ysp = _concatenate_noop(ysplist)
         
-            Kxx += ycov
-            flatout = Kxsx @ self._solver(Kxx, overwrite=True).usolve(y - yp) + ysp
+            flatout = Kxsx @ self._solver(Kxx + ycov).usolve(y - yp) + ysp
         
         if raw and strippedkd:
             meandict = gvar.BufferDict({
-                strippedkd[i]: mean[cyspslices[i]].reshape(self._shapes[kdlist[i]])
-                for i in range(len(kdlist))
+                strippedkd[i]:
+                mean[outslices[i]].reshape(self._shapes[outkd[i]])
+                for i in range(len(outkd))
             })
             
             covdict = gvar.BufferDict({
                 (strippedkd[i], strippedkd[j]):
-                cov[cyspslices[i], cyspslices[j]].reshape(self._shapes[kdlist[i]] + self._shapes[kdlist[j]])
-                for i in range(len(kdlist))
-                for j in range(len(kdlist))
+                cov[outslices[i], outslices[j]].reshape(self._shapes[outkd[i]] + self._shapes[outkd[j]])
+                for i in range(len(outkd))
+                for j in range(len(outkd))
             })
             
             return meandict, covdict
             
         elif raw:
+            mean = mean.reshape(self._shapes[outkd[0]])
+            cov = cov.reshape(2 * self._shapes[outkd[0]])
             return mean, cov
         
         elif not keepcorr:
@@ -805,11 +770,11 @@ class GP:
         if strippedkd:
             return gvar.BufferDict({
                 strippedkd[i]:
-                flatout[cyspslices[i]].reshape(self._shapes[kdlist[i]])
-                for i in range(len(kdlist))
+                flatout[outslices[i]].reshape(self._shapes[outkd[i]])
+                for i in range(len(outkd))
             })
         else:
-            return flatout.reshape(self._shapes[kdlist[0]])
+            return flatout.reshape(self._shapes[outkd[0]])
         
     def predfromfit(self, *args, **kw):
         """
@@ -855,18 +820,12 @@ class GP:
             The logarithm of the marginal likelihood.
             
         """        
-        ylist, inkdl = self._flatgiven(given)
-        yslices = [self._slices[kd] for kd in inkdl]
-        cyslices = self._compatslices(yslices)
-                
+        ylist, inkd = self._flatgiven(given)
         y = _concatenate_noop(ylist)
-                
-        Kxx = np.full((len(y), len(y)), np.nan)
-        for s1, cs1 in zip(yslices, cyslices):
-            for s2, cs2 in zip(yslices, cyslices):
-                Kxx[cs1, cs2] = self._cov[s1, s2]
-        if self._checksym:
-            assert np.allclose(Kxx, Kxx.T)
+
+        Kxx = self._assemblecovblocks(inkd)
+
+        assert np.allclose(Kxx, Kxx.T) # TODO remove
         
         if y.dtype == object:
             gvary = gvar.gvar(y)
@@ -881,7 +840,5 @@ class GP:
         if self._checkfinite and not np.all(np.isfinite(ycov)):
             raise ValueError('covariance matrix of `given` is not finite')
         
-        Kxx += ycov
-        decomp = self._solver(Kxx, overwrite=True)
-        ## TODO autograd probably wants no `+=` and overwrite=False
+        decomp = self._solver(Kxx + ycov)
         return -1/2 * (decomp.quad(ymean) + decomp.logdet() + len(y) * np.log(2 * np.pi))

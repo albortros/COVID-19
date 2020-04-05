@@ -58,7 +58,7 @@ class DecompMeta(type):
                     AB = np.tensordot(A, B, len(b.shape) - 1)
                     AB = np.moveaxis(AB, 0, -2)
                     assert AB.shape == g.shape[:-len(b.shape)] + K.shape
-                    return AB
+                    return -AB
                 return vjp
             extend.defvjp(
                 solve_autograd,

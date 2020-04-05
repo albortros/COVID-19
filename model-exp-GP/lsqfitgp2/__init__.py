@@ -65,9 +65,6 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # Matern derivatives for half-integer nu
 # stabilize Matern kernel near r == 0, then Matern derivatives for real nu
 # (quick fix: larger eps in _softabs)
-# marginal likelihood derivatives, if I check everything I can probably use
-# autograd out of the box
-# GP._buildcovblock builds on request, never compute the whole cov
 # delete the _x as soon as they are not needed any more
 #
 # Kronecker optimization: subclass GPKron where addx has a parameter `dim` and
@@ -85,7 +82,6 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # maybe a class for matrices?
 #
 # kernel rescaling
-# do not fill the entire matrix when checksym=False
 # apply isotropic kernels to multivalued fields
 # multidim support in Gibbs kernel
 #

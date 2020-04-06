@@ -20,7 +20,7 @@ DPI=450
 #Averaging N for fits errors
 SIZE = 100
 #days of prediction
-NumberOfDaysPredicted=14
+NumberOfDaysPredicted=30
 #Plot name format:
 path='Plots/'
 name='-Jacopo'
@@ -61,7 +61,7 @@ FMT = '%Y-%m-%dT%H:%M:%S'
 # Formato dati salvataggio
 FMD = '%Y-%m-%d'
 
-LIM=37
+#LIM=30
 iteration=0
 for TYPE in TypeOfData:
 

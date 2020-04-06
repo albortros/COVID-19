@@ -101,7 +101,7 @@ elif cmdargs.region:
 for table in data.values():
     lastdate = table['data'].max()
     today = pd.Timestamp.today()
-    if today - lastdate > pd.Timedelta(1, 'D'):
+    if today - lastdate > pd.Timedelta(1, 'D') + pd.Timedelta(1, 'H'):
         raise ValueError(f'Data is not update, last date in data is {lastdate}')
     
 # Determine labels to plot.

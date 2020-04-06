@@ -66,7 +66,7 @@ date = df['data']
 DATE = df['data'][len(date)-1].strftime(FMD)
 df['data'] = date.map(lambda x : (x - datetime.strptime("2020-01-01T00:00:00", FMT)).days  )
 #Plot name format:
-path     ='Plots/'
+path     ='Plots-gompertz-logistic/'
 name     ='-Jacopo'
 model    ='-model-gompertz-logistic'
 case     =['-infected','-deaths','-recovered']

@@ -8,7 +8,7 @@ import sys
 import lsqfitgp2 as lgp
 
 # Read command line.
-regions = ['Veneto']
+regions = sys.argv[1:]
 
 data = pd.read_json(
     '../pcm-dpc-COVID-19/dati-json/dpc-covid19-ita-regioni.json',
@@ -17,6 +17,19 @@ data = pd.read_json(
 
 gdata = data.groupby('denominazione_regione')
 # use the name to group because problems with south tirol
+
+# Initialize prediction table for covidcast.it
+today = max(data.data.values)
+df_temp = data[data.data == today]
+df_temp = df_temp[df_temp.denominazione_regione != '']
+columns_we_keep = ['data', 'codice_regione', 'denominazione_regione']
+df_forecast = df_temp[columns_we_keep].copy()
+new_columns = ['casi_domani', 'std_casi_domani',
+               'morti_domani', 'std_morti_domani',
+               'casi_dopodomani', 'std_casi_dopodomani',
+               'morti_dopodomani', 'std_morti_dopodomani']
+for c in new_columns:
+    df_forecast[c] = 0
 
 # This dictionary will be saved on file at the end.
 pickle_dict = dict()
@@ -48,8 +61,8 @@ def time_to_number(times):
 def make_poisson_data(v):
     v = np.asarray(v)
     assert len(v.shape) <= 1
-    assert np.all(v >= 0)
-    return gvar.gvar(v, np.where(v > 0, np.sqrt(v), 1))
+    #assert np.all(v >= 0)
+    return gvar.gvar(v, np.where(v > 0, np.sqrt(abs(v)), 1))
 
 print('Iterating over regions...')
 for region in regions if regions else tqdm.tqdm(data['denominazione_regione'].unique()):
@@ -70,16 +83,29 @@ for region in regions if regions else tqdm.tqdm(data['denominazione_regione'].un
     dates_plot = pd.date_range(firstdate, dates_pred[-1], 300)
     times_plot = time_to_number(dates_plot) - time_zero
     
+    # Adding 'nuovi_deceduti' column, first value added "manually"
+    first_value = 0
+    if region == 'Lombardia':
+        first_value = 4
+    other_values = np.diff(table['deceduti'].values)
+    table['nuovi_deceduti'] = [first_value] + list(other_values)
+    
     # Data.
     fitdata = gvar.BufferDict({
         label: make_poisson_data(table[label].values)
-        for label in ['nuovi_positivi']
+        for label in ['nuovi_positivi', 'nuovi_deceduti']
     })
     
     # Prior.
     gps = dict()
     for label in fitdata:
-        gp = lgp.GP(500 ** 2 * lgp.ExpQuad(scale=30) + 50 ** 2 * lgp.ExpQuad())
+        yy = table[label].values
+        # Set the amplitude for two Gaussian Processes
+        # amplitude1 is the amplitude of the long-scale GP
+        # amplitude2 is the amplitude of the short-scale GP
+        amplitude1 = np.sqrt((yy**2).mean())
+        amplitude2 = np.diff(yy).std()
+        gp = lgp.GP(amplitude1 ** 2 * lgp.ExpQuad(scale=30) + amplitude2 ** 2 * lgp.ExpQuad())
         gp.addx(times, 'data')
         gp.addx(times_pred, 'pred'),
         gp.addx(times_plot, 'plot')
@@ -113,9 +139,28 @@ for region in regions if regions else tqdm.tqdm(data['denominazione_regione'].un
         plot=plot,
         dates=dict(pred=dates_pred, plot=dates_plot)
     )
+    
+    # Save in csv for covidcast.it
+    columns_dict = {'casi_domani': pred['nuovi_positivi'][0].mean,
+                    'std_casi_domani': pred['nuovi_positivi'][0].sdev,
+                    'morti_domani': pred['nuovi_deceduti'][0].mean,
+                    'std_morti_domani': pred['nuovi_deceduti'][0].sdev,
+                    'casi_dopodomani': pred['nuovi_positivi'][1].mean,
+                    'std_casi_dopodomani': pred['nuovi_positivi'][1].sdev,
+                    'morti_dopodomani': pred['nuovi_deceduti'][1].mean,
+                    'std_morti_dopodomani': pred['nuovi_deceduti'][1].sdev}
+    
+    for c in new_columns:
+        value = np.round(columns_dict[c])
+        df_forecast.loc[df_forecast.denominazione_regione == region, c] = value
+    
+# Save csv for covidcast.it
+saving_path = f'../predictions/for_covidcast.it/{str(today)[:10]}_GP.csv'
+df_forecast.to_csv(saving_path, index=False)
 
 # Save results on file.
 # pickle_file = 'fit_' + namedate.file_timestamp() + '.pickle'
 pickle_file = 'fit.pickle'
 print(f'Saving to {pickle_file}...')
-pickle.dump(pickle_dict, open(pickle_file, 'wb'))
+#pickle.dump(pickle_dict, open(pickle_file, 'wb'))
+

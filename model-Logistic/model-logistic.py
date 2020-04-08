@@ -58,7 +58,7 @@ def logistic_derivative(x,Par):
 url = "https://raw.githubusercontent.com/pcm-dpc/COVID-19/master/dati-andamento-nazionale/dpc-covid19-ita-andamento-nazionale.csv"
 dF = pd.read_csv(url, parse_dates=['data'])
 
-LIM=28
+LIM=43
 iteration=0
 for TYPE in TypeOfData:
 

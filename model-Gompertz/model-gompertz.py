@@ -61,7 +61,7 @@ FMT = '%Y-%m-%dT%H:%M:%S'
 # Formato dati salvataggio
 FMD = '%Y-%m-%d'
 
-#LIM=30
+LIM=43
 iteration=0
 for TYPE in TypeOfData:
 
@@ -95,7 +95,7 @@ for TYPE in TypeOfData:
     
     #quanti punti considero: fino a che la differenza tra l'asintoto e la funzione non è < 1
     sol = int(fsolve(lambda x : gompertz(x,Par) - int(Par[2]),Par[1]))
-    pred_x = list(range(max(x),min(int(sol/1.5),160)))
+    pred_x = list(range(max(x),min(int(sol/1.5),150)))
     xTOT= x+pred_x
     
     # Calcoliamo SIZE funzioni estraendo parametri a caso e facendo la std

@@ -44,6 +44,12 @@ def _noautograd(x):
     else:
         return x
 
+def _isarraylike(x):
+    return isinstance(x, (list, np.ndarray)) # TODO autograd isinstance?
+
+def _isdictlike(x):
+    return isinstance(x, (dict, gvar.BufferDict))
+
 class GP:
     """
     
@@ -124,8 +130,8 @@ class GP:
         if not isinstance(covfun, _kernels.Kernel):
             raise TypeError('covariance function must be of class Kernel')
         self._covfun = covfun
-        self._x = collections.defaultdict(lambda: collections.defaultdict(list))
-        # self._x: label -> (derivative order, derivative dim -> list of arrays)
+        self._x = collections.defaultdict(dict)
+        # self._x: label -> (derivative order, derivative dim -> array)
         self._canaddx = True
         self._checkpositive = bool(checkpos)
         decomp = {
@@ -165,10 +171,8 @@ class GP:
         added in two ways: "array mode" or "dictionary mode". The mode is
         decided the first time you call `addx`: if you just pass an array,
         `addx` expects to receive again only an array in eventual subsequent
-        calls, and concatenates the arrays along the first axis. If you either
-        pass a dictionary or an array and a key, `addx` will organize arrays of
-        points in an internal dictionary, and when you give an array for an
-        already used key, the old array and the new one will be concatenated.
+        calls. If you either pass a dictionary or an array and a key, `addx`
+        will organize arrays of points in an internal dictionary.
         
         You can specify if the points are used to evaluate the gaussian process
         itself or its derivatives by passing a nonzero `deriv` argument.
@@ -197,7 +201,7 @@ class GP:
         x : array or dictionary of arrays
             The points to be added. If a dictionary, the keys can be anything
             except None. Tuple keys must have length 2 or 3 and are unpacked in
-            key, deriv or key, deriv, dim respectively.
+            (key, deriv) or (key, deriv, dim) respectively.
         key : *not* a tuple
             If `x` is an array, the dictionary key under which `x` is added.
             Can not be specified if `x` is a dictionary.
@@ -216,7 +220,7 @@ class GP:
         
         deriv, dim = self._unpackderiv(deriv)
         
-        if isinstance(x, (list, np.ndarray)): # TODO autograd isinstance?
+        if _isarraylike(x):
             if None in self._x and key is not None:
                 raise ValueError("previous x is array, can't add key")
             if key is None and (len(self._x) >= 2 or self._x and None not in self._x):
@@ -224,7 +228,7 @@ class GP:
                 
             x = {key: x}
                     
-        elif isinstance(x, (dict, gvar.BufferDict)):
+        elif _isdictlike(x):
             if key is not None:
                 raise ValueError('can not specify key if x is a dictionary')
             if None in x:
@@ -255,10 +259,16 @@ class GP:
             else:
                 key, d, f = k, deriv, dim
             
+            prev = self._x.get(key, {}).get((d, f), None)
+            if prev is not None:
+                msg = 'there is already an array for key={}, deriv={}, field={}'
+                msg = msg.format(key, d, f)
+                raise RuntimeError(msg)
+            
             gx = x[k]
             
             # Convert to numpy array.
-            if not isinstance(gx, (list, np.ndarray)): # TODO autograd isinstance?
+            if not _isarraylike(gx):
                 raise TypeError('`x[{}]` is not array or list'.format(k))
             gx = np.array(gx, copy=False)
 
@@ -289,22 +299,14 @@ class GP:
                 if f is None and d:
                     raise ValueError('{} derivative(s) taken on array with fields {} but the field is not specified'.format(d, gx.dtype.names))
             
-            # Check that the array can be concatenated to previous arrays.
-            prev = self._x.get(key, {}).get((d, f), [])
-            if prev:
-                shape = prev[0].shape
-                if gx.shape[1:] != shape[1:]:
-                    raise ValueError("`x[{}]` with shape {} does not concatenate with shape {} along first axis".format(k, gx.shape, shape))
-            
-            self._x[key][d, f].append(gx)
+            self._x[key][d, f] = gx
     
     def _makeshapes(self):
         shapes = dict()
         # shapes: (key, derivative order, derivative dim) -> shape of x
         for key, d in self._x.items():
-            for (deriv, dim), l in d.items():
-                shape = (sum(x.shape[0] for x in l),) + l[0].shape[1:]
-                shapes[key, deriv, dim] = shape
+            for (deriv, dim), x in d.items():
+                shapes[key, deriv, dim] = x.shape
         return shapes
 
     @property
@@ -315,10 +317,7 @@ class GP:
         return self._shapesdict
     
     def _makecovblock(self, kdkd):
-        xy = [
-            _concatenate_noop(self._x[key][deriv, dim], axis=0)
-            for key, deriv, dim in kdkd
-        ]
+        xy = [self._x[key][deriv, dim] for key, deriv, dim in kdkd]
         kernel = self._covfun.diff(kdkd[0][1], kdkd[1][1], kdkd[0][2], kdkd[1][2])
         
         shape = tuple(np.prod(self._shapes[kd]) for kd in kdkd)

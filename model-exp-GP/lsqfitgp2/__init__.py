@@ -91,8 +91,6 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 #
 # Fourier kernels. Look at Celerite's algorithms.
 #
-# remove concatenation support from GP.addx.
-#
 # kernel rescaling
 # apply isotropic kernels to multivalued fields
 # multidim support in Gibbs kernel

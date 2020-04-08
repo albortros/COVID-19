@@ -25,11 +25,11 @@ data = gvar.gvar(data_mean, np.full_like(data_mean, data_error))
 
 def makegp(params):
     time_scale, label_scale = np.exp(params[:2])
-    gp = lgp.GP(lgp.RatQuad(scale=time_scale, dim='time', alpha=1) * lgp.ExpQuad(scale=label_scale, dim='label'))
     delay = params[2]
-    y = np.copy(x)
-    y['time'][1] = time - delay
-    gp.addx(y, 'A')
+    gp = lgp.GP(lgp.RatQuad(scale=time_scale, dim='time', alpha=1) * lgp.ExpQuad(scale=label_scale, dim='label'))
+    x2 = np.copy(x)
+    x2['time'][1] = time - delay
+    gp.addx(x2, 'A')
     return gp
 
 def fun(params):
@@ -39,8 +39,8 @@ def fun(params):
 result = optimize.minimize(fun, [2, 2, 10], method='Nelder-Mead')
 print(result)
 print('time scale = {:.3g}'.format(np.exp(result.x[0])))
-corr = lgp.ExpQuad(scale=result.x[1])([0], [1])
-print('correlation = {:.3g}'.format(corr[0]))
+corr = lgp.ExpQuad(scale=np.exp(result.x[1]))(0, 1)
+print('correlation = {:.3g}'.format(corr))
 print('delay = {:.3g}'.format(result.x[2]))
 
 gp = makegp(result.x)

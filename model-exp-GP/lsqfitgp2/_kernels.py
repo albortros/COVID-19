@@ -7,26 +7,33 @@ from scipy import special as special_noderiv
 from autograd import extend
 from autograd.builtins import isinstance
 
+class _StructuredArrayWrap(dict):
+    # TODO merge _apply2fields and _wrap_structured as __init__ of this class
+    pass
+
 def _apply2fields(transf, x):
     if x.dtype.names is not None:
-        out = np.empty_like(x)
-        for f in x.dtype.names:
-            out[f] = transf(x[f])
-        return out
+        wrap = _StructuredArrayWrap({
+            name: transf(x[name]) for name in x.dtype.names
+        })
+        wrap.dtype = x.dtype
+        wrap.shape = x.shape
+        wrap.size = x.size
+        return wrap
     else:
         return transf(x)
 
-class _StructuredArrayWrap(dict):
-    pass
-
 def _wrap_structured(x):
-    wrap = _StructuredArrayWrap({
-        name: x[name] for name in x.dtype.names
-    })
-    wrap.dtype = x.dtype
-    wrap.shape = x.shape
-    wrap.size = x.size
-    return wrap
+    if x.dtype.names is not None and not isinstance(x, _StructuredArrayWrap):
+        wrap = _StructuredArrayWrap({
+            name: x[name] for name in x.dtype.names
+        })
+        wrap.dtype = x.dtype
+        wrap.shape = x.shape
+        wrap.size = x.size
+        return wrap
+    else:
+        return x
 
 def _asfloat(x):
     return np.array(x, copy=False, dtype=float)
@@ -93,10 +100,10 @@ class Kernel:
         """
         assert isinstance(dim, (str, type(None)))
         assert np.isscalar(scale)
-        assert np.isscalar(loc)
         assert np.isfinite(scale)
-        assert np.isfinite(loc)
         assert scale > 0
+        assert np.isscalar(loc)
+        assert np.isfinite(loc)
         self._forcebroadcast = bool(forcebroadcast)
         self._dtype = None if dtype is None else np.dtype(dtype)
         forcekron = bool(forcekron)
@@ -123,10 +130,10 @@ class Kernel:
                 x = transf(x)
                 y = transf(y)
                 if x.dtype.names is not None:
-                    return np.array([
+                    return np.prod(np.stack([
                         kernel(x[f], y[f], **kw)
                         for f in x.dtype.names
-                    ])
+                    ]), axis=0)
                 else:
                     return kernel(x, y, **kw)
         else:

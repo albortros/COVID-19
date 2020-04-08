@@ -73,6 +73,14 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # and a field _kronok in Kernel update automatically when doing operations with
 # kernels. Also, take a look at the pymc3 implementation.
 #
+# Structured arrays are not autograd-friendly. Convert _StructuredArrayWrap
+# to a public class and accept it as input in GP. Make functions _isarray
+# and _isdict to avoid confusion, also do not make _StructuredArrayWrap a
+# subclass of dict. Modify _concatenate_noop to handle correctly
+# _StructuredArrayWrap. Adapt explicit broadcasting in Kernel.__call__.
+# Possible names: ArrayDict, StructuredArray. Unluckily I can't use
+# gvar.BufferDict for this.
+#
 # sparse algorithms (after adding finite support kernels)
 # DiagLowRank for low rank matrix + multiple of the identity (multiple rank-1
 # updates to the Cholesky factor?)
@@ -80,6 +88,10 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 #
 # Decomposition of the posterior covariance matrix, or tool to take samples.
 # maybe a class for matrices?
+#
+# Fourier kernels. Look at Celerite's algorithms.
+#
+# remove concatenation support from GP.addx.
 #
 # kernel rescaling
 # apply isotropic kernels to multivalued fields
@@ -91,3 +103,4 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # is there a smooth version of the wiener process? like, softmin(x, y)?
 # non-real input kernels (there are some examples in GPML)
 # fixed covariance matrix over list of values, and version for two values only
+# kernel with given basis functions

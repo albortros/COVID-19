@@ -1,5 +1,6 @@
 from ._GP import *
 from ._kernels import *
+from ._array import *
 
 __doc__ = """
 
@@ -90,6 +91,17 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # maybe a class for matrices?
 #
 # Fourier kernels. Look at Celerite's algorithms.
+#
+# Check that Kernel.diff can be chained. Design an interface to allow
+# combined derivatives on different dimensions. Maybe something like: int, str,
+# or tuple of int/str, where an integer implies repetition of the succeding
+# str. Make a class DerivSpec for parsing this since it's both in GP.addx and
+# Kernel.diff.
+#
+# Make a private class _KernelBase with all Kernel methods except operations.
+# Then make subclasses Kernel and KernelDeriv, where Kernel defines operations.
+# _KernelBase.diff then returns a KernelDeriv if the differentiation does not
+# produce a kernel.
 #
 # kernel rescaling
 # apply isotropic kernels to multivalued fields

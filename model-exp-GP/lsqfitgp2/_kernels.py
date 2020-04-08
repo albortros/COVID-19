@@ -7,33 +7,47 @@ from scipy import special as special_noderiv
 from autograd import extend
 from autograd.builtins import isinstance
 
-class _StructuredArrayWrap(dict):
-    # TODO merge _apply2fields and _wrap_structured as __init__ of this class
-    pass
+from . import _array
+
+__all__ = [
+    'Kernel',
+    'IsotropicKernel',
+    'kernel',
+    'isotropickernel',
+    'Constant',
+    'White',
+    'ExpQuad',
+    'Linear',
+    'Polynomial',
+    'Matern',
+    'Matern12',
+    'Matern32',
+    'Matern52',
+    'GammaExp',
+    'RatQuad',
+    'NNKernel',
+    'Wiener',
+    'Gibbs',
+    'Periodic'
+]
 
 def _apply2fields(transf, x):
     if x.dtype.names is not None:
-        wrap = _StructuredArrayWrap({
-            name: transf(x[name]) for name in x.dtype.names
-        })
-        wrap.dtype = x.dtype
-        wrap.shape = x.shape
-        wrap.size = x.size
-        return wrap
+        x = _array.StructuredArray(x)
+        for name in x.dtype.names:
+            x[name] = transf(x[name])
+        return x
     else:
         return transf(x)
 
-def _wrap_structured(x):
-    if x.dtype.names is not None and not isinstance(x, _StructuredArrayWrap):
-        wrap = _StructuredArrayWrap({
-            name: x[name] for name in x.dtype.names
-        })
-        wrap.dtype = x.dtype
-        wrap.shape = x.shape
-        wrap.size = x.size
-        return wrap
+def _asarray(x, dtype):
+    if isinstance(x, _array.StructuredArray):
+        if dtype is None:
+            return x
+        else:
+            return StructuredArray(x, dtype=dtype)
     else:
-        return x
+        return np.array(x, copy=False, dtype=dtype)
 
 def _asfloat(x):
     return np.array(x, copy=False, dtype=float)
@@ -142,14 +156,14 @@ class Kernel:
         self._kernel = _kernel
     
     def __call__(self, x, y):
-        x = np.array(x, copy=False, dtype=self._dtype)
-        y = np.array(y, copy=False, dtype=self._dtype)
+        x = _asarray(x, self._dtype)
+        y = _asarray(y, self._dtype)
         assert x.dtype == y.dtype
         shape = np.broadcast(x, y).shape
         if self._forcebroadcast:
             x, y = np.broadcast_arrays(x, y)
         result = self._kernel(x, y)
-        assert isinstance(result, (np.ndarray, np.number)) # TODO use autograd isinstance?
+        assert isinstance(result, (np.ndarray, np.number))
         assert np.issubdtype(result.dtype, np.number)
         assert result.shape == shape
         return result
@@ -224,9 +238,9 @@ class Kernel:
                     if order and dim not in z.dtype.names:
                         raise ValueError('differentiation dimension "{}" missing in fields ({})'.format(dim, ', '.join(z.dtype.names)))
                 if xorder:
-                    x = _wrap_structured(x)
+                    x = _array.StructuredArray(x)
                 if yorder:
-                    y = _wrap_structured(y)
+                    y = _array.StructuredArray(y)
                 def f(a, b):
                     if xorder:
                         x[xdim] = a

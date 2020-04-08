@@ -23,25 +23,26 @@ data_mean = function(x['time']) + data_error * np.random.randn(*x.shape)
 data_mean[1] += 0.02 * time
 data = gvar.gvar(data_mean, np.full_like(data_mean, data_error))
 
+x = lgp.StructuredArray(x)
 def makegp(params):
     time_scale, label_scale = np.exp(params[:2])
     delay = params[2]
     gp = lgp.GP(lgp.RatQuad(scale=time_scale, dim='time', alpha=1) * lgp.ExpQuad(scale=label_scale, dim='label'))
-    x2 = np.copy(x)
-    x2['time'][1] = time - delay
-    gp.addx(x2, 'A')
+    x['time'] = np.array([time, time - delay])
+    gp.addx(x, 'A')
     return gp
 
 def fun(params):
     gp = makegp(params)
     return -gp.marginal_likelihood({'A': data})
 
-result = optimize.minimize(fun, [2, 2, 10], method='Nelder-Mead')
+result = optimize.minimize(autograd.value_and_grad(fun), [2, 2, 10], jac=True)
+params = gvar.gvar(result.x, result.hess_inv)
 print(result)
-print('time scale = {:.3g}'.format(np.exp(result.x[0])))
+print('time scale = {}'.format(gvar.exp(params[0])))
 corr = lgp.ExpQuad(scale=np.exp(result.x[1]))(0, 1)
-print('correlation = {:.3g}'.format(corr))
-print('delay = {:.3g}'.format(result.x[2]))
+print('correlation = {:.3g} (equiv. scale = {})'.format(corr, params[1]))
+print('delay = {}'.format(params[2]))
 
 gp = makegp(result.x)
 

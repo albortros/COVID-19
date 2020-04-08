@@ -3,13 +3,20 @@ from __future__ import division
 import collections
 import itertools
 import sys
+import builtins
 
 import gvar
 from autograd import numpy as np
 from autograd.scipy import linalg
+from autograd.builtins import isinstance
 
 from . import _kernels
 from . import _linalg
+from . import _array
+
+__all__ = [
+    'GP'
+]
 
 def _concatenate_noop(alist, **kw):
     """
@@ -32,20 +39,23 @@ def _triu_indices_and_back(n):
     q[tuple(reversed(indices))] = a
     return indices, q
 
-def _list_matrix(nrow, ncol, fill=None):
-    return [ncol * [fill] for _ in range(nrow)]
-
 def _block_matrix(blocks):
     return _concatenate_noop([_concatenate_noop(row, axis=1) for row in blocks], axis=0)
 
 def _noautograd(x):
-    if isinstance(x, np.numpy_boxes.ArrayBox):
+    if builtins.isinstance(x, np.numpy_boxes.ArrayBox):
         return x._value
     else:
         return x
 
 def _isarraylike(x):
-    return isinstance(x, (list, np.ndarray)) # TODO autograd isinstance?
+    return isinstance(x, (list, np.ndarray, _array.StructuredArray))
+
+def _asarray(x):
+    if isinstance(x, _array.StructuredArray):
+        return x
+    else:
+        return np.array(x, copy=False)
 
 def _isdictlike(x):
     return isinstance(x, (dict, gvar.BufferDict))
@@ -55,8 +65,9 @@ class GP:
     
     Object that represents a gaussian process over arbitrary input.
     
-    Methods that accept arrays/dictionaries also recognize lists and
-    gvar.BufferDict. The output is always a np.ndarray or gvar.BufferDict.
+    Methods that accept arrays/dictionaries also recognize lists,
+    StructuredArray and gvar.BufferDict. The output is always a np.ndarray or
+    gvar.BufferDict.
     
     Methods
     -------
@@ -208,8 +219,8 @@ class GP:
         deriv : int or tuple
             The derivative order. If a tuple, it is unpacked as (deriv, dim)
             where `dim` is the field of the structured array along which to
-            take the derivative. Can not be specified if it `x` is a
-            dictionary with derivative indications in the keys.
+            take the derivative. Can not be specified if `x` is a dictionary
+            with derivative indications in the keys.
         
         """
         if not self._canaddx:
@@ -267,10 +278,10 @@ class GP:
             
             gx = x[k]
             
-            # Convert to numpy array.
+            # Convert to numpy array or StructuredArray.
             if not _isarraylike(gx):
                 raise TypeError('`x[{}]` is not array or list'.format(k))
-            gx = np.array(gx, copy=False)
+            gx = _asarray(gx)
 
             # Check it is not empty or 0d.
             if not gx.size:

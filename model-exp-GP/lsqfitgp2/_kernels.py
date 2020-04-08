@@ -45,9 +45,15 @@ def _asarray(x, dtype):
         if dtype is None:
             return x
         else:
-            return StructuredArray(x, dtype=dtype)
+            return _array.StructuredArray(x, dtype=dtype)
     else:
         return np.array(x, copy=False, dtype=dtype)
+
+def _effectivearray(x):
+    if isinstance(x, _array.StructuredArray):
+        return x[x.dtype.names[0]]
+    else:
+        return x
 
 def _asfloat(x):
     return np.array(x, copy=False, dtype=float)
@@ -159,7 +165,7 @@ class Kernel:
         x = _asarray(x, self._dtype)
         y = _asarray(y, self._dtype)
         assert x.dtype == y.dtype
-        shape = np.broadcast(x, y).shape
+        shape = np.broadcast(_effectivearray(x), _effectivearray(y)).shape
         if self._forcebroadcast:
             x, y = np.broadcast_arrays(x, y)
         result = self._kernel(x, y)

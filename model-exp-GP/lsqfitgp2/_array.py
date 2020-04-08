@@ -27,6 +27,16 @@ class StructuredArray:
     Autograd-friendly imitation of a numpy structured array.
     """
     
+    @classmethod
+    def _fromarrayanddict(cls, x, d):
+        out = super().__new__(cls)
+        out.dtype = x.dtype
+        out._dict = d
+        a0 = next(iter(d.values()))
+        out.shape = a0.shape
+        out.size = a0.size
+        return out
+    
     def __new__(cls, array, dtype=None):
         assert isinstance(array, (np.ndarray, cls))
         assert array.dtype.names is not None
@@ -37,25 +47,26 @@ class StructuredArray:
             dtype = np.dtype(dtype)
         assert dtype.names == array.dtype.names
         
-        _dict = {
+        d = {
             name:
             np.array(array[name], copy=False, dtype=dtype.fields[name][0])
             for name in array.dtype.names
         }
         
-        for x in _dict.values():
+        for x in d.values():
             x.flags['WRITEABLE'] = False
         
-        self = super().__new__(cls)
-        self._dict = _dict
-        self.dtype = array.dtype
-        self.shape = array.shape
-        self.size = array.size
-        
-        return self
+        return cls._fromarrayanddict(array, d)
     
     def __getitem__(self, key):
-        return self._dict[key]
+        if isinstance(key, str):
+            return self._dict[key]
+        else:
+            d = {
+                name: x[key]
+                for name, x in self._dict.items()
+            }
+            return type(self)._fromarrayanddict(self, d)
     
     def __setitem__(self, key, val):
         assert key in self.dtype.names
@@ -63,3 +74,10 @@ class StructuredArray:
         assert self.dtype.fields[key][0] == val.dtype
         assert val.shape == self.shape
         self._dict[key] = _readonlyview(val)
+    
+    def reshape(self, *shape):
+        d = {
+            name: x.reshape(*shape)
+            for name, x in self._dict.items()
+        }
+        return type(self)._fromarrayanddict(self, d)

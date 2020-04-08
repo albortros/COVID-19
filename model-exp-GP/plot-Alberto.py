@@ -1,8 +1,8 @@
 import pickle
 from matplotlib import pyplot as plt
 import sys
-import pandas as pd
 import numpy as np
+import pandas as pd
 import gvar
 import os
 import tqdm
@@ -41,9 +41,9 @@ for region, fit in tqdm.tqdm(fits.items()):
         # fit
         xfit = fit['dates']['plot']
         yfit = fit['plot'][label]
+        
         ym, ys = gvar.mean(yfit), gvar.sdev(yfit)
         ax.fill_between(xfit, ym - ys, ym + ys, color=color, alpha=0.5)
-        ax.plot(xfit, ym, color=color)
         
         # fit samples
         cov = gvar.evalcov(yfit)
@@ -56,30 +56,7 @@ for region, fit in tqdm.tqdm(fits.items()):
         ax.set_ylim(0, ax.get_ylim()[1])
     ax.legend(loc='upper left')
     ax.grid(linestyle=':')
-    
-    # Box with fit results.
-    # brief = '\n'.join(
-    #     f'{label} = {value}'
-    #     for label, value in fit['p'].items()
-    #     if label.startswith('t0')
-    # )
-    # ax.annotate(
-    #     brief, (1, 0), xytext=(-8, 8),
-    #     va='bottom',
-    #     ha='right',
-    #     xycoords='axes fraction',
-    #     textcoords='offset points',
-    #     bbox=dict(
-    #         facecolor='white',
-    #         alpha=0.8,
-    #         edgecolor='gray',
-    #         boxstyle='round'
-    #     )
-    # )
 
     # Save figure.
     fig.autofmt_xdate(rotation=70)
-    fig.tight_layout()
     fig.savefig(f'{savedir}/{region}.png', dpi=300)
-
-#fig.show()

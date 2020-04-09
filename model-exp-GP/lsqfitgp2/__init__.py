@@ -104,10 +104,6 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # _KernelBase.diff then returns a KernelDeriv if the differentiation does not
 # produce a kernel.
 #
-# Remove dtype option from Kernel and StructuredArray because it is not used.
-#
-# Support non-gvar data.
-#
 # Remove key, deriv, dim mess. Use only keys as keys and remember derivatives
 # for keys. Remove array/dictionary mode, use always dictionaries.
 #
@@ -120,4 +116,3 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # is there a smooth version of the wiener process? like, softmin(x, y)?
 # non-real input kernels (there are some examples in GPML)
 # kernel with given basis functions
-# kernel rescaling

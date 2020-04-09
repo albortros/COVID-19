@@ -37,22 +37,13 @@ class StructuredArray:
         out.size = a0.size
         return out
     
-    def __new__(cls, array, dtype=None):
+    def __new__(cls, array):
         assert isinstance(array, (np.ndarray, cls))
         assert array.dtype.names is not None
-        
-        if dtype is None:
-            dtype = array.dtype
-        else:
-            dtype = np.dtype(dtype)
-        assert dtype.names == array.dtype.names
-        
         d = {
-            name:
-            _readonlyview(np.array(array[name], copy=False, dtype=dtype.fields[name][0]))
+            name: _readonlyview(array[name])
             for name in array.dtype.names
         }
-        
         return cls._fromarrayanddict(array, d)
     
     def __getitem__(self, key):

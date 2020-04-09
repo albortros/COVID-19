@@ -30,7 +30,8 @@ __all__ = [
     'Wiener',
     'Gibbs',
     'Periodic',
-    'Categorical'
+    'Categorical',
+    'Rescaling'
 ]
 
 def _apply2fields(transf, x):
@@ -42,14 +43,11 @@ def _apply2fields(transf, x):
     else:
         return transf(x)
 
-def _asarray(x, dtype):
+def _asarray(x):
     if isinstance(x, _array.StructuredArray):
-        if dtype is None:
-            return x
-        else:
-            return _array.StructuredArray(x, dtype=dtype)
+        return x
     else:
-        return np.array(x, copy=False, dtype=dtype)
+        return np.array(x, copy=False)
 
 def _effectivearray(x):
     if isinstance(x, _array.StructuredArray):
@@ -87,7 +85,7 @@ class Kernel:
     
     """
     
-    def __init__(self, kernel, *, dim=None, loc=0, scale=1, forcebroadcast=False, dtype=None, forcekron=False, **kw):
+    def __init__(self, kernel, *, dim=None, loc=0, scale=1, forcebroadcast=False, forcekron=False, **kw):
         """
         
         Initialize the object with callable `kernel`.
@@ -108,8 +106,6 @@ class Kernel:
             The inputs to `kernel` are transformed as (x - loc) / scale.
         forcebroadcast : bool
             If True, the inputs to `kernel` will always have the same shape.
-        dtype : numpy data type
-            If specified, the inputs to `kernel` will be coerced to that type.
         forcekron : bool
             If True, when calling `kernel`, if `x` and `y` are structured
             arrays, i.e. if they represent multidimensional input, `kernel` is
@@ -127,7 +123,6 @@ class Kernel:
         assert np.isscalar(loc)
         assert np.isfinite(loc)
         self._forcebroadcast = bool(forcebroadcast)
-        self._dtype = None if dtype is None else np.dtype(dtype)
         forcekron = bool(forcekron)
         
         transf = lambda x: x
@@ -164,8 +159,8 @@ class Kernel:
         self._kernel = _kernel
     
     def __call__(self, x, y):
-        x = _asarray(x, self._dtype)
-        y = _asarray(y, self._dtype)
+        x = _asarray(x)
+        y = _asarray(y)
         assert x.dtype == y.dtype
         shape = np.broadcast(_effectivearray(x), _effectivearray(y)).shape
         if self._forcebroadcast:
@@ -588,3 +583,21 @@ def Categorical(x, y, cov=None):
     assert cov.shape[0] == cov.shape[1]
     assert np.allclose(cov, cov.T)
     return cov[x, y]
+
+@kernel
+def Rescaling(x, y, stdfun=None):
+    """
+    
+    A totally correlated kernel with arbitrary variance. Parameter `stdfun`
+    must be a function that takes `x` or `y` and computes the standard
+    deviation at the point. It can yield negative values; points with the same
+    sign of `fun` will be totally correlated, points with different sign will
+    be totally anticorrelated. Use this kernel to modulate the variance of
+    other kernels. Example, where the variance decreases far from the origin:
+    
+        ExpQuad() * Rescaling(stdfun=lambda x: 1 / (1 + x**2))
+    
+    """
+    if stdfun is None:
+        stdfun = lambda x: np.ones_like(x)
+    return stdfun(x) * stdfun(y)

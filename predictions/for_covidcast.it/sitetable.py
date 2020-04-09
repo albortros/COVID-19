@@ -31,8 +31,8 @@ for code in csv['codice_regione'].unique():
     midnight = pd.Timestamp(year=today.year, month=today.month, day=today.day + 1, hour=0, minute=0, second=0)
     
     output += f'''
-<div id="{regionid}" class="predtablediv">
-    <div id="{today}" class="timeswitch">
+<div class="predtablediv">
+    <div id="{today}" class="predtablediv">
         <table>
             <tr class="header">
                 <td class="leftheader">{region}</td>
@@ -51,7 +51,7 @@ for code in csv['codice_regione'].unique():
             </tr>
         </table>
     </div>
-    <div id="{midnight}" class="timeswitch">
+    <div id="{midnight}" class="predtablediv">
         <table>
             <tr class="header">
                 <td class="leftheader">{region}</td>

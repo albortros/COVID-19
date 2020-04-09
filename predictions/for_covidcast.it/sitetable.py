@@ -32,7 +32,7 @@ for code in csv['codice_regione'].unique():
     
     output += f'''
 <div class="predtablediv">
-    <div id="{today}" class="predtablediv">
+    <div class="{today}">
         <table>
             <tr class="header">
                 <td class="leftheader">{region}</td>
@@ -51,7 +51,7 @@ for code in csv['codice_regione'].unique():
             </tr>
         </table>
     </div>
-    <div id="{midnight}" class="predtablediv">
+    <div class="{midnight}">
         <table>
             <tr class="header">
                 <td class="leftheader">{region}</td>

@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 
 # Read command line.
 regions = sys.argv[1:]
-#regions = ['Abruzzo', 'Basilicata', 'Lombardia', 'Veneto']
+#regions = ['Valle d\'Aosta']
 
 pcm_github_url = "https://raw.githubusercontent.com/pcm-dpc/COVID-19/master/"
 folder = "/dati-json/dpc-covid19-ita-regioni.json"
@@ -115,18 +115,18 @@ for region in regions if regions else tqdm.tqdm(data['denominazione_regione'].un
         for label in ['nuovi_positivi', 'nuovi_deceduti']
     })
     
-    fig, ax = plt.subplots()
-    xx = table['nuovi_positivi'].values
+    #fig, ax = plt.subplots()
+    #xx = table['nuovi_positivi'].values
     #ax.plot(moving_errors(xx))
     #ax.plot(poisson_errors(xx))
-    ratio = moving_errors(xx) / np.maximum(moving_average(xx, 5), np.ones(len(xx)))
+    #ratio = moving_errors(xx) / np.maximum(moving_average(xx, 5), np.ones(len(xx)))
     #ratio = moving_errors(xx) / poisson_errors(xx)
-    ax.plot(ratio)
-    m = ratio.mean()
-    ax.plot(m * np.ones(len(xx)), '--', color='tab:red', label=f'{m:.2g}')
-    ax.legend(loc=2)
-    ax.set_title(f'{region}')
-    fig.savefig(f'plots/1error_test_{region}.png', dpi=300)
+    #ax.plot(ratio)
+    #m = ratio.mean()
+    #ax.plot(m * np.ones(len(xx)), '--', color='tab:red', label=f'{m:.2g}')
+    #ax.legend(loc=2)
+    #ax.set_title(f'{region}')
+    #fig.savefig(f'plots/1error_test_{region}.png', dpi=300)
     
     # Prior.
     amplitude1 = dict()
@@ -148,11 +148,11 @@ for region in regions if regions else tqdm.tqdm(data['denominazione_regione'].un
         fdata = gvar.BufferDict(fitdata)
         for label in fitdata:
             yyy = table[label].values
-            fdata[label] += f * gvar.gvar(np.zeros(length), moving_average(yyy, 4))
+            fdata[label] += f * gvar.gvar(np.zeros(length), moving_average(yyy, 6))
         return fdata
     
     def make_gp(hyper_params):
-        long_scale = hyper_params[1]
+        long_scale = np.exp(hyper_params[1])
         gps = dict()
         for label in fitdata:
             gp = lgp.GP(amplitude1[label] ** 2 * lgp.ExpQuad(scale=long_scale))
@@ -176,7 +176,7 @@ for region in regions if regions else tqdm.tqdm(data['denominazione_regione'].un
         return dict(data=(args, fdata(hyper_params)), prior=prior, fcn=fcn)
         
     #fit = lsqfit.nonlinear_fit(data=(args, fitdata), prior=prior, fcn=fcn)
-    fit, hyper_params = lsqfit.empbayes_fit([0.3, 20], fitargs)
+    fit, hyper_params = lsqfit.empbayes_fit([0.3, np.log(15)], fitargs)
     
     # Compute prediction.
     predargs = make_args(hyper_params, times=times_pred, pred='pred')

@@ -28,7 +28,8 @@ __all__ = [
     'NNKernel',
     'Wiener',
     'Gibbs',
-    'Periodic'
+    'Periodic',
+    'Categorical'
 ]
 
 def _apply2fields(transf, x):
@@ -462,7 +463,7 @@ def Matern(r, nu=None):
 @isotropickernel(input='soft')
 def Matern12(r):
     """
-    Matérn kernel of order 1/2 (not derivable).
+    Matérn kernel of order 1/2 (continuous, not derivable).
     """
     return np.exp(-r)
 
@@ -573,3 +574,16 @@ def Periodic(r, outerscale=1):
     assert np.isscalar(outerscale)
     assert outerscale > 0
     return np.exp(-2 * (np.sin(r / 2) / outerscale) ** 2)
+
+@kernel
+def Categorical(x, y, cov=None):
+    """
+    A kernel over integers from 0 to N-1. The parameter `cov` is the covariance
+    matrix of the values.
+    """
+    assert np.issubdtype(x.dtype, np.integer)
+    cov = np.array(cov, copy=False)
+    assert len(cov.shape) == 2
+    assert cov.shape[0] == cov.shape[1]
+    assert np.allclose(cov, cov.T)
+    return cov[x, y]

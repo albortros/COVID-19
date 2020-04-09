@@ -4,6 +4,7 @@ from autograd import numpy as np
 import gvar
 from scipy import optimize
 import autograd
+import time as systime
 
 time = np.arange(21)
 x = np.empty((2, len(time)), dtype=[
@@ -27,7 +28,9 @@ x = lgp.StructuredArray(x)
 def makegp(params):
     time_scale, label_scale = np.exp(params[:2])
     delay = params[2]
-    gp = lgp.GP(lgp.RatQuad(scale=time_scale, dim='time', alpha=1) * lgp.ExpQuad(scale=label_scale, dim='label'))
+    kernel = lgp.RatQuad(scale=time_scale, dim='time', alpha=1)
+    kernel *= lgp.ExpQuad(scale=label_scale, dim='label')
+    gp = lgp.GP(kernel)
     x['time'] = np.array([time, time - delay])
     gp.addx(x, 'A')
     return gp
@@ -36,9 +39,13 @@ def fun(params):
     gp = makegp(params)
     return -gp.marginal_likelihood({'A': data})
 
+start = systime.time()
 result = optimize.minimize(autograd.value_and_grad(fun), [2, 2, 10], jac=True)
+end = systime.time()
+
 params = gvar.gvar(result.x, result.hess_inv)
 print(result)
+print('minimization time = {:.2g} sec'.format(end - start))
 print('time scale = {}'.format(gvar.exp(params[0])))
 corr = lgp.ExpQuad(scale=np.exp(result.x[1]))(0, 1)
 print('correlation = {:.3g} (equiv. scale = {})'.format(corr, params[1]))

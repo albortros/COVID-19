@@ -551,19 +551,22 @@ class GP:
         else:
             return self._prior[kdlist[0]]
         
-    def _flatgiven(self, given):
-        if isinstance(given, (list, np.ndarray)):
+    def _flatgiven(self, given, givencov):
+        if _isarraylike(given):
             if len(self._x.get(None, {})) == 1:
                 given = {(None, *df): given for df in self._x[None]}
                 assert len(given) == 1
+                if givencov is not None:
+                    givencov = {(k, k): givencov for k in given}
             else:
                 raise ValueError('`given` is an array but x has keys and/or multiple derivatives, provide a dictionary')
             
-        elif not isinstance(given, (dict, gvar.BufferDict)):
+        elif not _isdictlike(given):
             raise TypeError('`given` must be array or dict')
         
         ylist = []
         kdlist = []
+        keylist = []
         for k, l in given.items():
             checkdim = False
             if isinstance(k, tuple):
@@ -613,15 +616,24 @@ class GP:
             
             ylist.append(l.reshape(-1))
             kdlist.append((key, deriv, dim))
+            keylist.append(k)
+        
+        if givencov is not None:
+            covblocks = [
+                [givencov[keylist[i], keylist[j]] for j in range(len(kdlist))]
+                for i in range(len(kdlist))
+            ]
+        else:
+            covblocks = None
             
-        return ylist, kdlist
+        return ylist, kdlist, covblocks
     
     def _slices(self, kdlist):
         sizes = [np.prod(self._shapes[kd]) for kd in kdlist]
         stops = np.concatenate([[0], np.cumsum(sizes)])
         return [slice(stops[i - 1], stops[i]) for i in range(1, len(stops))]
     
-    def pred(self, given, key=None, deriv=None, strip0=None, stripdim=True, fromdata=None, raw=False, keepcorr=None):
+    def pred(self, given, key=None, deriv=None, givencov=None, strip0=None, stripdim=True, fromdata=None, raw=False, keepcorr=None):
         """
         
         Compute the posterior for the gaussian process, either on all points,
@@ -655,6 +667,9 @@ class GP:
             used in `given`). Otherwise only those specified by key and/or
             deriv. If x is a structured array, deriv must be a tuple
             (deriv, field).
+        givencov : array or dictionary of arrays
+            Covariance matrix of `given`. If not specified, the covariance
+            is extracted from `given` with `gvar.evalcov(given)`.
         strip0 : bool
             By default, 0th order derivatives are stripped from returned
             dictionary keys, unless `deriv` is explicitly specified to be 0.
@@ -709,7 +724,7 @@ class GP:
         assert strippedkd or len(outkd) == 1
         outslices = self._slices(outkd)
         
-        ylist, inkd = self._flatgiven(given)
+        ylist, inkd, ycovblocks = self._flatgiven(given, givencov)
         y = _concatenate_noop(ylist)
         
         Kxsx = self._assemblecovblocks(outkd, inkd)
@@ -718,8 +733,10 @@ class GP:
         # TODO remove
         assert np.allclose(Kxx, Kxx.T)
         assert np.allclose(Kxsx, self._assemblecovblocks(inkd, outkd).T)
-                
-        if (fromdata or raw or not keepcorr) and y.dtype == object:
+        
+        if ycovblocks is not None:
+            ycov = _block_matrix(ycovblocks)
+        elif (fromdata or raw or not keepcorr) and y.dtype == object:
             ycov = gvar.evalcov(gvar.gvar(y)) ## TODO use evalcov_block?
             if self._checkfinite and not np.all(np.isfinite(ycov)):
                 raise ValueError('covariance matrix of `given` is not finite')
@@ -798,7 +815,7 @@ class GP:
         """
         return self.pred(*args, fromdata=True, **kw)
 
-    def marginal_likelihood(self, given):
+    def marginal_likelihood(self, given, givencov=None):
         """
         
         Compute (the logarithm of) the marginal likelihood given data, i.e. the
@@ -823,6 +840,9 @@ class GP:
             The data for some/all of the points in the GP. The arrays can
             contain either `gvar`s or normal numbers, the latter being
             equivalent to zero-uncertainty `gvar`s.
+        givencov : array or dictionary of arrays
+            Covariance matrix of `given`. If not specified, the covariance
+            is extracted from `given` with `gvar.evalcov(given)`.
         
         Returns
         -------
@@ -830,14 +850,17 @@ class GP:
             The logarithm of the marginal likelihood.
             
         """        
-        ylist, inkd = self._flatgiven(given)
+        ylist, inkd, ycovblocks = self._flatgiven(given, givencov)
         y = _concatenate_noop(ylist)
 
         Kxx = self._assemblecovblocks(inkd)
 
         assert np.allclose(Kxx, Kxx.T) # TODO remove
         
-        if y.dtype == object:
+        if ycovblocks is not None:
+            ycov = _block_matrix(ycovblocks)
+            ymean = gvar.mean(y)
+        elif y.dtype == object:
             gvary = gvar.gvar(y)
             ycov = gvar.evalcov(gvary)
             ymean = gvar.mean(gvary)

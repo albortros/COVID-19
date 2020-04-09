@@ -56,6 +56,8 @@ variance and roughly unit lengthscale.
         A gaussian kernel with a custom variable length scale.
     Periodic :
         A periodic gaussian kernel, represents a periodic function.
+    Categorical :
+        Arbitrary covariance matrix over a finite set of values.
 
 Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 
@@ -74,14 +76,6 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # and a field _kronok in Kernel update automatically when doing operations with
 # kernels. Also, take a look at the pymc3 implementation.
 #
-# Structured arrays are not autograd-friendly. Convert _StructuredArrayWrap
-# to a public class and accept it as input in GP. Make functions _isarray
-# and _isdict to avoid confusion, also do not make _StructuredArrayWrap a
-# subclass of dict. Modify _concatenate_noop to handle correctly
-# _StructuredArrayWrap. Adapt explicit broadcasting in Kernel.__call__.
-# Possible names: ArrayDict, StructuredArray. Unluckily I can't use
-# gvar.BufferDict for this.
-#
 # sparse algorithms (after adding finite support kernels)
 # DiagLowRank for low rank matrix + multiple of the identity (multiple rank-1
 # updates to the Cholesky factor?)
@@ -98,12 +92,25 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # str. Make a class DerivSpec for parsing this since it's both in GP.addx and
 # Kernel.diff.
 #
+# Testsuite for positivity of kernels.
+#
+# Function to maximize marginal likelihood like lsqfit.empbayes_fit. It takes
+# a function gpfactory and a prior. It estimates errors on the hyperparameters
+# by using the inverse hessian (is bfgs output from scipy.optimize
+# appropriate?)
+#
 # Make a private class _KernelBase with all Kernel methods except operations.
 # Then make subclasses Kernel and KernelDeriv, where Kernel defines operations.
 # _KernelBase.diff then returns a KernelDeriv if the differentiation does not
 # produce a kernel.
 #
-# kernel rescaling
+# Remove dtype option from Kernel and StructuredArray because it is not used.
+#
+# Support non-gvar data.
+#
+# Remove key, deriv, dim mess. Use only keys as keys and remember derivatives
+# for keys. Remove array/dictionary mode, use always dictionaries.
+#
 # apply isotropic kernels to multivalued fields
 # multidim support in Gibbs kernel
 #
@@ -112,5 +119,5 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # fractional brownian motion
 # is there a smooth version of the wiener process? like, softmin(x, y)?
 # non-real input kernels (there are some examples in GPML)
-# fixed covariance matrix over list of values, and version for two values only
 # kernel with given basis functions
+# kernel rescaling

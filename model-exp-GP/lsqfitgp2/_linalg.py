@@ -96,14 +96,23 @@ class DecompMeta(type):
                     invK = self.solve(np.eye(len(K)), _K=K)
                     return g[..., None, None] * invK
                 return vjp
-                # TODO this is not stable because we take the inverse. If I
-                # define only jvp, will autograd continue working without
-                # complaining?
             extend.defvjp(
                 logdet_autograd,
                 logdet_vjp,
                 argnums=[1]
             )
+            # def logdet_jvp(ans, self, K):
+            #     assert ans.shape == ()
+            #     assert K.shape[0] == K.shape[1]
+            #     def jvp(g):
+            #         assert g.shape[:2] == K.shape
+            #         return np.trace(self.solve(g, _K=K))
+            #     return jvp
+            # extend.defjvp(
+            #     logdet_autograd,
+            #     logdet_jvp,
+            #     argnums=[1]
+            # )
             def logdet(self):
                 if hasattr(self, '_boxedK'):
                     return logdet_autograd(self, self._boxedK)

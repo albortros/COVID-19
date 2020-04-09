@@ -49,12 +49,9 @@ class StructuredArray:
         
         d = {
             name:
-            np.array(array[name], copy=False, dtype=dtype.fields[name][0])
+            _readonlyview(np.array(array[name], copy=False, dtype=dtype.fields[name][0]))
             for name in array.dtype.names
         }
-        
-        for x in d.values():
-            x.flags['WRITEABLE'] = False
         
         return cls._fromarrayanddict(array, d)
     

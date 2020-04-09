@@ -6,6 +6,7 @@ from autograd.scipy import special
 from scipy import special as special_noderiv
 from autograd import extend
 from autograd.builtins import isinstance
+import numpy # to bypass autograd
 
 from . import _array
 
@@ -581,7 +582,7 @@ def Categorical(x, y, cov=None):
     A kernel over integers from 0 to N-1. The parameter `cov` is the covariance
     matrix of the values.
     """
-    assert np.issubdtype(x.dtype, np.integer)
+    assert np.issubdtype(x.dtype, numpy.integer)
     cov = np.array(cov, copy=False)
     assert len(cov.shape) == 2
     assert cov.shape[0] == cov.shape[1]

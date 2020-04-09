@@ -620,7 +620,10 @@ class GP:
         
         if givencov is not None:
             covblocks = [
-                [givencov[keylist[i], keylist[j]] for j in range(len(kdlist))]
+                [
+                    givencov[keylist[i], keylist[j]].reshape(ylist[i].shape + ylist[j].shape)
+                    for j in range(len(kdlist))
+                ]
                 for i in range(len(kdlist))
             ]
         else:

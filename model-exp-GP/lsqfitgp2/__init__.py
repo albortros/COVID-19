@@ -1,4 +1,5 @@
 from ._GP import *
+from ._Kernel import *
 from ._kernels import *
 from ._array import *
 
@@ -67,8 +68,9 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 #
 # Matern derivatives for half-integer nu
 # stabilize Matern kernel near r == 0, then Matern derivatives for real nu
-# (quick fix: larger eps in _softabs)
-# delete the _x as soon as they are not needed any more
+# (quick partial fix: larger eps in _softabs)
+#
+# Delete the _x as soon as they are not needed any more.
 #
 # Kronecker optimization: subclass GPKron where addx has a parameter `dim` and
 # it accepts only non-structured arrays. Or, more flexible: make a class
@@ -100,9 +102,9 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # appropriate?)
 #
 # Make a private class _KernelBase with all Kernel methods except operations.
-# Then make subclasses Kernel and KernelDeriv, where Kernel defines operations.
-# _KernelBase.diff then returns a KernelDeriv if the differentiation does not
-# produce a kernel.
+# Then make subclasses Kernel and _KernelDeriv, where Kernel defines operations.
+# _KernelBase.diff then returns a _KernelDeriv if the differentiation does not
+# produce a kernel, i.e. if the x/y derivatives are different.
 #
 # Remove key, deriv, dim mess. Use only keys as keys and remember derivatives
 # for keys. Remove array/dictionary mode, use always dictionaries.

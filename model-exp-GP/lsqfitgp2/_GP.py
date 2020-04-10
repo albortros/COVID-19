@@ -10,7 +10,7 @@ from autograd import numpy as np
 from autograd.scipy import linalg
 from autograd.builtins import isinstance
 
-from . import _kernels
+from . import _Kernel
 from . import _linalg
 from . import _array
 
@@ -138,7 +138,7 @@ class GP:
             smaller than the matrix size for the method to be convenient.
         
         """
-        if not isinstance(covfun, _kernels.Kernel):
+        if not isinstance(covfun, _Kernel.Kernel):
             raise TypeError('covariance function must be of class Kernel')
         self._covfun = covfun
         self._x = collections.defaultdict(dict)

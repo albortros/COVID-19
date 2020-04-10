@@ -6,13 +6,13 @@ import inspect
 import numpy as np
 
 sys.path = ['.'] + sys.path
-from lsqfitgp2 import _kernels
+from lsqfitgp2 import _kernels, _Kernel
 
 # Make list of Kernel concrete subclasses.
 kernels = []
 for obj in _kernels.__dict__.values():
-    if inspect.isclass(obj) and issubclass(obj, _kernels.Kernel):
-        if obj is _kernels.Kernel or obj is _kernels.IsotropicKernel:
+    if inspect.isclass(obj) and issubclass(obj, _Kernel.Kernel):
+        if obj is _Kernel.Kernel or obj is _Kernel.IsotropicKernel:
             continue
         kernels.append(obj)
 
@@ -28,7 +28,7 @@ def test_normalized():
     }
 
     for kernel in kernels:
-        if issubclass(kernel, _kernels.IsotropicKernel):
+        if issubclass(kernel, _Kernel.IsotropicKernel):
             arglist = kwargs.get(kernel, [{}])
             for args in arglist:
                 x = np.random.randn(100)

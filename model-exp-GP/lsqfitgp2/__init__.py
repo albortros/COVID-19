@@ -103,7 +103,9 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # produce a kernel, i.e. if the x/y derivatives are different.
 #
 # Remove key, deriv, dim mess. Use only keys as keys and remember derivatives
-# for keys. Remove array/dictionary mode, use always dictionaries.
+# for keys.
+#
+# Remove array/dictionary mode, use always dictionaries.
 #
 # apply isotropic kernels to multivalued fields
 # multidim support in Gibbs kernel
@@ -113,4 +115,4 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # fractional brownian motion
 # is there a smooth version of the wiener process? like, softmin(x, y)?
 # non-real input kernels (there are some examples in GPML)
-# kernel with given basis functions
+# kernel with given basis functions -> sum of rescalings

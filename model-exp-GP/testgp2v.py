@@ -1,15 +1,18 @@
 import lsqfitgp2 as lgp
-import autograd
-from autograd import numpy as np
+from matplotlib import pyplot as plt
+import numpy as np
 
-def fun(params):
-    gp = lgp.GP(lgp.ExpQuad(scale=params[0]) + lgp.ExpQuad(scale=params[1]))
-    x = np.arange(10)
+fig = plt.figure('testgp2v')
+fig.clf()
+ax = fig.subplots(1, 1)
+
+for label, kernel in [('expquad', lgp.ExpQuad()), ('cos', lgp.ExpQuad() * lgp.Cos())]:
+    gp = lgp.GP(kernel)
+    x = np.linspace(-10, 10, 1000)
     gp.addx(x)
-    y = np.sin(x)
-    return gp.marginal_likelihood(y)
+    cov = gp.prior(raw=True)
+    samples = np.random.multivariate_normal(np.zeros_like(x), cov, size=1)
+    ax.plot(x, samples.T, alpha=0.3, label=label)
 
-fungrad = autograd.grad(fun)
-
-params = np.array([3, 2], dtype=float)
-print(fungrad(params))
+ax.legend(loc='best')
+fig.show()

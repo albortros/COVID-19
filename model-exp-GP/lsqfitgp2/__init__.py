@@ -2,6 +2,7 @@ from ._GP import *
 from ._Kernel import *
 from ._kernels import *
 from ._array import *
+from ._fit import *
 
 __doc__ = """
 
@@ -95,11 +96,6 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # Kernel.diff.
 #
 # Testsuite for positivity of kernels.
-#
-# Function to maximize marginal likelihood like lsqfit.empbayes_fit. It takes
-# a function gpfactory and a prior. It estimates errors on the hyperparameters
-# by using the inverse hessian (is bfgs output from scipy.optimize
-# appropriate?)
 #
 # Make a private class _KernelBase with all Kernel methods except operations.
 # Then make subclasses Kernel and _KernelDeriv, where Kernel defines operations.

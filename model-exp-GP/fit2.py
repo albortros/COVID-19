@@ -92,27 +92,18 @@ for region in tqdm.tqdm(regions):
         gp.addx(x, 'data')
         return gp
     
-    def chisq(prior):
-        chol = linalg.cholesky(gvar.evalcov(prior), lower=True)
-        def f(x):
-            res = x - gvar.mean(prior)
-            diagres = linalg.solve_triangular(chol, res, lower=True)
-            return 1/2 * np.sum(diagres ** 2)
-        return f
-    
-    hyperprior = gvar.log(gvar.gvar([20, 2], [6, 2]))
-    hyperchisq = chisq(hyperprior)
-    def fun(hyperparams):
-        gp = makegp(hyperparams)
-        return -gp.marginal_likelihood({'data': data}) + hyperchisq(hyperparams[:2])
-    
-    p0 = np.log(np.concatenate([
-        [14, 1],
+    hyperprior = gvar.log(gvar.gvar(np.concatenate([
+        [20, 2],
         np.max(data, axis=-1) ** 2,
         np.max(data, axis=-1) ** 2
-    ]))
-    result = optimize.minimize(autograd.value_and_grad(fun), p0, jac=True)
-    hyperparams = gvar.exp(gvar.gvar(result.x, result.hess_inv))
+    ]), np.concatenate([
+        [7, 2],
+        2 * np.max(data, axis=-1) ** 2,
+        2 * np.max(data, axis=-1) ** 2
+    ])))
+    
+    result = lgp.empbayes_fit(hyperprior, makegp, {'data': data})
+    hyperparams = gvar.exp(result)
     params = gvar.BufferDict(**{
         'longscale': hyperparams[0],
         'shortscale': hyperparams[1]
@@ -124,7 +115,7 @@ for region in tqdm.tqdm(regions):
         for i, label in enumerate(labels)
     })
     
-    gp = makegp(result.x)
+    gp = makegp(gvar.mean(result))
     xpred = makex(times_pred)
     gp.addx(xpred, 'pred')
     xplot = makex(times_plot)
@@ -140,7 +131,6 @@ for region in tqdm.tqdm(regions):
     
     # Save results.
     pickle_dict[region] = dict(
-        minresult=result,
         params=params,
         y=tobufdict(data),
         table=table,

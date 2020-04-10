@@ -37,7 +37,7 @@ for region, fit in tqdm.tqdm(fits.items()):
         # data
         x = fit['table']['data']
         y = fit['y'][label]
-        rt = ax.errorbar(x, gvar.mean(y), yerr=gvar.sdev(y), fmt='.')
+        rt = ax.errorbar(x, gvar.mean(y), yerr=gvar.sdev(y), fmt='.', zorder=10)
         color = rt[0].get_color()
     
         # fit
@@ -49,7 +49,7 @@ for region, fit in tqdm.tqdm(fits.items()):
         
         # fit samples
         cov = gvar.evalcov(yfit)
-        samples = np.random.multivariate_normal(ym, cov, size=20)
+        samples = np.random.multivariate_normal(ym, cov, size=1)
         ax.plot(xfit, samples.T, '-', color=color, alpha=0.2)
 
         # Embellishments.

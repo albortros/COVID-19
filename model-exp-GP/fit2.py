@@ -8,6 +8,7 @@ import sys
 import lsqfitgp2 as lgp
 from relu import relu
 from scipy import optimize
+from autograd.scipy import linalg
 
 # Read command line.
 regions = sys.argv[1:]
@@ -52,7 +53,7 @@ for region in tqdm.tqdm(regions):
 
     # Times for plot.
     firstdate = table['data'].min()
-    dates_plot = pd.date_range(firstdate, dates_pred[-1], 300)
+    dates_plot = pd.date_range(firstdate, dates_pred[-1], 600)
     times_plot = time_to_number(dates_plot) - time_zero
     
     data_list = []
@@ -75,56 +76,61 @@ for region in tqdm.tqdm(regions):
         ])
         x['label'] = np.arange(len(labels)).reshape(-1, 1)
         x['time'] = times
-        return lgp.StructuredArray(x)
+        return x
         
     x = makex(times)
     assert data.shape == x.shape
     def makegp(hyperparams):
         p = np.exp(hyperparams)
-        timescale = p[0]
-        priorvars = p[2:] # one for each label
-        kernel = lgp.ExpQuad(scale=timescale, dim='time')
-        kernel *= lgp.Categorical(cov=np.diag(priorvars), dim='label')
+        longscale = p[0]
+        shortscale = p[1]
+        longvars = p[2:2+len(labels)]
+        shortvars = p[2+len(labels):2+2*len(labels)]
+        kernel = lgp.ExpQuad(scale=longscale, dim='time') * lgp.Categorical(cov=np.diag(longvars), dim='label')
+        kernel += lgp.ExpQuad(scale=shortscale, dim='time') * lgp.Cos(scale=shortscale, dim='time') * lgp.Categorical(cov=np.diag(shortvars), dim='label')
         gp = lgp.GP(kernel)
         gp.addx(x, 'data')
         return gp
     
-    def makedatacov(hyperparams):
-        poisson = np.where(data != 0, np.abs(data), 1)
-        rel = np.abs(data * np.exp(hyperparams[1])) ** 2
-        var = poisson + rel
-        flatvar = var.reshape(-1)
-        flatcov = np.diag(flatvar)
-        return flatcov.reshape(2 * data.shape)
+    def chisq(prior):
+        chol = linalg.cholesky(gvar.evalcov(prior), lower=True)
+        def f(x):
+            res = x - gvar.mean(prior)
+            diagres = linalg.solve_triangular(chol, res, lower=True)
+            return 1/2 * np.sum(diagres ** 2)
+        return f
     
+    hyperprior = gvar.log(gvar.gvar([20, 2], [6, 2]))
+    hyperchisq = chisq(hyperprior)
     def fun(hyperparams):
         gp = makegp(hyperparams)
-        datacov = makedatacov(hyperparams)
-        return -gp.marginal_likelihood({'data': data}, givencov={('data', 'data'): datacov})
+        return -gp.marginal_likelihood({'data': data}) + hyperchisq(hyperparams[:2])
     
     p0 = np.log(np.concatenate([
-        [14, 0.3],
+        [14, 1],
+        np.max(data, axis=-1) ** 2,
         np.max(data, axis=-1) ** 2
     ]))
     result = optimize.minimize(autograd.value_and_grad(fun), p0, jac=True)
     hyperparams = gvar.exp(gvar.gvar(result.x, result.hess_inv))
     params = gvar.BufferDict(**{
-        'timescale': hyperparams[0],
-        'relerror': hyperparams[1]
+        'longscale': hyperparams[0],
+        'shortscale': hyperparams[1]
     }, **{
-        f'priorstd_{label}': gvar.sqrt(hyperparams[2 + i])
+        f'longstd_{label}': gvar.sqrt(hyperparams[2 + i])
+        for i, label in enumerate(labels)
+    }, **{
+        f'shortstd_{label}': gvar.sqrt(hyperparams[2 + len(labels) + i])
         for i, label in enumerate(labels)
     })
-    
-    udata = gvar.gvar(data, makedatacov(result.x))
     
     gp = makegp(result.x)
     xpred = makex(times_pred)
     gp.addx(xpred, 'pred')
     xplot = makex(times_plot)
     gp.addx(xplot, 'plot')
-    pred = gp.predfromdata({'data': udata}, 'pred', keepcorr=False)
-    plot = gp.predfromdata({'data': udata}, 'plot', keepcorr=False)
+    pred = gp.predfromdata({'data': data}, 'pred', keepcorr=False)
+    plot = gp.predfromdata({'data': data}, 'plot', keepcorr=False)
     
     def tobufdict(uy):
         return gvar.BufferDict({
@@ -136,7 +142,7 @@ for region in tqdm.tqdm(regions):
     pickle_dict[region] = dict(
         minresult=result,
         params=params,
-        y=tobufdict(udata),
+        y=tobufdict(data),
         table=table,
         time_zero=time_zero,
         pred=tobufdict(pred),

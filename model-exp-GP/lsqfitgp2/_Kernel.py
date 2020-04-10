@@ -287,7 +287,10 @@ class IsotropicKernel(Kernel):
             else:
                 q = (x - y) ** 2
             if input == 'soft':
-                eps = np.finfo(x.dtype).eps
+                if np.issubdtype(x.dtype, np.inexact):
+                    eps = np.finfo(x.dtype).eps
+                else:
+                    eps = np.finfo(float).eps
                 q = np.sqrt(q + eps ** 2)
             return kernel(q, **kwargs)
         

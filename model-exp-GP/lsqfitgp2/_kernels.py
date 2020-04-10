@@ -26,7 +26,8 @@ __all__ = [
     'Gibbs',
     'Periodic',
     'Categorical',
-    'Rescaling'
+    'Rescaling',
+    'Cos'
 ]
 
 @isotropickernel
@@ -262,3 +263,7 @@ def Rescaling(x, y, stdfun=None):
     if stdfun is None:
         stdfun = lambda x: np.ones_like(x)
     return stdfun(x) * stdfun(y)
+
+@isotropickernel(input='soft')
+def Cos(r):
+    return np.cos(r)

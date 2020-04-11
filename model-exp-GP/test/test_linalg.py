@@ -2,7 +2,7 @@ import sys
 
 import autograd
 from autograd import numpy as np
-from scipy import linalg
+from scipy import linalg, stats
 import gvar
 
 sys.path = ['.'] + sys.path
@@ -20,8 +20,11 @@ class DecompTestBase:
     def randsymmat(self, n=None):
         if not n:
             n = self.randsize()
-        A = np.random.randn(n, n)
-        return A.T @ A
+        O = stats.ortho_group.rvs(n) if n > 1 else np.atleast_2d(1)
+        eigvals = np.random.uniform(1e-2, 1e2, size=n)
+        K = (O * eigvals) @ O.T
+        assert np.allclose(K, K.T)
+        return K
     
     def mat(self, s, n=None):
         if not n and not isinstance(s, np.numpy_boxes.ArrayBox):
@@ -47,8 +50,8 @@ class DecompTestBase:
         return linalg.solve(K, b)
             
     def test_solve_vec(self):
-        for _ in range(100):
-            K = self.randsymmat()
+        for n in range(1, 20):
+            K = self.randsymmat(n)
             b = self.randvec(len(K))
             sol = self.solve(K, b)
             result = self.decompclass(K).solve(b)
@@ -69,8 +72,8 @@ class DecompTestBase:
             assert np.allclose(sol, result, rtol=1e-3)
 
     def test_solve_matrix(self):
-        for _ in range(100):
-            K = self.randsymmat()
+        for n in range(1, 20):
+            K = self.randsymmat(n)
             b = self.randmat(len(K))
             sol = self.solve(K, b)
             result = self.decompclass(K).solve(b)
@@ -106,8 +109,8 @@ class DecompTestBase:
             assert np.allclose(sol, result, rtol=1e-3)
 
     def test_usolve_vec_gvar(self):
-        for _ in range(100):
-            K = self.randsymmat()
+        for n in range(1, 20):
+            K = self.randsymmat(n)
             mean = self.randvec(len(K))
             xcov = np.linspace(0, 3, len(K))
             cov = np.exp(-(xcov.reshape(-1, 1) - xcov.reshape(1, -1)) ** 2)
@@ -128,8 +131,8 @@ class DecompTestBase:
             assert np.allclose(diffmax / solmax, 0)
     
     def test_quad_vec(self):
-        for _ in range(100):
-            K = self.randsymmat()
+        for n in range(1, 20):
+            K = self.randsymmat(n)
             b = self.randvec(len(K))
             sol = b.T @ self.solve(K, b)
             result = self.decompclass(K).quad(b)
@@ -151,7 +154,7 @@ class DecompTestBase:
             assert np.allclose(sol, result, rtol=1e-4)
 
     def test_logdet(self):
-        for _ in range(100):
+        for n in range(1, 20):
             K = self.randsymmat()
             sol = np.sum(np.log(linalg.eigvalsh(K)))
             result = self.decompclass(K).logdet()
@@ -227,8 +230,12 @@ class TestReduceRank(DecompTestBase):
         if not n:
             n = self.randsize()
         self._rank = np.random.randint(1, n + 1)
-        A = np.random.randn(self._rank, n)
-        return A.T @ A
+        O = stats.ortho_group.rvs(n) if n > 1 else np.atleast_2d(1)
+        eigvals = np.random.uniform(1e-2, 1e2, size=self._rank)
+        O = O[:, :self._rank]
+        K = (O * eigvals) @ O.T
+        assert np.allclose(K, K.T)
+        return K
     
     def mat(self, s, n=None):
         if not isinstance(s, np.numpy_boxes.ArrayBox):
@@ -242,8 +249,8 @@ class TestReduceRank(DecompTestBase):
     matjac = autograd.jacobian(mat, 1)
         
     def test_logdet(self):
-        for _ in range(100):
-            K = self.randsymmat()
+        for n in range(1, 20):
+            K = self.randsymmat(n)
             sol = np.sum(np.log(np.sort(linalg.eigvalsh(K))[-self._rank:]))
             result = self.decompclass(K).logdet()
             assert np.allclose(sol, result)

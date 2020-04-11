@@ -13,6 +13,7 @@ from autograd.builtins import isinstance
 from . import _Kernel
 from . import _linalg
 from . import _array
+from . import _Deriv
 
 __all__ = [
     'GP'
@@ -329,7 +330,12 @@ class GP:
     
     def _makecovblock(self, kdkd):
         xy = [self._x[key][deriv, dim] for key, deriv, dim in kdkd]
-        kernel = self._covfun.diff(kdkd[0][1], kdkd[1][1], kdkd[0][2], kdkd[1][2])
+        def makederiv(deriv, dim):
+            if dim is not None:
+                return (deriv, dim)
+            else:
+                return deriv
+        kernel = self._covfun.diff(makederiv(kdkd[0][1], kdkd[0][2]), makederiv(kdkd[1][1], kdkd[1][2]))
         
         shape = tuple(np.prod(self._shapes[kd]) for kd in kdkd)
 

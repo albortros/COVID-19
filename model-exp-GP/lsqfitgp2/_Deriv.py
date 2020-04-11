@@ -13,12 +13,13 @@ class Deriv:
     that the variable is implicit.
     """
     
-    def __init__(self, *args):
+    def __new__(cls, *args):
         """
         Deriv(int) -> specified order derivative
         Deriv(str) -> first derivative w.r.t specified variable
         Deriv(iter of str) -> derivative w.r.t specified variables
         Deriv(iter of int, str) -> an int before a str acts as a multiplier
+        Deriv(Deriv) -> pass through
         
         Example: Deriv(['a', 'b', 'b', 'c']) is equivalent to
         Deriv(['a', 2, 'b', 'c']).
@@ -26,7 +27,9 @@ class Deriv:
         c = collections.Counter()
         if len(args) == 1:
             arg = args[0]
-            if isinstance(arg, (int, np.integer)):
+            if isinstance(arg, Deriv):
+                return arg
+            elif isinstance(arg, (int, np.integer)):
                 assert arg >= 0
                 if arg:
                     c.update({None: arg})
@@ -53,7 +56,10 @@ class Deriv:
                 raise TypeError('argument must be int, str, or iterable')
         elif len(args) != 0:
             raise ValueError(len(args))
+        assert all(c.values())
+        self = super().__new__(cls)
         self._counter = c
+        return self
     
     def __getitem__(self, key):
         return self._counter[key]
@@ -73,6 +79,15 @@ class Deriv:
     @property
     def implicit(self):
         """
-        True if the derivative is not trivial and the variable is implicit.
+        True if the derivative trivial or the variable is implicit.
         """
-        return len(self._counter) == 1 and next(iter(self._counter)) is None
+        return not self or next(iter(self._counter)) is None
+    
+    @property
+    def order(self):
+        if not self:
+            return 0
+        elif self.implicit:
+            return self[None]
+        else:
+            raise RuntimeError('derivative not implicit')

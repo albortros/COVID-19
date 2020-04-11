@@ -3,6 +3,7 @@ from ._Kernel import *
 from ._kernels import *
 from ._array import *
 from ._fit import *
+from ._Deriv import *
 
 __doc__ = """
 

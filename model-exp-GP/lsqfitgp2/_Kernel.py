@@ -5,6 +5,7 @@ from autograd import numpy as np
 from autograd.builtins import isinstance
 
 from . import _array
+from . import _Deriv
 
 __all__ = [
     'Kernel',
@@ -181,68 +182,84 @@ class Kernel:
         else:
             return NotImplemented
     
-    def diff(self, xorder=0, yorder=0, xdim=None, ydim=None):
+    def diff(self, xderiv, yderiv):
         """
         
         Return a Kernel object that computes the derivatives of this kernel.
-        The derivatives are computed automatically with `autograd`. If `xorder`
-        and `yorder` are 0, this is a no-op and returns the object itself.
+        The derivatives are computed automatically with `autograd`. If `xderiv`
+        and `yderiv` are trivial, this is a no-op.
         
         Parameters
         ----------
-        xorder, yorder : int
-            How many times the kernel is derived w.r.t the first and second
-            arguments respectively.
-        xdim, ydim : None or str
-            When the inputs are structured arrays, indicate which field to
-            derivate.
+        xderiv, yderiv : Deriv
+            A Deriv object or something that can be converted to a Deriv object.
         
         Returns
         -------
         diffkernel : Kernel
             Another Kernel object representing the derivatives of this one.
         """
-        for order in xorder, yorder:
-            if not isinstance(order, (int, np.integer)) or order < 0:
-                raise ValueError('derivative orders must be nonnegative integers')
-        for dim in xdim, ydim:
-            assert isinstance(dim, (str, type(None)))
+        xderiv = _Deriv.Deriv(xderiv)
+        yderiv = _Deriv.Deriv(yderiv)
         
-        if xorder == yorder == 0:
+        if not xderiv and not yderiv:
             return self
         
         kernel = self._kernel
         def fun(x, y):
+            # Check derivatives are ok for x and y.
             if x.dtype.names is not None:
-                for order, dim, z in zip((xorder, yorder), (xdim, ydim), (x, y)):
-                    if order and dim is None:
-                        raise ValueError('can not differentiate w.r.t structured input ({}) if dim not specified'.format(', '.join(z.dtype.names)))
-                    if order and dim not in z.dtype.names:
-                        raise ValueError('differentiation dimension "{}" missing in fields ({})'.format(dim, ', '.join(z.dtype.names)))
-                if xorder:
-                    x = _array.StructuredArray(x)
-                if yorder:
-                    y = _array.StructuredArray(y)
-                def f(a, b):
-                    if xorder:
-                        x[xdim] = a
-                    if yorder:
-                        y[ydim] = b
-                    return kernel(x, y)
-            else:
+                for deriv in xderiv, yderiv:
+                    for dim in deriv:
+                        if dim not in x.dtype.names:
+                            raise ValueError('derivative along missing field "{}"'.format(dim))
+            elif not xderiv.implicit or not yderiv.implicit:
+                raise ValueError('explicit derivatives with non-structured array')
+            
+            # Handle the non-structured case.
+            if x.dtype.names is None:
                 f = kernel
+                for _ in range(xderiv.order):
+                    f = autograd.elementwise_grad(f, 0)
+                for _ in range(yderiv.order):
+                    f = autograd.elementwise_grad(f, 1)
+                if xderiv:
+                    x = _asfloat(x)
+                if yderiv:
+                    y = _asfloat(y)
+                return f(x, y)
+                
+            # Autograd-friendly wrap of structured arrays.
+            if xderiv:
+                x = _array.StructuredArray(x)
+            if yderiv:
+                y = _array.StructuredArray(y)
             
-            for _ in range(xorder):
-                f = autograd.elementwise_grad(f, 0)
-            for _ in range(yorder):
-                f = autograd.elementwise_grad(f, 1)
+            # Wrap of kernel with derivable arguments only.
+            def f(*args):
+                i = -1
+                for i, dim in enumerate(xderiv):
+                    x[dim] = args[i]
+                for j, dim in enumerate(yderiv):
+                    y[dim] = args[1 + i + j]
+                return kernel(x, y)
             
-            if x.dtype.names is not None:
-                X = _asfloat(x[xdim]) if xorder else None
-                Y = _asfloat(y[ydim]) if yorder else None
-                return f(X, Y)
-            else:
-                return f(_asfloat(x) if xorder else x, _asfloat(y) if yorder else y)
+            # Make derivatives.
+            i = -1
+            for i, dim in enumerate(xderiv):
+                for _ in range(xderiv[dim]):
+                    f = autograd.elementwise_grad(f, i)
+            for j, dim in enumerate(yderiv):
+                for _ in range(yderiv[dim]):
+                    f = autograd.elementwise_grad(f, 1 + i + j)
+            
+            # Make argument list and call function.
+            args = []
+            for dim in xderiv:
+                args.append(_asfloat(x[dim]))
+            for dim in yderiv:
+                args.append(_asfloat(y[dim]))
+            return f(*args)
         
         return Kernel(fun, forcebroadcast=True)
             

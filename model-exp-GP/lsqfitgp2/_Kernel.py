@@ -38,7 +38,7 @@ def _effectivearray(x):
 def _asfloat(x):
     return np.array(x, copy=False, dtype=float)
 
-class Kernel:
+class _KernelBase:
     """
     
     Base class for objects representing covariance kernels. A Kernel object
@@ -151,43 +151,12 @@ class Kernel:
         assert result.shape == shape
         return result
     
-    def __add__(self, value):
-        if isinstance(value, Kernel):
-            return Kernel(lambda x, y: self._kernel(x, y) + value._kernel(x, y))
-        elif np.isscalar(value):
-            assert np.isfinite(value)
-            return Kernel(lambda x, y: self._kernel(x, y) + value)
-        else:
-            return NotImplemented
-    
-    __radd__ = __add__
-    
-    def __mul__(self, value):
-        if isinstance(value, Kernel):
-            return Kernel(lambda x, y: self._kernel(x, y) * value._kernel(x, y))
-        elif np.isscalar(value):
-            assert np.isfinite(value)
-            assert value >= 0
-            return Kernel(lambda x, y: value * self._kernel(x, y))
-        else:
-            return NotImplemented
-    
-    __rmul__ = __mul__
-    
-    def __pow__(self, value):
-        if np.isscalar(value):
-            assert np.isfinite(value)
-            assert value >= 0
-            return Kernel(lambda x, y: self._kernel(x, y) ** value)
-        else:
-            return NotImplemented
-    
     def diff(self, xderiv, yderiv):
         """
         
-        Return a Kernel object that computes the derivatives of this kernel.
-        The derivatives are computed automatically with `autograd`. If `xderiv`
-        and `yderiv` are trivial, this is a no-op.
+        Return a Kernel-like object that computes the derivatives of this
+        kernel. The derivatives are computed automatically with `autograd`. If
+        `xderiv` and `yderiv` are trivial, this is a no-op.
         
         Parameters
         ----------
@@ -196,8 +165,9 @@ class Kernel:
         
         Returns
         -------
-        diffkernel : Kernel
-            Another Kernel object representing the derivatives of this one.
+        diffkernel :
+            A Kernel-like object representing the derivatives of this one.
+            If xderiv == yderiv, it is actually another Kernel.
         """
         xderiv = _Deriv.Deriv(xderiv)
         yderiv = _Deriv.Deriv(yderiv)
@@ -261,8 +231,45 @@ class Kernel:
                 args.append(_asfloat(y[dim]))
             return f(*args)
         
-        return Kernel(fun, forcebroadcast=True)
-            
+        cls = Kernel if xderiv == yderiv else _KernelDeriv
+        return cls(fun, forcebroadcast=True)
+
+class _KernelDeriv(_KernelBase):
+    pass
+
+class Kernel(_KernelBase):
+    
+    def __add__(self, value):
+        if isinstance(value, Kernel):
+            return Kernel(lambda x, y: self._kernel(x, y) + value._kernel(x, y))
+        elif np.isscalar(value):
+            assert np.isfinite(value)
+            return Kernel(lambda x, y: self._kernel(x, y) + value)
+        else:
+            return NotImplemented
+    
+    __radd__ = __add__
+    
+    def __mul__(self, value):
+        if isinstance(value, Kernel):
+            return Kernel(lambda x, y: self._kernel(x, y) * value._kernel(x, y))
+        elif np.isscalar(value):
+            assert np.isfinite(value)
+            assert value >= 0
+            return Kernel(lambda x, y: value * self._kernel(x, y))
+        else:
+            return NotImplemented
+    
+    __rmul__ = __mul__
+    
+    def __pow__(self, value):
+        if np.isscalar(value):
+            assert np.isfinite(value)
+            assert value >= 0
+            return Kernel(lambda x, y: self._kernel(x, y) ** value)
+        else:
+            return NotImplemented
+    
 class IsotropicKernel(Kernel):
     """
     

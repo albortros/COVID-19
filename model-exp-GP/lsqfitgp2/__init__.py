@@ -80,28 +80,20 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # and a field _kronok in Kernel update automatically when doing operations with
 # kernels. Also, take a look at the pymc3 implementation.
 #
+# Block matrix solving. Example: solve a subproblem with kronecker, another
+# plain.
+#
 # sparse algorithms (after adding finite support kernels)
 # DiagLowRank for low rank matrix + multiple of the identity (multiple rank-1
 # updates to the Cholesky factor?)
 # option to compute only the diagonal of the output covariance matrix
 #
 # Decomposition of the posterior covariance matrix, or tool to take samples.
-# maybe a class for matrices?
+# Maybe a class for matrices?
 #
 # Fourier kernels. Look at Celerite's algorithms.
 #
-# Check that Kernel.diff can be chained. Design an interface to allow
-# combined derivatives on different dimensions. Maybe something like: int, str,
-# or tuple of int/str, where an integer implies repetition of the succeding
-# str. Make a class DerivSpec for parsing this since it's both in GP.addx and
-# Kernel.diff.
-#
 # Testsuite for positivity of kernels.
-#
-# Make a private class _KernelBase with all Kernel methods except operations.
-# Then make subclasses Kernel and _KernelDeriv, where Kernel defines operations.
-# _KernelBase.diff then returns a _KernelDeriv if the differentiation does not
-# produce a kernel, i.e. if the x/y derivatives are different.
 #
 # Remove key, deriv, dim mess. Use only keys as keys and remember derivatives
 # for keys.

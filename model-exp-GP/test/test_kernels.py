@@ -4,6 +4,7 @@ import sys
 import inspect
 
 import numpy as np
+import autograd
 
 sys.path = ['.'] + sys.path
 from lsqfitgp2 import _kernels, _Kernel
@@ -54,10 +55,22 @@ def test_matern_spec():
     """
     Test implementations of specific cases of nu.
     """
-    for p in range(2):
+    for p in range(3):
         nu = p + 1/2
         spec = eval('_kernels.Matern{}2'.format(1 + 2 * p))
         x, y = np.random.randn(2, 100)
         r1 = _kernels.Matern(nu=nu)(x, y)
         r2 = spec()(x, y)
+        assert np.allclose(r1, r2)
+
+def test_matern_deriv_spec():
+    """
+    Test derivatives for nu = 1/2, 3/2, 5/2.
+    """
+    for p in range(3):
+        nu = p + 1/2
+        spec = eval('_kernels.Matern{}2'.format(1 + 2 * p))
+        x, y = np.random.randn(2, 100)
+        r1 = autograd.elementwise_grad(_kernels.Matern(nu=nu))(x, y)
+        r2 = autograd.elementwise_grad(spec())(x, y)
         assert np.allclose(r1, r2)

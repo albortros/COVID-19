@@ -92,7 +92,7 @@ extend.defvjp(
 # _kv = lambda v, z: _kvp(v, z, 0)
 _kv = special_noderiv.kv
 
-@extend.primitive # TODO define derivative of this, automatical is not stable
+@extend.primitive
 def _maternp(x, p):
     poly = 1
     for k in reversed(range(p)):
@@ -100,6 +100,23 @@ def _maternp(x, p):
         poly *= c_kp1_over_ck * 2 * x
         poly += 1
     return np.exp(-x) * poly
+
+def _maternp_deriv(x, p):
+    # TODO this formula is probably not efficient to be derived with
+    # autograd. Does numpy implement this, and autograd support it?
+    if p == 0:
+        return -np.exp(-x)
+    poly = 1
+    for k in reversed(range(1, p)):
+        c_kp1_over_ck = (p - k) / ((2 * p - k - 1) * k)
+        poly = 1 + poly * c_kp1_over_ck * 2 * x
+    poly = poly / (1 - 2 * p) * x
+    return np.exp(-x) * poly
+
+extend.defvjp(
+    _maternp,
+    lambda ans, x, p: lambda g: g * _maternp_deriv(x, p)
+)
 
 @isotropickernel(input='soft')
 def Matern(r, nu=None):

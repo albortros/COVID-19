@@ -68,7 +68,6 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 
 # TODO
 #
-# Matern derivatives for half-integer nu
 # stabilize Matern kernel near r == 0, then Matern derivatives for real nu
 # (quick partial fix: larger eps in _softabs)
 #
@@ -82,6 +81,8 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 #
 # Block matrix solving. Example: solve a subproblem with kronecker, another
 # plain.
+#
+# A way to get the single contribution out of a sum of GPs.
 #
 # sparse algorithms (after adding finite support kernels)
 # DiagLowRank for low rank matrix + multiple of the identity (multiple rank-1
@@ -105,4 +106,3 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # fractional brownian motion
 # is there a smooth version of the wiener process? like, softmin(x, y)?
 # non-real input kernels (there are some examples in GPML)
-# kernel with given basis functions -> sum of rescalings

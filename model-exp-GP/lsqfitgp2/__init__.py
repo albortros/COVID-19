@@ -91,14 +91,11 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # Decomposition of the posterior covariance matrix, or tool to take samples.
 # Maybe a class for matrices?
 #
+# Check that float32 is respected.
+#
 # Fourier kernels. Look at Celerite's algorithms.
 #
 # Testsuite for positivity of kernels.
-#
-# Remove key, deriv, dim mess. Use only keys as keys and remember derivatives
-# for keys.
-#
-# Remove array/dictionary mode, use always dictionaries.
 #
 # apply isotropic kernels to multivalued fields
 # multidim support in Gibbs kernel

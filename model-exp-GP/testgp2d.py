@@ -14,7 +14,7 @@ gp.addx(xpred, 'integral')
 gp.addx(xpred, 'pred', 1)
 
 print('fit...')
-u = gp.predfromdata({('data', 1): y}, strip0=False)
+u = gp.predfromdata({'data': y}, ['integral', 'pred'])
 
 print('figure...')
 fig = plt.figure('testgp2d')
@@ -22,15 +22,15 @@ fig.clf()
 ax = fig.subplots(1, 1)
 
 colors = dict()
-for label in ('integral', 0), ('pred', 1):
+for label in u:
     m = gvar.mean(u[label])
     s = gvar.sdev(u[label])
-    patch = ax.fill_between(xpred, m - s, m + s, label=label[0], alpha=0.5)
+    patch = ax.fill_between(xpred, m - s, m + s, label=label, alpha=0.5)
     colors[label] = patch.get_facecolor()[0]
     
 print('samples...')
 for i, sample in zip(range(30), gvar.raniter(u)):
-    for label in ('integral', 0), ('pred', 1):
+    for label in u:
         ax.plot(xpred, sample[label], '-', color=colors[label])
 ax.plot(xdata, y, 'k.', label='data')
 ax.legend(loc='best')

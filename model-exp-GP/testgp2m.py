@@ -15,7 +15,7 @@ def makegp(par):
 
 def fun(par):
     gp = makegp(par)
-    gp.addx(xdata)
+    gp.addx(xdata, 'data')
     return -gp.marginal_likelihood(y)
 
 result = optimize.minimize(fun, np.log([5]), jac=autograd.grad(fun))

@@ -1,6 +1,5 @@
 from __future__ import division
 
-import collections
 import itertools
 import sys
 import builtins
@@ -29,9 +28,6 @@ def _concatenate_noop(alist, **kw):
     else:
         return np.concatenate(alist, **kw)
 
-def _unpackif1item(*tup):
-    return tup[0] if len(tup) == 1 else tup
-
 def _triu_indices_and_back(n):
     indices = np.triu_indices(n)
     q = np.empty((n, n), int)
@@ -49,8 +45,11 @@ def _noautograd(x):
     else:
         return x
 
+def _isarraylike_nostructured(x):
+    return isinstance(x, (list, np.ndarray))
+
 def _isarraylike(x):
-    return isinstance(x, (list, np.ndarray, _array.StructuredArray))
+    return _isarraylike_nostructured(x) or isinstance(x, _array.StructuredArray)
 
 def _asarray(x):
     if isinstance(x, _array.StructuredArray):
@@ -98,13 +97,11 @@ class GP:
             robust.
         checkpos : bool
             If True (default), raise a `ValueError` if the covariance matrix
-            turns out non positive within numerical error. The exception will
-            be raised the first time you call `prior`, `pred` or
-            `marginal_likelihood`. Setting `checkpos=False` can give a large
-            speed benefit if you have more than ~1000 points in the GP.
+            turns out non positive within numerical error. The check will be
+            done only if you use in some way the `gvar` prior.
         checksym : bool
-            If True (default), check the covariance matrix is symmetric. If
-            False, only half of the matrix is computed.
+            If True (default), check that the covariance matrix is symmetric.
+            If False, only half of the matrix is computed.
         checkfinite : bool
             If True (default), check that the covariance matrix does not
             contain infs or nans.
@@ -142,8 +139,8 @@ class GP:
         if not isinstance(covfun, _Kernel.Kernel):
             raise TypeError('covariance function must be of class Kernel')
         self._covfun = covfun
-        self._x = collections.defaultdict(dict)
-        # self._x: label -> (derivative order, derivative dim -> array)
+        self._x = dict() # key -> array
+        self._deriv = dict() # key -> Deriv
         self._canaddx = True
         self._checkpositive = bool(checkpos)
         decomp = {
@@ -157,201 +154,114 @@ class GP:
         self._checkfinite = bool(checkfinite)
         self._checksym = bool(checksym)
         
-    def _checkderiv(self, deriv):
-        if not isinstance(deriv, (int, np.integer)):
-            raise ValueError('derivative order {} is not an integer'.format(deriv))
-        deriv = int(deriv)
-        if deriv < 0:
-            raise ValueError('derivative order {} < 0'.format(deriv))
-        return deriv
-    
-    def _unpackderiv(self, deriv):
-        if isinstance(deriv, tuple):
-            if len(deriv) != 2:
-                raise ValueError('deriv={} is a tuple but not length 2'.format(deriv))
-            deriv, dim = deriv
-            if not isinstance(dim, str):
-                raise ValueError('second item in deriv={} must be str'.format((deriv, dim)))
-        else:
-            dim = None
-        return self._checkderiv(deriv), dim
-        
     def addx(self, x, key=None, deriv=0):
         """
         
-        Add points where the gaussian process is evaluated. The points can be
-        added in two ways: "array mode" or "dictionary mode". The mode is
-        decided the first time you call `addx`: if you just pass an array,
-        `addx` expects to receive again only an array in eventual subsequent
-        calls. If you either pass a dictionary or an array and a key, `addx`
-        will organize arrays of points in an internal dictionary.
+        Add points where the gaussian process is evaluated. The GP objects
+        keeps the various x arrays in a dictionary. If `x` is an array, you
+        have to specify its dictionary key with the `key` parameter. Otherwise,
+        you can directly pass a dictionary for `x`.
         
-        You can specify if the points are used to evaluate the gaussian process
-        itself or its derivatives by passing a nonzero `deriv` argument.
-        Array of points for different differentiation orders are kept separate,
-        both in array and in dictionary mode.
-        
-        If the input is structured arrays and you are taking a derivative, you
-        have to specify the field to differentiate against, by passing a tuple
-        (deriv, field) as `deriv`.
-        
-        If `x` is a dictionary, derivatives can also be specified directly in
-        the keys of `x` by using 2- or 3-tuples (key, deriv) or (key, deriv,
-        field) respectively.
+        To specify that on the given `x` a derivative of the process instead of
+        the process itself should be evaluated, use the parameter `deriv`.
         
         `addx` never copies the input arrays if they are numpy arrays, so if
         you change their contents before doing something with the GP, the
         change will be reflected on the result. However, after the GP has
         computed internally its covariance matrix, the x are ignored.
         
-        Once `prior`, `pred` or `marginal_likelihood` have been called, `addx`
-        raises a RuntimeError, because the covariance matrix has already been
-        computed.
+        If you use in some way the `gvar` prior, e.g. by calling `prior` or
+        `pred` using `gvar`s, you can't call `addx` any more.
         
         Parameters
         ----------
         x : array or dictionary of arrays
-            The points to be added. If a dictionary, the keys can be anything
-            except None. Tuple keys must have length 2 or 3 and are unpacked in
-            (key, deriv) or (key, deriv, dim) respectively.
-        key : *not* a tuple
+            The points to be added.
+        key :
             If `x` is an array, the dictionary key under which `x` is added.
             Can not be specified if `x` is a dictionary.
-        deriv : int or tuple
-            The derivative order. If a tuple, it is unpacked as (deriv, dim)
-            where `dim` is the field of the structured array along which to
-            take the derivative. Can not be specified if `x` is a dictionary
-            with derivative indications in the keys.
+        deriv :
+            Derivative specification. A `Deriv` object or something that can
+            be converted to `Deriv` (see Deriv's help).
         
         """
         if not self._canaddx:
-            raise RuntimeError('can not add x any more to this process because it has been used')
+            raise RuntimeError('can not add x any more to this process')
         
-        if isinstance(key, tuple):
-            raise TypeError('key can not be tuple')
-        
-        deriv, dim = self._unpackderiv(deriv)
+        deriv = _Deriv.Deriv(deriv)
         
         if _isarraylike(x):
-            if None in self._x and key is not None:
-                raise ValueError("previous x is array, can't add key")
-            if key is None and (len(self._x) >= 2 or self._x and None not in self._x):
-                raise ValueError("previous x is dictionary, can't append array")
-                
+            if key is None:
+                raise ValueError('x is array but key is None')
             x = {key: x}
-                    
         elif _isdictlike(x):
             if key is not None:
                 raise ValueError('can not specify key if x is a dictionary')
             if None in x:
-                raise ValueError('`None` key in x not allowed')
-            if len(self._x) == 1 and None in self._x:
-                raise ValueError("previous x is array, can't append dictionary")
-        
+                raise ValueError('None key in x not allowed')
         else:
             raise TypeError('x must be array or dict')
         
-        for k in x:
+        for key in x:
+            if key in self._x:
+                raise RuntimeError('key {} already in GP'.format(key))
             
-            # If the key is a tuple, unpack it.
-            if isinstance(k, tuple):
-                if len(k) not in (2, 3):
-                    raise ValueError('key {} in x is tuple but not length 2 or 3'.format(k))
-                if deriv is not None:
-                    raise ValueError('key {} in x containts derivative already specified to be {}'.format(k, deriv))
-                if len(k) == 2:
-                    key, d = k
-                elif dim is not None:
-                    raise ValueError('key {} in x contains dimension already specified to be {}'.format(k, dim))
-                else:
-                    key, d, f = k
-                    if not isinstance(f, str):
-                        raise ValueError('Third item in x key {} must be str'.format(k))
-                d = self._checkderiv(d)
-            else:
-                key, d, f = k, deriv, dim
-            
-            prev = self._x.get(key, {}).get((d, f), None)
-            if prev is not None:
-                msg = 'there is already an array for key={}, deriv={}, field={}'
-                msg = msg.format(key, d, f)
-                raise RuntimeError(msg)
-            
-            gx = x[k]
+            gx = x[key]
             
             # Convert to numpy array or StructuredArray.
             if not _isarraylike(gx):
-                raise TypeError('`x[{}]` is not array or list'.format(k))
+                raise TypeError('`x[{}]` is not array or list'.format(key))
             gx = _asarray(gx)
 
             # Check it is not empty or 0d.
             if not gx.size:
-                raise ValueError('`x[{}]` is empty'.format(k))
+                raise ValueError('`x[{}]` is empty'.format(key))
             if len(gx.shape) == 0:
-                raise ValueError('`x[{}]` is 0d'.format(k))
+                raise ValueError('`x[{}]` is 0d'.format(key))
 
             # Check that, if it has fields, they are the same fields of
             # previous arrays added.
             if hasattr(self, '_dtype'):
                 if self._dtype.names != gx.dtype.names:
-                    raise TypeError('`x[{}]` has fields {} but previous array(s) had {}'.format(self._dtype.names, gx.dtype.names))
+                    raise TypeError('`x[{}]` has fields {} but previous array(s) had {}'.format(key, self._dtype.names, gx.dtype.names))
             else:
                 self._dtype = gx.dtype
 
             # Check that the derivative specifications are compatible with the
             # array data type.
             if gx.dtype.names is None:
-                if f is not None:
-                    raise ValueError('`x[{}]` is not structured but field "{}" specified'.format(k, f))
-                if d and not np.issubdtype(gx.dtype, np.number):
-                    raise ValueError('`x[{}]` has non-numeric type `{}`, but derivatives ({}) are taken'.format(k, gx.dtype, d))
+                if not deriv.implicit:
+                    raise ValueError('x has not fields but derivative has')
             else:
-                if f is not None and f not in gx.dtype.names:
-                    raise ValueError('field "{}" not in array fields {}'.format(f, gx.dtype.names))
-                if f is None and d:
-                    raise ValueError('{} derivative(s) taken on array with fields {} but the field is not specified'.format(d, gx.dtype.names))
+                for dim in deriv:
+                    if dim not in gx.dtype.names:
+                        raise ValueError('derivative field "{}" not in x'.format(dim))
             
-            self._x[key][d, f] = gx
+            self._x[key] = gx
+            self._deriv[key] = deriv
     
-    def _makeshapes(self):
-        shapes = dict()
-        # shapes: (key, derivative order, derivative dim) -> shape of x
-        for key, d in self._x.items():
-            for (deriv, dim), x in d.items():
-                shapes[key, deriv, dim] = x.shape
-        return shapes
-
-    @property
-    def _shapes(self):
-        if not hasattr(self, '_shapesdict'):
-            self._canaddx = False
-            self._shapesdict = self._makeshapes()
-        return self._shapesdict
-    
-    def _makecovblock(self, kdkd):
-        xy = [self._x[key][deriv, dim] for key, deriv, dim in kdkd]
-        def makederiv(deriv, dim):
-            if dim is not None:
-                return (deriv, dim)
-            else:
-                return deriv
-        kernel = self._covfun.diff(makederiv(kdkd[0][1], kdkd[0][2]), makederiv(kdkd[1][1], kdkd[1][2]))
+    def _makecovblock(self, xkey, ykey):
+        x = self._x[xkey]
+        y = self._x[ykey]
+        kernel = self._covfun.diff(self._deriv[xkey], self._deriv[ykey])
         
-        shape = tuple(np.prod(self._shapes[kd]) for kd in kdkd)
+        shape = tuple(np.prod(self._x[key].shape) for key in (xkey, ykey))
 
-        if kdkd[0] == kdkd[1] and not self._checksym:
+        if xkey == ykey and not self._checksym:
             indices, back = _triu_indices_and_back(shape[0])
-            xy = [x.reshape(-1)[i] for x, i in zip(xy, indices)]
-            halfcov = kernel(*xy)
+            x = x.reshape(-1)[indices]
+            y = y.reshape(-1)[indices]
+            halfcov = kernel(x, y)
             cov = halfcov[back]
         else:
-            xy = [x.reshape(-1)[t] for x, t in zip(xy, itertools.permutations([slice(None), None]))]
-            cov = kernel(*xy)
+            x = x.reshape(-1)[:, None]
+            y = y.reshape(-1)[None, :]
+            cov = kernel(x, y)
         
         if self._checkfinite and not np.all(np.isfinite(cov)):
-            raise RuntimeError('covariance block ({}, {}) is not finite'.format(*kdkd))
-        if self._checksym and kdkd[0] == kdkd[1] and not np.allclose(cov, cov.T):
-            raise RuntimeError('covariance block ({}, {}) is not symmetric'.format(*kdkd))
+            raise RuntimeError('covariance block ({}, {}) is not finite'.format(xkey, ykey))
+        if self._checksym and xkey == ykey and not np.allclose(cov, cov.T):
+            raise RuntimeError('covariance block ({}, {}) is not symmetric'.format(xkey, ykey))
         
         return cov
     
@@ -360,25 +270,25 @@ class GP:
             raise RuntimeError('process is empty, add values with `addx`')
 
         if not hasattr(self, '_covblocks'):
-            self._covblocks = {}
-            # _covblocks : ((key, deriv, field), (key, deriv, field)) -> mat
+            self._covblocks = dict() # (key1, key2) -> matrix
         
         if (row, col) not in self._covblocks:
-            block = self._makecovblock([row, col])
+            block = self._makecovblock(row, col)
+            _noautograd(block).flags['WRITEABLE'] = False
             if row != col:
                 if self._checksym:
-                    blockT = self._makecovblock([col, row])
+                    blockT = self._makecovblock(col, row)
                     if not np.allclose(block.T, blockT):
-                        raise RuntimeError('covariance block ({}, {}) is not symmetric'.format(*kdkd))
+                        raise RuntimeError('covariance block ({}, {}) is not symmetric'.format(row, col))
                 self._covblocks[col, row] = block.T
             self._covblocks[row, col] = block
         
         return self._covblocks[row, col]
         
-    def _assemblecovblocks(self, kdlistrow, kdlistcol=None):
-        if kdlistcol is None:
-            kdlistcol = kdlistrow
-        blocks = [[self._covblock(row, col) for col in kdlistcol] for row in kdlistrow]
+    def _assemblecovblocks(self, rowkeys, colkeys=None):
+        if colkeys is None:
+            colkeys = rowkeys
+        blocks = [[self._covblock(row, col) for col in colkeys] for row in rowkeys]
         return _block_matrix(blocks)
         
     def _checkpos(self, cov):
@@ -395,93 +305,23 @@ class GP:
     def _prior(self):
         if not hasattr(self, '_priordict'):
             if self._checkpositive:
-                fullcov = self._assemblecovblocks(list(self._shapes))
+                fullcov = self._assemblecovblocks(list(self._x))
                 self._checkpos(fullcov)
             mean = {
-                kd: np.zeros(s)
-                for kd, s in self._shapes.items()
+                key: np.zeros(x.shape)
+                for key, x in self._x.items()
             }
             cov = {
-                (row, col): self._covblock(row, col).reshape(rs + ls)
-                for row, rs in self._shapes.items()
-                for col, ls in self._shapes.items()
+                (row, col): self._covblock(row, col).reshape(x.shape + y.shape)
+                for row, x in self._x.items()
+                for col, y in self._x.items()
             }
             self._priordict = gvar.gvar(mean, cov)
+            self._priordict.buf.flags['WRITEABLE'] = False
+            self._canaddx = False
         return self._priordict
     
-    def _checkkeyderiv(self, key, deriv):
-        # this method not to be used by addx, and not to check keys in
-        # dictionaries
-        if key is not None:
-            if isinstance(key, tuple):
-                raise TypeError('key can not be tuple')
-            if None in self._x:
-                raise ValueError('you have given key but x is array')
-            if not key in self._x:
-                raise KeyError(key)
-        
-        if deriv is not None:
-            deriv, dim = self._unpackderiv(deriv)
-            if deriv and dim is None and self._dtype.names is not None:
-                raise ValueError('x have fields {} but field not specified for derivative order {}'.format(self._dtype.names, deriv))
-            if key is None:
-                for k, d, f in self._shapes:
-                    if (deriv, dim) == (d, f):
-                        break
-                else:
-                    raise ValueError("there's no derivative {} on field \"{}\" in process".format(deriv, dim))
-            elif (deriv, dim) not in self._x[key]:
-                raise ValueError('no derivative {} on field "{}" for key {}'.format(deriv, dim, key))
-        else:
-            dim = None
-        
-        return key, deriv, dim
-    
-    def _getkeyderivlist(self, key, deriv, dim):
-        if key is None and deriv is None:
-            return list(self._shapes)
-        elif key is None and deriv is not None:
-            return [(k, deriv, dim) for k in self._x if (deriv, dim) in self._x[k]]
-        elif key is not None and deriv is None:
-            return [(key, d, f) for d, f in self._x[key]]
-        elif key is not None and deriv is not None:
-            return [(key, deriv, dim)]
-        assert False
-    
-    def _stripkeyderiv(self, kdlist, key, deriv, strip0, stripdim):
-        if strip0 is None:
-            strip0 = deriv is None
-        strip0 = bool(strip0)
-        stripdim = bool(stripdim)
-        
-        names = self._dtype.names is not None
-        
-        if stripdim:
-            stripf = lambda f: () if f is None else (f,)
-        else:
-            stripf = lambda f: (f,)
-        
-        if None in self._x or key is not None and deriv is None:
-            outlist = [
-                _unpackif1item(d, *stripf(f)) if names else d
-                for _, d, f in kdlist
-            ]
-            return [] if outlist in ([0], [(0, None)]) and strip0 else outlist
-        if key is not None and deriv is not None:
-            return []
-        if key is None and deriv is not None:
-            return [k for k, _, _ in kdlist]
-        if key is None and deriv is None:
-            return [
-                (k, d, *stripf(f)) if d else k
-                for k, d, f in kdlist
-            ] if strip0 else [
-                (k, d, *stripf(f))
-                for k, d, f in kdlist
-            ]
-        assert False
-
-    def prior(self, key=None, deriv=None, strip0=None, stripdim=True, raw=False):
+    def prior(self, key=None, raw=False):
         """
         
         Return an array or a dictionary of arrays of `gvar`s representing the
@@ -489,36 +329,17 @@ class GP:
         the `gvar`s stored inside are, so all the correlations are kept between
         objects returned by different calls to `prior`.
         
-        Calling without arguments returns an array or dictionary, depending
-        on the mode set by the first call to `addx`, representing the complete
-        prior. If you have specified nonzero derivatives, the returned object
-        is a dictionary where the keys are the derivative orders if in array
-        mode, and the pairs `(key, deriv)` if in dictionary mode, and
-        (key, deriv, field) if the arrays are structured to specify along which
-        field the derivative is taken.
-        
-        By specifying the `key` and `deriv` parameters you can get a subset
-        of the prior.
+        Calling without arguments returns the complete prior as a dictionary.
+        If you specify `key`, only the array for the requested key is returned.
         
         Parameters
         ----------
-        key :
-            A key corresponding to one passed to `addx`. None for all keys.
-        deriv : int >= 0 or tuple
-            One of the derivatives passed to `addx`. None for all derivatives.
-            If x has fields, `deriv` must be a tuple (deriv, field).
-        strip0 : None or bool
-            By default (None), 0 order derivatives (so, no derivative taken at
-            all) are stripped (example: `{0: array}` becomes just `array`, and
-            `{(A, 0): array1, (B, 1): array2}` becomes `{A: array1, (B, 1):
-            array2}`), unless `deriv` is specified explicitly.
-        stripdim : bool
-            If True (default), when the output is a dictionary with derivatives
-            in the keys, there are 0 order derivatives, and the arrays are
-            structured, the `None` field specification is dropped.
+        key : None, key or list of keys
+            Key(s) corresponding to one passed to `addx`. None for all keys.
         raw : bool
-            If True, instead of returning a collection of `gvar`s it returns
+            If True, instead of returning a collection of `gvar`s return
             their covariance matrix as would be returned by `gvar.evalcov`.
+            Default False.
         
         Returns
         -------
@@ -529,120 +350,90 @@ class GP:
         
         If raw=True:
         
-        cov : np.ndarray or gvar.BufferDict
+        cov : np.ndarray or dict
             The covariance matrix of the prior.
         """
         raw = bool(raw)
         
-        key, deriv, dim = self._checkkeyderiv(key, deriv)
-        kdlist = self._getkeyderivlist(key, deriv, dim)
-        assert kdlist
-        strippedkd = self._stripkeyderiv(kdlist, key, deriv, strip0, stripdim)
-        assert strippedkd or len(kdlist) == 1
+        if key is None:
+            outkeys = list(self._x)
+        elif isinstance(key, list):
+            outkeys = key
+        else:
+            outkeys = None
         
-        if raw and strippedkd:
-            return gvar.BufferDict({
-                (strippedkd[i], strippedkd[j]):
-                self._covblock(kdlist[i], kdlist[j])
-                for i in range(len(kdlist))
-                for j in range(len(kdlist))
-            })
+        if raw and outkeys is not None:
+            return {
+                (row, col):
+                self._covblock(row, col)
+                for row in outkeys
+                for col in outkeys
+            }
         elif raw:
-            return self._covblock(kdlist[0], kdlist[0])
-        elif strippedkd:
+            return self._covblock(key, key)
+        elif outkeys is not None:
             return gvar.BufferDict({
-                strippedkd[i]: self._prior[kdlist[i]]
-                for i in range(len(kdlist))
+                key: self._prior[key] for key in outkeys
             })
         else:
-            return self._prior[kdlist[0]]
+            return self._prior[key]
         
     def _flatgiven(self, given, givencov):
-        if _isarraylike(given):
-            if len(self._x.get(None, {})) == 1:
-                given = {(None, *df): given for df in self._x[None]}
+        if _isarraylike_nostructured(given):
+            if len(self._x) == 1:
+                given = {key: given for key in self._x}
                 assert len(given) == 1
                 if givencov is not None:
-                    givencov = {(k, k): givencov for k in given}
+                    assert _isarraylike_nostructured(givencov)
+                    givencov = {(key, key): givencov for key in given}
             else:
-                raise ValueError('`given` is an array but x has keys and/or multiple derivatives, provide a dictionary')
+                raise ValueError('`given` is an array but x has multiple keys, provide a dictionary')
             
-        elif not _isdictlike(given):
+        elif _isdictlike(given):
+            if givencov is not None:
+                assert _isdictlike(givencov)
+            
+        else:
             raise TypeError('`given` must be array or dict')
         
         ylist = []
-        kdlist = []
         keylist = []
-        for k, l in given.items():
-            checkdim = False
-            if isinstance(k, tuple):
-                if len(k) not in (2, 3):
-                    raise ValueError('key `{}` from `given` is a tuple but has not length 2 or 3')
-                if len(k) == 2:
-                    key, deriv = k
-                    dim = None
-                else:
-                    key, deriv, dim = k
-                    checkdim = True
-            elif k is None:
-                raise KeyError('None key in `given` not allowed')
-            elif None in self._x:
-                key = None
-                if self._dtype.names is not None:
-                    deriv, dim = k
-                    checkdim = True
-                else:
-                    deriv = k
-                    dim = None
-            else:
-                key = k
-                deriv = 0
-                dim = None
-            
-            if checkdim and deriv and not isinstance(dim, str):
-                raise ValueError('derivative field specification `{}` is not a string'.format(dim))
-            if checkdim and not deriv and dim is not None:
-                raise ValueError('derivative is 0 but field "{}" specified, must be None'.format(dim))  
+        for key, l in given.items():
             if key not in self._x:
                 raise KeyError(key)
-            if not isinstance(deriv, (int, np.integer)) or deriv < 0:
-                raise ValueError('supposed derivative order `{}` is not a nonnegative integer'.format(deriv))
-            if (deriv, dim) not in self._x[key]:
-                raise KeyError('derivative {} on field "{}" for key `{}` missing'.format(deriv, dim, key))
 
-            if not isinstance(l, (list, np.ndarray)):
-                raise TypeError('element `given[{}]` is not list or array'.format(k))
+            if not _isarraylike_nostructured(l):
+                raise TypeError('element `given[{}]` is not list or array'.format(key))
             
             l = np.array(l, copy=False)
-            shape = self._shapes[key, deriv, dim]
+            shape = self._x[key].shape
             if l.shape != shape:
-                raise ValueError('`given[{}]` has shape {} different from x shape {}'.format(k, l.shape, shape))
+                raise ValueError('`given[{}]` has shape {} different from x shape {}'.format(key, l.shape, shape))
             if l.dtype != object and not np.issubdtype(l.dtype, np.number):
-                    raise ValueError('`given[{}]` has non-numerical dtype {}'.format(k, l.dtype))
+                    raise ValueError('`given[{}]` has non-numerical dtype {}'.format(key, l.dtype))
             
             ylist.append(l.reshape(-1))
-            kdlist.append((key, deriv, dim))
-            keylist.append(k)
+            keylist.append(key)
         
         if givencov is not None:
             covblocks = [
                 [
                     givencov[keylist[i], keylist[j]].reshape(ylist[i].shape + ylist[j].shape)
-                    for j in range(len(kdlist))
+                    for j in range(len(keylist))
                 ]
-                for i in range(len(kdlist))
+                for i in range(len(keylist))
             ]
         else:
             covblocks = None
             
-        return ylist, kdlist, covblocks
+        return ylist, keylist, covblocks
     
-    def _slices(self, kdlist):
-        sizes = [np.prod(self._shapes[kd]) for kd in kdlist]
+    def _slices(self, keylist):
+        sizes = [np.prod(self._x[key].shape) for key in keylist]
         stops = np.concatenate([[0], np.cumsum(sizes)])
         return [slice(stops[i - 1], stops[i]) for i in range(1, len(stops))]
     
-    def pred(self, given, key=None, deriv=None, givencov=None, strip0=None, stripdim=True, fromdata=None, raw=False, keepcorr=None):
+    def pred(self, given, key=None, givencov=None, fromdata=None, raw=False, keepcorr=None):
         """
         
         Compute the posterior for the gaussian process, either on all points,
@@ -655,15 +446,9 @@ class GP:
         of arrays. They are properly correlated with `gvar`s returned by
         `prior` and with the input data/fit.
         
-        The input is an array or dictionary of arrays, `given`. You can pass an
-        array only if the GP is in array mode as set by `addx`. The contents of
-        `given` are either the input data or posterior. If a dictionary, the
-        keys in given must follow the same convention of the output from
-        `prior()`, i.e. `(key, deriv)`, or just `key` with implicitly `deriv =
-        0` when in dictionary mode, and `deriv` in array mode.
-        
-        The parameters `key`, `deriv` and `strip0` control what is the output
-        in the same way as in `prior()`.
+        The input is a dictionary of arrays, `given`, with keys corresponding
+        to the keys in the GP as added by `addx`. You can pass an array if
+        there is only one key in the GP.
         
         Parameters
         ----------
@@ -671,20 +456,12 @@ class GP:
             The data or fit result for some/all of the points in the GP.
             The arrays can contain either `gvar`s or normal numbers, the latter
             being equivalent to zero-uncertainty `gvar`s.
-        key, deriv :
+        key : None, key or list of keys
             If None, compute the posterior for all points in the GP (also those
-            used in `given`). Otherwise only those specified by key and/or
-            deriv. If x is a structured array, deriv must be a tuple
-            (deriv, field).
+            used in `given`). Otherwise only those specified by key.
         givencov : array or dictionary of arrays
             Covariance matrix of `given`. If not specified, the covariance
             is extracted from `given` with `gvar.evalcov(given)`.
-        strip0 : bool
-            By default, 0th order derivatives are stripped from returned
-            dictionary keys, unless `deriv` is explicitly specified to be 0.
-        stripdim : bool
-            If True (default), drop the `None` field specification for 0-th
-            order derivatives.
         fromdata : bool
             Mandatory. Specify if the contents of `given` are data or already
             a posterior.
@@ -726,22 +503,25 @@ class GP:
         if keepcorr and raw:
             raise ValueError('both keepcorr=True and raw=True')
         
-        key, deriv, dim = self._checkkeyderiv(key, deriv)
-        outkd = self._getkeyderivlist(key, deriv, dim)
-        assert outkd
-        strippedkd = self._stripkeyderiv(outkd, key, deriv, strip0, stripdim)
-        assert strippedkd or len(outkd) == 1
-        outslices = self._slices(outkd)
+        strip = False
+        if key is None:
+            outkeys = list(self._x)
+        elif isinstance(key, list):
+            outkeys = key
+        else:
+            outkeys = [key]
+            strip = True
+        outslices = self._slices(outkeys)
         
-        ylist, inkd, ycovblocks = self._flatgiven(given, givencov)
+        ylist, inkeys, ycovblocks = self._flatgiven(given, givencov)
         y = _concatenate_noop(ylist)
         
-        Kxsx = self._assemblecovblocks(outkd, inkd)
-        Kxx = self._assemblecovblocks(inkd)
+        Kxsx = self._assemblecovblocks(outkeys, inkeys)
+        Kxx = self._assemblecovblocks(inkeys)
         
         # TODO remove
         assert np.allclose(Kxx, Kxx.T)
-        assert np.allclose(Kxsx, self._assemblecovblocks(inkd, outkd).T)
+        assert np.allclose(Kxsx, self._assemblecovblocks(inkeys, outkeys).T)
         
         if ycovblocks is not None:
             ycov = _block_matrix(ycovblocks)
@@ -754,7 +534,7 @@ class GP:
         
         if raw or not keepcorr:
             
-            Kxsxs = self._assemblecovblocks(outkd)
+            Kxsxs = self._assemblecovblocks(outkeys)
 
             assert np.allclose(Kxsxs, Kxsxs.T) # TODO remove
             
@@ -772,45 +552,46 @@ class GP:
                 mean = A @ ymean
             
         else: # (keepcorr and not raw)        
-            yplist = [self._prior[kd].reshape(-1) for kd in inkd]
-            ysplist = [self._prior[kd].reshape(-1) for kd in outkd]
+            yplist = [self._prior[key].reshape(-1) for key in inkeys]
+            ysplist = [self._prior[key].reshape(-1) for key in outkeys]
             yp = _concatenate_noop(yplist)
             ysp = _concatenate_noop(ysplist)
         
-            flatout = Kxsx @ self._solver(Kxx + ycov).usolve(y - yp) + ysp
+            mat = Kxx + ycov if fromdata else Kxx
+            flatout = Kxsx @ self._solver(mat).usolve(y - yp) + ysp
         
-        if raw and strippedkd:
-            meandict = gvar.BufferDict({
-                strippedkd[i]:
-                mean[outslices[i]].reshape(self._shapes[outkd[i]])
-                for i in range(len(outkd))
-            })
+        if raw and not strip:
+            meandict = {
+                key: mean[slic].reshape(self._x[key].shape)
+                for key, slic in zip(outkeys, outslices)
+            }
             
-            covdict = gvar.BufferDict({
-                (strippedkd[i], strippedkd[j]):
-                cov[outslices[i], outslices[j]].reshape(self._shapes[outkd[i]] + self._shapes[outkd[j]])
-                for i in range(len(outkd))
-                for j in range(len(outkd))
-            })
+            covdict = {
+                (row, col):
+                cov[rowslice, colslice].reshape(self._x[row].shape + self._x[col].shape)
+                for row, rowslice in zip(outkeys, outslices)
+                for col, colslice in zip(outkeys, outslices)
+            }
             
             return meandict, covdict
             
         elif raw:
-            mean = mean.reshape(self._shapes[outkd[0]])
-            cov = cov.reshape(2 * self._shapes[outkd[0]])
+            assert len(outkeys) == 1
+            mean = mean.reshape(self._x[outkeys[0]].shape)
+            cov = cov.reshape(2 * self._x[outkeys[0]].shape)
             return mean, cov
         
         elif not keepcorr:
             flatout = gvar.gvar(mean, cov)
         
-        if strippedkd:
+        if not strip:
             return gvar.BufferDict({
-                strippedkd[i]:
-                flatout[outslices[i]].reshape(self._shapes[outkd[i]])
-                for i in range(len(outkd))
+                key: flatout[slic].reshape(self._x[key].shape)
+                for key, slic in zip(outkeys, outslices)
             })
         else:
-            return flatout.reshape(self._shapes[outkd[0]])
+            assert len(outkeys) == 1
+            return flatout.reshape(self._x[outkeys[0]].shape)
         
     def predfromfit(self, *args, **kw):
         """
@@ -837,11 +618,8 @@ class GP:
         always computes the logGBF (it's the same thing).
         
         The input is an array or dictionary of arrays, `given`. You can pass an
-        array only if the GP is in array mode as set by `addx`. The contents of
-        `given` represent the input data. If a dictionary, the keys in given
-        must follow the same convention of the output from `prior()`, i.e.
-        `(key, deriv)`, or just `key` with implicitly `deriv = 0` when in
-        dictionary mode, and `deriv` in array mode.
+        array only if the GP has only one key. The contents of `given`
+        represent the input data.
                 
         Parameters
         ----------
@@ -859,10 +637,10 @@ class GP:
             The logarithm of the marginal likelihood.
             
         """        
-        ylist, inkd, ycovblocks = self._flatgiven(given, givencov)
+        ylist, inkeys, ycovblocks = self._flatgiven(given, givencov)
         y = _concatenate_noop(ylist)
 
-        Kxx = self._assemblecovblocks(inkd)
+        Kxx = self._assemblecovblocks(inkeys)
 
         assert np.allclose(Kxx, Kxx.T) # TODO remove
         

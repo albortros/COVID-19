@@ -11,11 +11,11 @@ print('make GP...')
 gp = lgp.GP(lgp.ExpQuad(scale=3))
 gp.addx(xdata, 'data')
 gp.addx(xpred, 'pred', 0)
-gp.addx(xpred, 'pred', 1)
+gp.addx(xpred, 'predderiv', 1)
 
 print('fit...')
-umean, ucov = gp.predfromdata({'data': y}, 'pred', raw=True)
-ualt = gp.predfromdata({'data': y}, 'pred')
+umean, ucov = gp.predfromdata({'data': y}, ['pred', 'predderiv'], raw=True)
+ualt = gp.predfromdata({'data': y}, ['pred', 'predderiv'])
 
 print('figure...')
 fig = plt.figure('testgp2g')
@@ -23,23 +23,23 @@ fig.clf()
 ax = fig.subplots(1, 1)
 
 colors = dict()
-for deriv in 0, 1:
-    m = umean[deriv]
-    s = np.sqrt(np.diag(ucov[deriv, deriv]))
-    patch = ax.fill_between(xpred, m - s, m + s, label=f'deriv {deriv} (raw)', alpha=0.5)
-    colors[deriv] = patch.get_facecolor()[0]
+for label in umean:
+    m = umean[label]
+    s = np.sqrt(np.diag(ucov[label, label]))
+    patch = ax.fill_between(xpred, m - s, m + s, label=label + ' (raw)', alpha=0.5)
+    colors[label] = patch.get_facecolor()[0]
     
-for deriv in 0, 1:
-    m = gvar.mean(ualt[deriv])
-    s = gvar.sdev(ualt[deriv])
-    ax.fill_between(xpred, m - s, m + s, label=f'deriv {deriv}', alpha=0.5)
+for label in ualt:
+    m = gvar.mean(ualt[label])
+    s = gvar.sdev(ualt[label])
+    ax.fill_between(xpred, m - s, m + s, label=label, alpha=0.5)
 
 print('samples...')
-for deriv in 0, 1:
-    m = umean[deriv]
-    cov = ucov[deriv, deriv]
+for label in umean:
+    m = umean[label]
+    cov = ucov[label, label]
     samples = np.random.multivariate_normal(m, cov, size=10)
-    ax.plot(xpred, samples.T, '-', color=colors[deriv])
+    ax.plot(xpred, samples.T, '-', color=colors[label])
 
 ax.plot(xdata, y, 'k.', label='data')
 ax.legend(loc='best')

@@ -8,7 +8,7 @@ derivs = [0, 1, 2]
 
 gp = lgp.GP(lgp.ExpQuad(scale=2))
 for d in derivs:
-    gp.addx(x, deriv=d)
+    gp.addx(x, d, d)
 
 u = gp.prior()
 

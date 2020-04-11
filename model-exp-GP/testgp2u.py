@@ -28,10 +28,10 @@ xpred = np.empty((2, len(time_pred)), dtype=x.dtype)
 xpred['time'] = time_pred
 xpred['label'][0] = 0
 xpred['label'][1] = 1
-gp.addx(xpred[0], 'B')
-gp.addx(xpred[1], 'B', deriv=(1, 'time'))
+gp.addx(xpred[0], 0)
+gp.addx(xpred[1], 1, deriv=(1, 'time'))
 
-pred = gp.predfromdata({'A': data}, 'B', stripdim=False)
+pred = gp.predfromdata({'A': data}, [0, 1])
 
 fig = plt.figure('testgp2u')
 fig.clf()
@@ -41,14 +41,14 @@ colors = dict()
 for deriv in pred:
     m = gvar.mean(pred[deriv])
     s = gvar.sdev(pred[deriv])
-    polys = ax.fill_between(time_pred, m - s, m + s, alpha=0.5, label=f'deriv {deriv[0]}')
+    polys = ax.fill_between(time_pred, m - s, m + s, alpha=0.5, label=f'deriv {deriv}')
     colors[deriv] = polys.get_facecolor()[0]
 
 for _, sample in zip(range(3), gvar.raniter(pred)):
     for deriv in pred:
         ax.plot(time_pred, sample[deriv], color=colors[deriv])
 
-ax.errorbar(time, gvar.mean(data), yerr=gvar.sdev(data), fmt='.', color=colors[0, None], alpha=1)
+ax.errorbar(time, gvar.mean(data), yerr=gvar.sdev(data), fmt='.', color=colors[0], alpha=1)
 
 ax.legend(loc='best')
 ax.set_xlabel('time')

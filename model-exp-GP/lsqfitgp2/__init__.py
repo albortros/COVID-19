@@ -103,6 +103,5 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 #
 # New kernels:
 # finite support
-# fractional brownian motion
 # is there a smooth version of the wiener process? like, softmin(x, y)?
 # non-real input kernels (there are some examples in GPML)

@@ -27,7 +27,8 @@ __all__ = [
     'Periodic',
     'Categorical',
     'Rescaling',
-    'Cos'
+    'Cos',
+    'FracBrownian'
 ]
 
 @isotropickernel
@@ -284,3 +285,16 @@ def Rescaling(x, y, stdfun=None):
 @isotropickernel(input='soft')
 def Cos(r):
     return np.cos(r)
+
+@kernel
+def FracBrownian(x, y, H=1/2):
+    """
+    Fractional brownian motion. For H=1/2 (default) it is the Wiener kernel.
+    For H in (0, 1/2) it's anticorrelated, for H in (1/2, 1) it's correlated.
+    """
+    assert np.isscalar(H)
+    assert 0 < H < 1
+    assert np.all(x >= 0)
+    assert np.all(y >= 0)
+    H2 = 2 * H
+    return 1/2 * (x ** H2 + y ** H2 - np.abs(x - y) ** H2)

@@ -94,12 +94,13 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 #
 # Check that float32 is respected.
 #
+# Check that the gradient of the marginal likelihood works with derivatives.
+#
 # Fourier kernels. Look at Celerite's algorithms.
 #
 # Testsuite for positivity of kernels.
 #
-# apply isotropic kernels to multivalued fields
-# multidim support in Gibbs kernel
+# Matrix transformation of inputs.
 #
 # New kernels:
 # finite support

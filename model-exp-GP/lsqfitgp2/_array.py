@@ -32,9 +32,11 @@ class StructuredArray:
         out = super().__new__(cls)
         out.dtype = x.dtype
         out._dict = d
-        a0 = next(iter(d.values()))
-        out.shape = a0.shape
-        out.size = a0.size
+        f0 = x.dtype.names[0]
+        a0 = d[f0]
+        subshape = x.dtype.fields[f0][0].shape
+        out.shape = a0.shape[:len(a0.shape) - len(subshape)]
+        out.size = np.prod(out.shape)
         return out
     
     def __new__(cls, array):
@@ -49,23 +51,29 @@ class StructuredArray:
     def __getitem__(self, key):
         if isinstance(key, str):
             return self._dict[key]
+        elif isinstance(key, list) and all(isinstance(k, str) for k in key):
+            d = {
+                name: self._dict[name]
+                for name in key
+            }
         else:
             d = {
                 name: x[key]
                 for name, x in self._dict.items()
             }
-            return type(self)._fromarrayanddict(self, d)
+        return type(self)._fromarrayanddict(self, d)
     
     def __setitem__(self, key, val):
         assert key in self.dtype.names
         assert isinstance(val, np.ndarray)
-        assert self.dtype.fields[key][0] == val.dtype
-        assert val.shape == self.shape
+        prev = self._dict[key]
+        assert prev.dtype == val.dtype
+        assert prev.shape == val.shape
         self._dict[key] = _readonlyview(val)
     
     def reshape(self, *shape):
         d = {
-            name: x.reshape(*shape)
+            name: x.reshape(shape + self.dtype.fields[name][0].shape)
             for name, x in self._dict.items()
         }
         return type(self)._fromarrayanddict(self, d)

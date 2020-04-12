@@ -7,6 +7,7 @@ from autograd import extend
 import numpy # to bypass autograd
 
 from . import _array
+from . import _Kernel
 from ._Kernel import kernel, isotropickernel
 
 __all__ = [
@@ -31,6 +32,9 @@ __all__ = [
     'FracBrownian'
 ]
 
+def _dot(x, y):
+    return _Kernel._sum_recurse_dtype(lambda x, y: x * y, x, y)
+    
 @isotropickernel
 def Constant(r2):
     """
@@ -56,12 +60,6 @@ def ExpQuad(r2):
     """
     return np.exp(-1/2 * r2)
 
-def _dot(x, y):
-    if x.dtype.names is not None:
-        return sum(x[f] * y[f] for f in x.dtype.names)
-    else:
-        return x * y
-
 @kernel
 def Linear(x, y):
     """
@@ -84,12 +82,12 @@ def Polynomial(x, y, exponent=None, sigma0=1):
     
 # This still does not work with derivatives due to the pole of kv. I need a
 # direct calculation of x ** nu * kv(nu, x).
-_kvp = extend.primitive(special_noderiv.kvp)
-extend.defvjp(
-    _kvp,
-    lambda ans, v, z, n: lambda g: g * _kvp(v, z, n + 1),
-    argnums=[1]
-)
+# _kvp = extend.primitive(special_noderiv.kvp)
+# extend.defvjp(
+#     _kvp,
+#     lambda ans, v, z, n: lambda g: g * _kvp(v, z, n + 1),
+#     argnums=[1]
+# )
 # _kv = lambda v, z: _kvp(v, z, 0)
 _kv = special_noderiv.kv
 
@@ -239,7 +237,7 @@ def Gibbs(x, y, scalefun=lambda x: 1):
     factor = np.sqrt(2 * sx * sy / denom)
     return factor * np.exp(-(x - y) ** 2 / denom)
 
-@isotropickernel(input='soft', forcekron=True)
+@isotropickernel(input='soft')
 def Periodic(r, outerscale=1):
     """
     A gaussian kernel over a transformed periodic space. It represents a

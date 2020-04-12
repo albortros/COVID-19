@@ -14,15 +14,6 @@ __all__ = [
     'isotropickernel'
 ]
 
-def _apply2fields(transf, x):
-    if x.dtype.names is not None:
-        x = _array.StructuredArray(x)
-        for name in x.dtype.names:
-            x[name] = transf(x[name])
-        return x
-    else:
-        return transf(x)
-
 def _asarray(x):
     if isinstance(x, _array.StructuredArray):
         return x
@@ -37,6 +28,32 @@ def _effectivearray(x):
 
 def _asfloat(x):
     return np.array(x, copy=False, dtype=float)
+
+def _sum_recurse_dtype(fun, *args):
+    x = args[0]
+    if x.dtype.names is None:
+        return fun(*args)
+    else:
+        acc = 0
+        for name in x.dtype.names:
+            dtype = x.dtype.fields[name][0]
+            result = _sum_recurse_dtype(fun, *(arg[name] for arg in args))
+            if dtype.shape:
+                axis = tuple(range(-len(dtype.shape), 0))
+                result = np.sum(result, axis=axis)
+            acc = acc + result
+        # assert acc.shape == np.broadcast(*args).shape
+        # np.broadcast does not work with StructuredArray of course!
+        return acc
+
+def _transf_recurse_dtype(transf, x):
+    if x.dtype.names is None:
+        return transf(x)
+    else:
+        x = _array.StructuredArray(x)
+        for name in x.dtype.names:
+            x[name] = _transf_recurse_dtype(transf, x[name])
+        return x
 
 class _KernelBase:
     """
@@ -109,19 +126,21 @@ class _KernelBase:
         
         if isinstance(dim, str):
             def transf(x):
-                if x.dtype.names is not None:
-                    return x[dim]
-                else:
+                if x.dtype.names is None:
                     raise ValueError('kernel called on non-structured array but dim="{}"'.format(dim))
+                elif x.dtype.fields[dim][0].shape:
+                    return x[[dim]]
+                else:
+                    return x[dim]
         
         if loc != 0:
             transf1 = transf
-            transf = lambda x: _apply2fields(lambda x: x - loc, transf1(x))
+            transf = lambda x: _transf_recurse_dtype(lambda x: x - loc, transf1(x))
         
         if scale != 1:
             transf2 = transf
-            transf = lambda x: _apply2fields(lambda x: x / scale, transf2(x))
-                
+            transf = lambda x: _transf_recurse_dtype(lambda x: x / scale, transf2(x))
+        
         if dim is None and forcekron:
             def _kernel(x, y):
                 x = transf(x)
@@ -183,6 +202,8 @@ class _KernelBase:
                     for dim in deriv:
                         if dim not in x.dtype.names:
                             raise ValueError('derivative along missing field "{}"'.format(dim))
+                        if not np.issubdtype(x.dtype.fields[dim][0], np.number):
+                            raise TypeError('derivative along non-numeric field "{}"'.format(dim))
             elif not xderiv.implicit or not yderiv.implicit:
                 raise ValueError('explicit derivatives with non-structured array')
             
@@ -286,8 +307,7 @@ class IsotropicKernel(Kernel):
         ----------
         kernel : callable
             A function taking one argument `r2` which is the squared distance
-            between x and y, plus optionally keyword arguments. `r2` is a 1D
-            numpy array.
+            between x and y, plus optionally keyword arguments.
         input : str
             See "input options" below.
         **kw :
@@ -306,10 +326,7 @@ class IsotropicKernel(Kernel):
             raise ValueError('input option `{}` not valid, must be one of {}'.format(input, allowed_input))
         
         def function(x, y, **kwargs):
-            if x.dtype.names is not None:
-                q = sum((x[f] - y[f]) ** 2 for f in x.dtype.names)
-            else:
-                q = (x - y) ** 2
+            q = _sum_recurse_dtype(lambda x, y: (x - y) ** 2, x, y)
             if input == 'soft':
                 if np.issubdtype(x.dtype, np.inexact):
                     eps = np.finfo(x.dtype).eps

@@ -10,17 +10,16 @@ xpred1d = np.linspace(-10, 10, 50)
 
 def makexy(x1d, y1d):
     xy = np.empty((len(x1d), len(y1d)), dtype=[
-        ('x', float),
-        ('y', float)
+        ('xy', float, 2)
     ])
     x, y = np.meshgrid(x1d, y1d)
-    xy['x'] = x
-    xy['y'] = y
+    xy['xy'][..., 0] = x
+    xy['xy'][..., 1] = y
     return xy
     
 xdata = makexy(xdata1d, xdata1d)
 xpred = makexy(xpred1d, xpred1d)
-y = np.cos(xdata['x']) * np.cos(xdata['y'])
+y = np.cos(xdata['xy'][..., 0]) * np.cos(xdata['xy'][..., 1])
 
 gp = lgp.GP(lgp.ExpQuad(scale=3), checkpos=False, solver='gersh')
 gp.addx(xdata.reshape(-1), 'pere')
@@ -41,7 +40,7 @@ fig = plt.figure('testgp2s')
 fig.clf()
 ax = fig.add_subplot(111, projection='3d')
 
-ax.scatter(xdata['x'].reshape(-1), xdata['y'].reshape(-1), y.reshape(-1), color='black')
-ax.plot_surface(xpred['x'], xpred['y'], sample, alpha=0.8)
+ax.scatter(xdata['xy'][..., 0].reshape(-1), xdata['xy'][..., 1].reshape(-1), y.reshape(-1), color='black')
+ax.plot_surface(xpred['xy'][..., 0], xpred['xy'][..., 1], sample, alpha=0.8)
 
 fig.show()

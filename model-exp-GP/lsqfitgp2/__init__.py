@@ -109,6 +109,5 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # Apply kernels over a subset of the fields.
 #
 # New kernels:
-# finite support
 # is there a smooth version of the wiener process? like, softmin(x, y)?
 # non-real input kernels (there are some examples in GPML)

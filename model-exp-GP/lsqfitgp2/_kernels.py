@@ -29,7 +29,8 @@ __all__ = [
     'Categorical',
     'Rescaling',
     'Cos',
-    'FracBrownian'
+    'FracBrownian',
+    'PPKernel'
 ]
 
 def _dot(x, y):
@@ -296,3 +297,28 @@ def FracBrownian(x, y, H=1/2):
     assert np.all(y >= 0)
     H2 = 2 * H
     return 1/2 * (x ** H2 + y ** H2 - np.abs(x - y) ** H2)
+
+@isotropickernel(input='soft')
+def PPKernel(r, q=0, D=1):
+    """
+    Piecewise polynomial kernel. An isotropic kernel with finite support.
+    The covariance is nonzero only when the distance between the points is less
+    than 1. Parameter `q` in (0, 1, 2, 3) sets the differentiability, while
+    parameter `D` sets the maximum dimensionality the kernel can be used with.
+    Default is q=0 (non derivable), D=1 (can be used only in 1D).
+    """
+    assert isinstance(q, (int, np.integer))
+    assert 0 <= q <= 3
+    assert isinstance(D, (int, np.integer))
+    assert D >= 1
+    j = int(np.floor(D / 2)) + q + 1
+    x = 1 - r
+    if q == 0:
+        poly = 1
+    elif q == 1:
+        poly = 1 + r * (j + 1)
+    elif q == 2:
+        poly = 1 + r * (j + 2 + r * ((1/3 * j +  4/3) * j + 1))
+    elif q == 3:
+        poly = 1 + r * (j + 3 + r * ((2/5 * j + 12/5) * j + 3 + r * (((1/15 * j + 3/5) * j + 23/15) * j + 1)))
+    return np.where(x > 0, x ** (j + q) * poly, 0)

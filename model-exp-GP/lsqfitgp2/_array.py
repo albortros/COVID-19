@@ -8,6 +8,9 @@ __all__ = [
 ]
 
 def _readonlyview(x):
+    if isinstance(x, StructuredArray):
+        return x
+    
     if builtins.isinstance(x, np.numpy_boxes.ArrayBox):
         a = x._value
     else:
@@ -22,9 +25,22 @@ def _readonlyview(x):
         x._value = b
         return x
 
+def _wrapifstructured(x):
+    if x.dtype.names is None:
+        return x
+    else:
+        return StructuredArray(x)
+
 class StructuredArray:
     """
-    Autograd-friendly imitation of a numpy structured array.
+    Autograd-friendly imitation of a numpy structured array. It behaves like
+    a read-only numpy array, with the exception that you can set a whole field.
+    Example:
+    
+    >>> a = np.empty(3, dtype=[('f', float), ('g', float)])
+    >>> a = StructuredArray(a)
+    >>> a['f'] = np.arange(3) # this is allowed
+    >>> a[1] = (0.3, 0.4) # this raises an error
     """
     
     @classmethod
@@ -43,7 +59,7 @@ class StructuredArray:
         assert isinstance(array, (np.ndarray, cls))
         assert array.dtype.names is not None
         d = {
-            name: _readonlyview(array[name])
+            name: _readonlyview(_wrapifstructured(array[name]))
             for name in array.dtype.names
         }
         return cls._fromarrayanddict(array, d)
@@ -67,11 +83,14 @@ class StructuredArray:
         assert key in self.dtype.names
         assert isinstance(val, np.ndarray)
         prev = self._dict[key]
+        # TODO support casting and broadcasting
         assert prev.dtype == val.dtype
         assert prev.shape == val.shape
         self._dict[key] = _readonlyview(val)
     
     def reshape(self, *shape):
+        if len(shape) == 1 and isinstance(shape[0], tuple):
+            shape = shape[0]
         d = {
             name: x.reshape(shape + self.dtype.fields[name][0].shape)
             for name, x in self._dict.items()

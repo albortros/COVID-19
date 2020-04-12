@@ -61,6 +61,10 @@ variance and roughly unit lengthscale.
         A periodic gaussian kernel, represents a periodic function.
     Categorical :
         Arbitrary covariance matrix over a finite set of values.
+    Cos:
+        A cosine.
+    FracBrownian :
+        Fractional Brownian motion, like Wiener but with correlations.
 
 Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 
@@ -101,6 +105,8 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # Testsuite for positivity of kernels.
 #
 # Matrix transformation of inputs.
+#
+# Apply kernels over a subset of the fields.
 #
 # New kernels:
 # finite support

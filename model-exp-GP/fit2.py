@@ -87,7 +87,7 @@ for region in tqdm.tqdm(regions):
         longvars = p[2:2+len(labels)]
         shortvars = p[2+len(labels):2+2*len(labels)]
         kernel = lgp.ExpQuad(scale=longscale, dim='time') * lgp.Categorical(cov=np.diag(longvars), dim='label')
-        kernel += lgp.ExpQuad(scale=shortscale, dim='time') * lgp.Cos(scale=shortscale, dim='time') * lgp.Categorical(cov=np.diag(shortvars), dim='label')
+        kernel += lgp.ExpQuad(scale=shortscale, dim='time') * lgp.Cos(scale=shortscale / np.pi, dim='time') * lgp.Categorical(cov=np.diag(shortvars), dim='label')
         gp = lgp.GP(kernel)
         gp.addx(x, 'data')
         return gp

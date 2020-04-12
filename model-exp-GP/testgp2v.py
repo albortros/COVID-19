@@ -15,7 +15,8 @@ kernels = [
     ['fb1/2', lgp.FracBrownian()],
     ['fb1/10', lgp.FracBrownian(H=1/10)],
     ['fb9/10', lgp.FracBrownian(H=9/10)],
-    ['fb0.99', lgp.FracBrownian(H=99/100)]
+    ['fb0.99', lgp.FracBrownian(H=99/100)],
+    ['NN', lgp.NNKernel(loc=10)]
 ]
 
 for label, kernel in kernels:

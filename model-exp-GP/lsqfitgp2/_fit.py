@@ -52,6 +52,32 @@ def _unflat(x, original, expand_transf):
         return d
 
 def empbayes_fit(hyperprior, gpfactory, data):
+    """
+    Empirical bayes fit. Maximizes the marginal likelihood of the data with
+    a gaussian process model that depends on hyperparameters.
+    
+    The function `gpfactory` must build and return a GP object using the
+    hyperparameters. Although `hyperprior` must be a collection of `gvar`s,
+    `gpfactory` receives ordinary scalars, and must operate on them using
+    `autograd`'s numpy.
+    
+    Parameters
+    ----------
+    hyperprior : array or dictionary of arrays of gvars
+        The prior for the hyperparameters.
+    gpfactory : callable
+        A function with signature gpfactory(hyperparams) -> GP object.
+    data : dictionary
+        Dictionary of data that is passed to GP.marginal_likelihood on the
+        GP object returned by `gpfactory`.
+    
+    Returns
+    -------
+    hyperparams : array or dictionary of arrays of gvars
+        The hyperparameters that maximize the marginal likelihood. The
+        covariance matrix is computed as the inverse of the hessian of the
+        marginal likelihood.
+    """
     assert isinstance(data, (dict, gvar.BufferDict))
     assert callable(gpfactory)
     

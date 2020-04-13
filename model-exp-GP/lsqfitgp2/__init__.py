@@ -65,6 +65,8 @@ variance and roughly unit lengthscale.
         A cosine.
     FracBrownian :
         Fractional Brownian motion, like Wiener but with correlations.
+    PPKernel :
+        Finite support isotropic kernel.
 
 Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 

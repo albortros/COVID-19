@@ -56,6 +56,7 @@ for region in tqdm.tqdm(regions):
     dates_plot = pd.date_range(firstdate, dates_pred[-1], 600)
     times_plot = time_to_number(dates_plot) - time_zero
     
+    # Data.
     data_list = []
     for label in labels:
         if label == 'nuovi_deceduti':
@@ -69,44 +70,56 @@ for region in tqdm.tqdm(regions):
             data_list.append(table[label].values)
     data = np.stack(data_list)
     
-    def makex(times):
+    def makex(times, hyperparams):
+        delay = hyperparams[3+2*len(labels)]
         x = np.empty((len(labels), len(times)), dtype=[
             ('time', float),
             ('label', int)
         ])
         x['label'] = np.arange(len(labels)).reshape(-1, 1)
-        x['time'] = times
+        x = lgp.StructuredArray(x)
+        x['time'] = np.stack([times, times - delay])
         return x
         
-    x = makex(times)
-    assert data.shape == x.shape
     def makegp(hyperparams):
-        p = np.exp(hyperparams)
+        p = np.exp(hyperparams) # p stands for positive
         longscale = p[0]
         shortscale = p[1]
         longvars = p[2:2+len(labels)]
         shortvars = p[2+len(labels):2+2*len(labels)]
-        kernel = lgp.ExpQuad(scale=longscale, dim='time') * lgp.Categorical(cov=np.diag(longvars), dim='label')
+        longcorr = np.tanh(hyperparams[2+2*len(labels)])
+        
+        sigmax = np.array([[0, 1], [1, 0]])
+        longcov = np.diag(longvars) + sigmax * longcorr * np.prod(np.sqrt(longvars))
+        kernel = lgp.ExpQuad(scale=longscale, dim='time') * lgp.Categorical(cov=longcov, dim='label')
         kernel += lgp.ExpQuad(scale=shortscale, dim='time') * lgp.Cos(scale=shortscale / np.pi, dim='time') * lgp.Categorical(cov=np.diag(shortvars), dim='label')
+        
         gp = lgp.GP(kernel)
-        gp.addx(x, 'data')
+        gp.addx(makex(times, hyperparams), 'data')
+        
         return gp
     
     hyperprior = gvar.log(gvar.gvar(np.concatenate([
         [20, 2],
         np.max(data, axis=-1) ** 2,
-        np.max(data, axis=-1) ** 2
+        np.max(data, axis=-1) ** 2,
     ]), np.concatenate([
-        [7, 2],
+        [7, 1],
         2 * np.max(data, axis=-1) ** 2,
         2 * np.max(data, axis=-1) ** 2
     ])))
+    hyperprior = np.concatenate([
+        hyperprior,
+        [gvar.arctanh(gvar.gvar(0, 1)), gvar.gvar(0, 10)]
+    ])
     
     result = lgp.empbayes_fit(hyperprior, makegp, {'data': data})
     hyperparams = gvar.exp(result)
     params = gvar.BufferDict(**{
         'longscale': hyperparams[0],
-        'shortscale': hyperparams[1]
+        'shortscale': hyperparams[1],
+        'longcorr': gvar.tanh(result[2 + 2 * len(labels)]),
+        'delay': result[3 + 2 * len(labels)]
     }, **{
         f'longstd_{label}': gvar.sqrt(hyperparams[2 + i])
         for i, label in enumerate(labels)
@@ -115,10 +128,11 @@ for region in tqdm.tqdm(regions):
         for i, label in enumerate(labels)
     })
     
-    gp = makegp(gvar.mean(result))
-    xpred = makex(times_pred)
+    result_mean = gvar.mean(result)
+    gp = makegp(result_mean)
+    xpred = makex(times_pred, result_mean)
     gp.addx(xpred, 'pred')
-    xplot = makex(times_plot)
+    xplot = makex(times_plot, result_mean)
     gp.addx(xplot, 'plot')
     pred = gp.predfromdata({'data': data}, 'pred', keepcorr=False)
     plot = gp.predfromdata({'data': data}, 'plot', keepcorr=False)

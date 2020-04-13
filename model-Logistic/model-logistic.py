@@ -58,12 +58,12 @@ def logistic_derivative(x,Par):
 url = "https://raw.githubusercontent.com/pcm-dpc/COVID-19/master/dati-andamento-nazionale/dpc-covid19-ita-andamento-nazionale.csv"
 dF = pd.read_csv(url, parse_dates=['data'])
 
-LIM=43
+LIM=47
 iteration=0
 for TYPE in TypeOfData:
 
     df = dF.loc[:,['data',TYPE]]
-    #df = dF.loc[:LIM,['data',TYPE]]
+#    df = dF.loc[:LIM,['data',TYPE]]
     # Formato dati csv
     FMT = '%Y-%m-%dT%H:%M:%S'
     # Formato dati salvataggio

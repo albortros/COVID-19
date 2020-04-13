@@ -240,7 +240,7 @@ sol = int(fsolve(lambda x : gompertz(x,gompertz_Par) - int(gompertz_Par[2]),gomp
 exp_fit = curve_fit(exponential_model,x,y,p0=[0.005,0.17,50])
 
 #pred_x = list(range(max(x),sol))         #Qui sto cercando la fine dell'epidemia (in questo caso è troppo lontana con gompletz)
-pred_x = list(range(max(x),int(1.3*gompertz_Par[1])))
+pred_x = list(range(max(x),int(1.5*gompertz_Par[1])))
 xTOT= x+pred_x
 
 simulated_par_gompertz   = np.random.multivariate_normal(gompertz_Par, gompertz_Cov, size=SIZE)

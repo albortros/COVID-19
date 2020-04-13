@@ -3,7 +3,6 @@ from matplotlib import pyplot as plt
 from autograd import numpy as np
 import gvar
 from scipy import optimize
-import autograd
 import time as systime
 
 time = np.arange(21)
@@ -26,37 +25,34 @@ data = gvar.gvar(data_mean, np.full_like(data_mean, data_error))
 
 x = lgp.StructuredArray(x)
 def makegp(params):
-    time_scale, label_scale = np.exp(params[:2])
-    delay = params[2]
-    kernel = lgp.RatQuad(scale=time_scale, dim='time', alpha=1)
-    kernel *= lgp.ExpQuad(scale=label_scale, dim='label')
+    kernel = lgp.RatQuad(scale=params['time_scale'], dim='time', alpha=1)
+    kernel *= lgp.ExpQuad(scale=params['label_scale'], dim='label')
     gp = lgp.GP(kernel)
-    x['time'] = np.array([time, time - delay])
+    x['time'] = np.array([time, time - params['delay']])
     gp.addx(x, 'A')
     return gp
 
-def fun(params):
-    gp = makegp(params)
-    return -gp.marginal_likelihood({'A': data})
-
 start = systime.time()
-result = optimize.minimize(autograd.value_and_grad(fun), [2, 2, 10], jac=True)
+hyperprior = gvar.BufferDict({
+    'log(time_scale)': gvar.log(gvar.gvar(10, 10)),
+    'log(label_scale)': gvar.log(gvar.gvar(10, 10)),
+    'delay': gvar.gvar(10, 20)
+})
+params = lgp.empbayes_fit(hyperprior, makegp, {'A': data})
 end = systime.time()
 
-params = gvar.gvar(result.x, result.hess_inv)
-print(result)
 print('minimization time = {:.2g} sec'.format(end - start))
-print('time scale = {}'.format(gvar.exp(params[0])))
-corr = lgp.ExpQuad(scale=np.exp(result.x[1]))(0, 1)
-print('correlation = {:.3g} (equiv. scale = {})'.format(corr, params[1]))
-print('delay = {}'.format(params[2]))
+print('time scale = {}'.format(params['time_scale']))
+corr = lgp.ExpQuad(scale=gvar.mean(params['label_scale']))(0, 1)
+print('correlation = {:.3g} (equiv. scale = {})'.format(corr, params['label_scale']))
+print('delay = {}'.format(params['delay']))
 
-gp = makegp(result.x)
+gp = makegp(gvar.mean(params))
 
 xpred = np.empty((2, 100), dtype=x.dtype)
 time_pred = np.linspace(np.min(time), np.max(time) + 1.5 * (np.max(time) - np.min(time)), xpred.shape[1])
 xpred['time'][0] = time_pred
-xpred['time'][1] = time_pred - result.x[2]
+xpred['time'][1] = time_pred - gvar.mean(params['delay'])
 xpred['label'][0] = 0
 xpred['label'][1] = 1
 gp.addx(xpred, 'B')

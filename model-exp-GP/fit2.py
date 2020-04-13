@@ -10,6 +10,8 @@ from relu import relu
 from scipy import optimize
 from autograd.scipy import linalg
 
+gvar.BufferDict.add_distribution('arctanh', gvar.tanh)
+
 # Read command line.
 regions = sys.argv[1:]
 #regions = ['Abruzzo', 'Basilicata', 'Lombardia', 'Veneto']
@@ -71,23 +73,21 @@ for region in tqdm.tqdm(regions):
     data = np.stack(data_list)
     
     def makex(times, hyperparams):
-        delay = hyperparams[3+2*len(labels)]
         x = np.empty((len(labels), len(times)), dtype=[
             ('time', float),
             ('label', int)
         ])
         x['label'] = np.arange(len(labels)).reshape(-1, 1)
         x = lgp.StructuredArray(x)
-        x['time'] = np.stack([times, times - delay])
+        x['time'] = np.stack([times, times - hyperparams['delay']])
         return x
         
     def makegp(hyperparams):
-        p = np.exp(hyperparams) # p stands for positive
-        longscale = p[0]
-        shortscale = p[1]
-        longvars = p[2:2+len(labels)]
-        shortvars = p[2+len(labels):2+2*len(labels)]
-        longcorr = np.tanh(hyperparams[2+2*len(labels)])
+        longscale = hyperparams['longscale']
+        shortscale = hyperparams['shortscale']
+        longvars = hyperparams['longvars']
+        shortvars = hyperparams['shortvars']
+        longcorr = hyperparams['longcorr']
         
         sigmax = np.array([[0, 1], [1, 0]])
         longcov = np.diag(longvars) + sigmax * longcorr * np.prod(np.sqrt(longvars))
@@ -99,40 +99,38 @@ for region in tqdm.tqdm(regions):
         
         return gp
     
-    hyperprior = gvar.log(gvar.gvar(np.concatenate([
-        [20, 2],
-        np.max(data, axis=-1) ** 2,
-        np.max(data, axis=-1) ** 2,
-    ]), np.concatenate([
-        [7, 1],
-        2 * np.max(data, axis=-1) ** 2,
-        2 * np.max(data, axis=-1) ** 2
-    ])))
-    hyperprior = np.concatenate([
-        hyperprior,
-        [gvar.arctanh(gvar.gvar(0, 1)), gvar.gvar(0, 10)]
-    ])
+    # Prior for hyperparameters.
+    maxdata = np.max(data, axis=-1) ** 2
+    hyperprior = {
+        'log(longscale)': gvar.log(gvar.gvar(20, 7)),
+        'log(shortscale)': gvar.log(gvar.gvar(2, 1)),
+        'arctanh(longcorr)': gvar.arctanh(gvar.gvar(0, 1)),
+        'delay': gvar.gvar(0, 10),
+        'log(longvars)': gvar.log(gvar.gvar(maxdata, 2 * maxdata)),
+        'log(shortvars)': gvar.log(gvar.gvar(maxdata, 2 * maxdata))
+    }
     
-    result = lgp.empbayes_fit(hyperprior, makegp, {'data': data})
-    hyperparams = gvar.exp(result)
+    hyperparams = lgp.empbayes_fit(hyperprior, makegp, {'data': data})
     params = gvar.BufferDict(**{
-        'longscale': hyperparams[0],
-        'shortscale': hyperparams[1],
-        'longcorr': gvar.tanh(result[2 + 2 * len(labels)]),
-        'delay': result[3 + 2 * len(labels)]
+        k: hyperparams[k] for k in [
+            'longscale',
+            'shortscale',
+            'longcorr',
+            'delay'
+        ]
     }, **{
-        f'longstd_{label}': gvar.sqrt(hyperparams[2 + i])
+        f'longstd_{label}': gvar.sqrt(hyperparams['longvars'][i])
         for i, label in enumerate(labels)
     }, **{
-        f'shortstd_{label}': gvar.sqrt(hyperparams[2 + len(labels) + i])
+        f'shortstd_{label}': gvar.sqrt(hyperparams['shortvars'][i])
         for i, label in enumerate(labels)
     })
     
-    result_mean = gvar.mean(result)
-    gp = makegp(result_mean)
-    xpred = makex(times_pred, result_mean)
+    hpmean = gvar.mean(hyperparams)
+    gp = makegp(hpmean)
+    xpred = makex(times_pred, hpmean)
     gp.addx(xpred, 'pred')
-    xplot = makex(times_plot, result_mean)
+    xplot = makex(times_plot, hpmean)
     gp.addx(xplot, 'plot')
     pred = gp.predfromdata({'data': data}, 'pred', keepcorr=False)
     plot = gp.predfromdata({'data': data}, 'plot', keepcorr=False)

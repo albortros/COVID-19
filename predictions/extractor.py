@@ -78,12 +78,12 @@ def guariti_o_deceduti(df):
     x = tryornone([
         lambda: df['guariti_o_deceduti'],
         lambda: df['dimessi_guariti'] + df['deceduti'],
-        lambda: df['totale_casi'] - df['totale_attualmente_positivi']
+        lambda: df['totale_casi'] - df['totale_positivi']
     ])
     dx = tryornone([
         lambda: df['std_guariti_o_deceduti'],
         lambda: np.hypot(df['std_dimessi_guariti'], df['std_deceduti']),
-        lambda: np.hypot(df['std_totale_casi'], df['std_totale_attualmente_positivi'])
+        lambda: np.hypot(df['std_totale_casi'], df['std_totale_positivi'])
     ])
     return x, dx
 

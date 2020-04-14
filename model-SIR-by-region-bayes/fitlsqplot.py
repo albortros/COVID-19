@@ -41,15 +41,17 @@ for region, fit in tqdm.tqdm(fits.items()):
     xfit = pd.to_datetime(np.linspace(left, right + (right - left), 100))
     xfit_num = fitlsqdefs.time_to_number(xfit) - fit['time_zero']
     
-    # Compute I, R at given times.
+    # Compute I, H, D at given times.
     p = fitlsqdefs.rescale_sdev(fit['p'], np.sqrt(fit['chi2'] / fit['dof']))
     yfit = fitlsqdefs.fcn(dict(times=xfit_num, min_pop=fit['min_pop']), p)
     
     # Plot.
-    for label in 'I', 'R':
+    for label in 'I', 'D', 'H':
+        label_hr = dict(I='infected (I)', D='dead (D)', H='healed (H)')[label]
+        
         # data
         y = fit['y'][label]
-        rt = ax.errorbar(x, gvar.mean(y), yerr=gvar.sdev(y), fmt='.', label=label)
+        rt = ax.errorbar(x, gvar.mean(y), yerr=gvar.sdev(y), fmt='.', label=label_hr)
         color = rt[0].get_color()
     
         # fit
@@ -57,7 +59,7 @@ for region, fit in tqdm.tqdm(fits.items()):
         ax.fill_between(xfit, ym - ys, ym + ys, color=color, alpha=0.3)
 
     # Embellishments.
-    top = max(np.max(gvar.mean(fit['y'][label])) for label in ['I', 'R'])
+    top = max(np.max(gvar.mean(fit['y'][label])) for label in ['I', 'D', 'H'])
     top *= 1.2
     top = max(1, top)
     ax.set_yscale('symlog', linthreshy=top, subsy=np.arange(2, 10))
@@ -71,7 +73,9 @@ for region, fit in tqdm.tqdm(fits.items()):
 $log_{{10}}$(population) = {log10(population)}
 initial I = {p["I0_pop"]} people
 $R_0$ = {p["R0"]}
-$\\gamma^{{-1}}$ = {1 / p["lambda"]} days
+$\\gamma^{{-1}} (I \\rightarrow DH)$ = {1 / p["gamma"]} days
+$I \\rightarrow H$ = {1 / p["yupsilon"]} days
+$I \\rightarrow D$ = {1 / (p["gamma"] - p["yupsilon"])} days
 $\\sqrt{{\\chi^2 / \\mathrm{{dof}}}}$ = {np.sqrt(fit["chi2"] / fit["dof"]):.1f}"""
     ax.annotate(
         brief, (1, 0), xytext=(-8, 8),

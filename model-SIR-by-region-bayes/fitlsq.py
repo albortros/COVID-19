@@ -37,7 +37,7 @@ if os.getenv('LASTDATE'):
     lastdate += pd.Timedelta(23, 'H')
 else:
     lastdate = pd.Timestamp.today()
-    ok = lastdate - lastdateindata < pd.Timedelta(1, 'D')
+    ok = lastdate - lastdateindata < pd.Timedelta(1, 'D') + pd.Timedelta(1, 'H')
 if not ok:
     raise ValueError(f'Data is not update, last date in data is {lastdateindata}, requested date is {lastdate}')
 data = data[data['data'] <= lastdate]
@@ -64,14 +64,16 @@ for region in tqdm.tqdm(regions if regions else data['denominazione_regione'].un
 
     # Data.
     I_data = table['totale_positivi'].values
-    R_data = table['totale_casi'].values - I_data
+    H_data = table['dimessi_guariti'].values
+    D_data = table['deceduti'].values
     I_data = fitlsqdefs.make_poisson_data(I_data)
-    R_data = fitlsqdefs.make_poisson_data(R_data)
-    fitdata = gvar.BufferDict(I=I_data, R=R_data)
+    H_data = fitlsqdefs.make_poisson_data(H_data)
+    D_data = fitlsqdefs.make_poisson_data(D_data)
+    fitdata = gvar.BufferDict(I=I_data, D=D_data, H=H_data)
     
     # Population prior.
     totpop = regioninfo[regioninfo['denominazione_regione'] == region]['popolazione'].values[0]
-    min_pop = np.max(gvar.mean(R_data + I_data))
+    min_pop = np.max(gvar.mean(D_data + I_data + H_data))
     _totpop = totpop - min_pop
     if prior_option == 'weakpop':
         popprior = gvar.gvar(np.log(_totpop), np.log(20))
@@ -81,7 +83,8 @@ for region in tqdm.tqdm(regions if regions else data['denominazione_regione'].un
     # Prior.
     prior = gvar.BufferDict({
         'log(R0)': gvar.gvar(np.log(1), np.log(10)),
-        'log(lambda)': gvar.gvar(np.log(1), np.log(10)),
+        'log(gamma)': gvar.gvar(np.log(1), np.log(10)),
+        'log(yupsilon)': gvar.gvar(np.log(1), np.log(10)),
         'log(_population)': popprior,
         'log(I0_pop)': gvar.gvar(np.log(10), np.log(100))
     })

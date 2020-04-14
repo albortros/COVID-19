@@ -249,22 +249,27 @@ for date_directory in directories:
                 yerr = np.where(y > 0, np.sqrt(y), 1)
                 kw = dict(label='data', marker='.', capsize=0, linestyle='', color=colorset.colorfor('data'))
                 ax.errorbar(x, y, yerr=yerr, **kw)
+                maxdata = np.nanmax(y)
+            else:
+                maxdata = np.inf
         
             # Embellishments.
             ax.grid(linestyle=':')
-            if ax.get_ylim()[0] < 0:
-                ax.set_ylim(0, ax.get_ylim()[1])
             ax.legend(loc='best')
             ax.set_ylabel('People')
             fig.autofmt_xdate(rotation=70)
             fig.tight_layout()
         
             # Save figure.
+            ylim = ax.get_ylim()
             for scale in 'linear', 'log':
-                if scale == 'log':
+                if scale == 'linear':
+                    limtop = 2 * maxdata
+                elif scale == 'log':
+                    limtop = maxdata ** 2
                     ax.set_yscale('symlog', linthreshy=1, linscaley=0.3, subsy=np.arange(2, 9 + 1))
-                    if ax.get_ylim()[0] < 0:
-                        ax.set_ylim(0, ax.get_ylim()[1])
+                
+                ax.set_ylim(max(ylim[0], 0), min(ylim[1], limtop))
                 
                 plotfile = f'{savedir}/{directory.replace("/", "-Giacomo-")}-{region}-{label}-{scale}.png'
                 print(f'Writing {plotfile}...')

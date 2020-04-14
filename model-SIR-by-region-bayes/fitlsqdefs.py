@@ -3,17 +3,20 @@ import numpy as np
 import pandas as pd
 
 # Differential equation.
-def SIR(SI, t, p):
-    S = SI[0]
-    I = SI[1]
+def SIRH(SIH, t, p):
+    S = SIH[0]
+    I = SIH[1]
+    H = SIH[2]
     
     R0 = p[0]
-    lamda = p[1]
-    beta = R0 * lamda
+    gamma = p[1]
+    beta = R0 * gamma
+    yupsilon = p[2]
     
     dS = -beta * S * I
-    dI = -dS - lamda * I
-    return [dS, dI]
+    dI = -dS - gamma * I
+    dH = yupsilon * I
+    return [dS, dI, dH]
 
 # Model function.
 def fcn(args, p):
@@ -21,16 +24,19 @@ def fcn(args, p):
     
     I0 = p['I0_pop'] / pop
     S0 = 1 - I0
+    H0 = 0
 
-    def deriv(t, SI):
-        return np.array(SIR(SI, t, [p['R0'], p['lambda']]))
+    def deriv(t, SIH):
+        return np.array(SIRH(SIH, t, [p['R0'], p['gamma'], p['yupsilon']]))
     integrator = gvar.ode.Integrator(deriv=deriv, tol=1e-4)
-    SIfun = integrator.solution(-1, [S0, I0])
+    SIHfun = integrator.solution(-1, [S0, I0, H0])
     
-    SI = [SIfun(t) for t in args['times']]
-    R = np.array([1 - si[0] - si[1] for si in SI])
-    I = np.array([si[1] for si in SI])
-    return gvar.BufferDict(R=R * pop, I=I * pop)
+    SIH = [SIHfun(t) for t in args['times']]
+    I = np.array([sih[1] for sih in SIH])
+    R = np.array([1 - sih[0] - sih[1] for sih in SIH])
+    H = np.array([sih[2] for sih in SIH])
+    D = R - H
+    return gvar.BufferDict(D=D * pop, I=I * pop, H=H * pop)
 
 def time_to_number(times):
     try:

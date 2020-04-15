@@ -18,36 +18,10 @@ for obj in _kernels.__dict__.values():
             continue
         kernels.append(obj)
 
-def test_normalized():
+class KernelTestBase:
     """
-    Check that isotropickernel(x, x) == 1.
-    """
-    kwargs = {
-        _kernels.Matern: [
-            dict(nu=0.5),
-            dict(nu=0.6),
-            dict(nu=1.5)
-        ],
-        _kernels.PPKernel: [
-            dict(q=0),
-            dict(q=1),
-            dict(q=2),
-            dict(q=3),
-        ]
-    }
-
-    for kernel in kernels:
-        if issubclass(kernel, _Kernel.IsotropicKernel):
-            arglist = kwargs.get(kernel, [{}])
-            for args in arglist:
-                x = np.random.randn(100)
-                result = kernel(**args)(x, x)
-                assert np.allclose(result, 1)
-
-class PosCheckBase:
-    """
-    Abstract base class to check that a kernel produces positive definite
-    matrices.
+    Abstract base class to test kernels. Each subclass tests one specific
+    kernel.
     """
     
     @property
@@ -74,9 +48,19 @@ class PosCheckBase:
         for kw in self.kwargs_list:
             self.checkpos_kernel(kw)
     
+    def check_unit_variance(self, kw):
+        x = self.random_x(**kw)
+        var = self.kernel_class(**kw)(x, x)
+        assert np.allclose(var, 1)
+    
+    def test_normalized(self):
+        if issubclass(self.kernel_class, _Kernel.IsotropicKernel):
+            for kw in self.kwargs_list:
+                self.check_unit_variance(kw)
+    
     @classmethod
     def make_subclass(cls, kernel_class, kwargs_list=None, random_x_fun=None):
-        name = 'TestPositive' + kernel_class.__name__
+        name = 'Test' + kernel_class.__name__
         subclass = type(cls)(name, (cls,), {})
         subclass.kernel_class = property(lambda self: kernel_class)
         if kwargs_list is not None:
@@ -112,7 +96,7 @@ specialized = {
 }
 for kernel in kernels:
     factory_kw = specialized.get(kernel, {})
-    newclass = PosCheckBase.make_subclass(kernel, **factory_kw)
+    newclass = KernelTestBase.make_subclass(kernel, **factory_kw)
     exec('{} = newclass'.format(newclass.__name__))
 
 def test_matern_half_integer():

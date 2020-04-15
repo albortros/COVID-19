@@ -32,6 +32,7 @@ _transf = {
     'arctanh': np.tanh,
     'log': np.exp
 }
+# TODO this should be integrated with gvar.BufferDict.add_distribution.
 
 def _unflat(x, original, expand_transf):
     # this function must be autograd-friendly with x

@@ -104,8 +104,6 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 #
 # Fourier kernels. Look at Celerite's algorithms.
 #
-# Testsuite for positivity of kernels.
-#
 # Matrix transformation of inputs.
 #
 # Apply kernels over a subset of the fields.

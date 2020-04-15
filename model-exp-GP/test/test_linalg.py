@@ -171,7 +171,7 @@ class DecompTestBase:
             dK = self.matjac(s, n)
             sol = np.trace(self.solve(K, dK))
             result = fungrad(s, n)
-            assert np.allclose(sol, result)
+            assert np.allclose(sol, result, rtol=1e-4)
 
 class TestDiag(DecompTestBase):
     

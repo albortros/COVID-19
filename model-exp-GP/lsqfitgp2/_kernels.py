@@ -76,7 +76,7 @@ def Polynomial(x, y, exponent=None, sigma0=1):
     `exponent`. The prior on the horizontal intercept has width `sigma0`.
     """
     assert np.isscalar(exponent)
-    assert esponent >= 0
+    assert exponent >= 0
     assert np.isscalar(sigma0)
     assert sigma0 >= 0
     return (_dot(x, y) + sigma0 ** 2) ** exponent
@@ -125,7 +125,8 @@ def Matern(r, nu=None):
     how many times the gaussian process is derivable: so for `nu` < 1 it
     is continuous but not derivable, for 1 <= `nu` < 2 it is derivable but has
     not a decond derivative, etc. The half-integer case (nu = 1/2, 3/2, ...)
-    uses internally a simpler formula so you should prefer it.
+    uses internally a simpler formula so you should prefer it. Also, taking
+    derivatives of the process is supported only for half-integer nu.
     """
     assert np.isscalar(nu)
     assert nu > 0

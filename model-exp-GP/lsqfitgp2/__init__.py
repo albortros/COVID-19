@@ -104,6 +104,9 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 #
 # Fourier kernels. Look at Celerite's algorithms.
 #
+# Implement _array.broadcast and _array.broadcast_arrays that work both
+# with np.ndarray and StructuredArray, and use them in _KernelBase.__call__.
+#
 # Matrix transformation of inputs.
 #
 # Apply kernels over a subset of the fields.

@@ -58,6 +58,21 @@ class KernelTestBase:
             for kw in self.kwargs_list:
                 self.check_unit_variance(kw)
     
+    def test_double_diff_scalar(self):
+        blacklist = [
+            _kernels.Categorical,
+            _kernels.Wiener,
+            _kernels.FracBrownian,
+            _kernels.Matern12,
+            _kernels.Matern32,
+            _kernels.Matern,
+            _kernels.White,
+            _kernels.GammaExp,
+            
+        ]
+        for kw in self.kwargs_list:
+            
+    
     @classmethod
     def make_subclass(cls, kernel_class, kwargs_list=None, random_x_fun=None):
         name = 'Test' + kernel_class.__name__

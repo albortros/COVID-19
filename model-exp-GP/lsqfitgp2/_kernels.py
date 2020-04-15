@@ -36,7 +36,7 @@ __all__ = [
 def _dot(x, y):
     return _Kernel._sum_recurse_dtype(lambda x, y: x * y, x, y)
     
-@isotropickernel
+@isotropickernel(derivable=True)
 def Constant(r2):
     """
     Kernel that returns a constant value, so all points are completely
@@ -52,7 +52,7 @@ def White(r2):
     """
     return np.where(r2 == 0, 1, 0)
 
-@isotropickernel
+@isotropickernel(derivable=True)
 def ExpQuad(r2):
     """
     Gaussian kernel. It is very smooth, and has a strict typical lengthscale:
@@ -61,7 +61,7 @@ def ExpQuad(r2):
     """
     return np.exp(-1/2 * r2)
 
-@kernel
+@kernel(derivable=True)
 def Linear(x, y):
     """
     Kernel which just returns x * y. It is equivalent to fitting with a
@@ -69,7 +69,7 @@ def Linear(x, y):
     """
     return _dot(x, y)
 
-@kernel
+@kernel(derivable=True)
 def Polynomial(x, y, exponent=None, sigma0=1):
     """
     Kernel which is equivalent to fitting with a polynomial of degree
@@ -102,8 +102,6 @@ def _maternp(x, p):
     return np.exp(-x) * poly
 
 def _maternp_deriv(x, p):
-    # TODO this formula is probably not efficient to be derived with
-    # autograd. Does numpy implement this, and autograd support it?
     if p == 0:
         return -np.exp(-x)
     poly = 1
@@ -118,7 +116,14 @@ extend.defvjp(
     lambda ans, x, p: lambda g: g * _maternp_deriv(x, p)
 )
 
-@isotropickernel(input='soft')
+def _matern_derivable(**kw):
+    nu = kw.get('nu', None)
+    if np.isscalar(nu) and nu > 0 and (2 * nu) % 1 == 0:
+        return int(nu - 1/2)
+    else:
+        return False   
+
+@isotropickernel(input='soft', derivable=_matern_derivable)
 def Matern(r, nu=None):
     """
     Matérn kernel of order `nu` > 0. The nearest integer below `nu` indicates
@@ -131,7 +136,7 @@ def Matern(r, nu=None):
     assert np.isscalar(nu)
     assert nu > 0
     x = np.sqrt(2 * nu) * r
-    if (2 * nu) % 1 == 0 and nu >= 1/2:
+    if (2 * nu) % 1 == 0:
         return _maternp(x, int(nu - 1/2))
     else:
         return 2 ** (1 - nu) / special.gamma(nu) * x ** nu * _kv(nu, x)
@@ -152,7 +157,7 @@ extend.defvjp(
     lambda ans, x: lambda g: g * -x * np.exp(-x)
 )
 
-@isotropickernel(input='soft')
+@isotropickernel(input='soft', derivable=1)
 def Matern32(r):
     """
     Matérn kernel of order 3/2 (derivable one time).
@@ -168,7 +173,7 @@ extend.defvjp(
     lambda ans, x: lambda g: g * -x/3 * _matern32(x)
 )
 
-@isotropickernel(input='soft')
+@isotropickernel(input='soft', derivable=2)
 def Matern52(r):
     """
     Matérn kernel of order 5/2 (derivable two times).
@@ -187,7 +192,7 @@ def GammaExp(r, gamma=1):
     assert 0 < gamma <= 2
     return np.exp(-(r ** gamma))
 
-@isotropickernel
+@isotropickernel(derivable=True)
 def RatQuad(r2, alpha=2):
     """
     Rational quadratic kernel. It is equivalent to a lengthscale mixture of
@@ -198,7 +203,7 @@ def RatQuad(r2, alpha=2):
     assert 0 < alpha < np.inf
     return (1 + r2 / (2 * alpha)) ** -alpha
 
-@kernel
+@kernel(derivable=True)
 def NNKernel(x, y, sigma0=1):
     """
     Kernel which is equivalent to a neural network with one infinite hidden
@@ -216,7 +221,7 @@ def NNKernel(x, y, sigma0=1):
 @kernel(forcekron=True)
 def Wiener(x, y):
     """
-    A kernel representing  non-differentiable random walk. It is defined only
+    A kernel representing a non-differentiable random walk. It is defined only
     for x, y >= 0 (the starting point of the random walk).
     """
     assert np.all(x >= 0)
@@ -239,7 +244,7 @@ def Gibbs(x, y, scalefun=lambda x: 1):
     factor = np.sqrt(2 * sx * sy / denom)
     return factor * np.exp(-(x - y) ** 2 / denom)
 
-@isotropickernel(input='soft')
+@isotropickernel(input='soft', derivable=True)
 def Periodic(r, outerscale=1):
     """
     A gaussian kernel over a transformed periodic space. It represents a
@@ -282,7 +287,7 @@ def Rescaling(x, y, stdfun=None):
         stdfun = lambda x: np.ones_like(x)
     return stdfun(x) * stdfun(y)
 
-@isotropickernel(input='soft')
+@isotropickernel(input='soft', derivable=True)
 def Cos(r):
     return np.cos(r)
 
@@ -299,7 +304,14 @@ def FracBrownian(x, y, H=1/2):
     H2 = 2 * H
     return 1/2 * (x ** H2 + y ** H2 - np.abs(x - y) ** H2)
 
-@isotropickernel(input='soft')
+def _ppkernel_derivable(**kw):
+    q = kw.pop('q', 0)
+    if isinstance(q, (int, np.integer)):
+        return q
+    else:
+        return 0
+
+@isotropickernel(input='soft', derivable=_ppkernel_derivable)
 def PPKernel(r, q=0, D=1):
     """
     Piecewise polynomial kernel. An isotropic kernel with finite support.

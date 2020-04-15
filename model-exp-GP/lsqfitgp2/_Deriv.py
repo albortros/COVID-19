@@ -79,15 +79,10 @@ class Deriv:
     @property
     def implicit(self):
         """
-        True if the derivative trivial or the variable is implicit.
+        True if the derivative is trivial or the variable is implicit.
         """
         return not self or next(iter(self._counter)) is None
     
     @property
     def order(self):
-        if not self:
-            return 0
-        elif self.implicit:
-            return self[None]
-        else:
-            raise RuntimeError('derivative not implicit')
+        return sum(self._counter.values())

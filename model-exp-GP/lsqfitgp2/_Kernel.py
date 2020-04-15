@@ -1,5 +1,7 @@
 from __future__ import division
 
+import sys
+
 import autograd
 from autograd import numpy as np
 from autograd.builtins import isinstance
@@ -29,22 +31,36 @@ def _effectivearray(x):
 def _asfloat(x):
     return np.array(x, copy=False, dtype=float)
 
-def _sum_recurse_dtype(fun, *args):
+def _reduce_recurse_dtype(fun, *args, initial=None, reductor=None, npreductor=None):
     x = args[0]
     if x.dtype.names is None:
         return fun(*args)
     else:
-        acc = 0
+        acc = initial
         for name in x.dtype.names:
+            recargs = (arg[name] for arg in args)
+            reckw = dict(initial=initial, reductor=reductor, npreductor=npreductor)
+            result = _reduce_recurse_dtype(fun, *recargs, **reckw)
+            
             dtype = x.dtype.fields[name][0]
-            result = _sum_recurse_dtype(fun, *(arg[name] for arg in args))
             if dtype.shape:
                 axis = tuple(range(-len(dtype.shape), 0))
-                result = np.sum(result, axis=axis)
-            acc = acc + result
+                result = npreductor(result, axis=axis)
+            
+            acc = reductor(acc, result)
         # assert acc.shape == np.broadcast(*args).shape
         # np.broadcast does not work with StructuredArray of course!
         return acc
+
+def _sum_recurse_dtype(fun, *args):
+    reductor = lambda a, b: a + b
+    npreductor = np.sum
+    return _reduce_recurse_dtype(fun, *args, initial=0, reductor=reductor, npreductor=npreductor)
+
+def _prod_recurse_dtype(fun, *args):
+    reductor = lambda a, b: a * b
+    npreductor = np.prod
+    return _reduce_recurse_dtype(fun, *args, initial=0, reductor=reductor, npreductor=npreductor)
 
 def _transf_recurse_dtype(transf, x):
     if x.dtype.names is None:
@@ -64,10 +80,9 @@ class _KernelBase:
     exponent.
     
     This class can be used directly by passing a callable at initialization, or
-    it can be subclassed. Subclasses need to assign the member `_kernel` with a
-    callable that will be called when the Kernel object is called. `_kernel`
-    will be called with two arguments x, y that are two broadcastable numpy
-    arrays. It must return Cov[f(x), f(y)] where `f` is the gaussian process.
+    it can be subclassed. The callable will be called with two arguments x, y
+    that are two broadcastable numpy arrays. It must return Cov[f(x), f(y)]
+    where `f` is the gaussian process.
     
     If `x` and `y` are structured arrays, they represent multidimensional
     input. Kernels can be specified to act only on a field of `x` and `y` or
@@ -82,7 +97,7 @@ class _KernelBase:
     
     """
     
-    def __init__(self, kernel, *, dim=None, loc=0, scale=1, forcebroadcast=False, forcekron=False, **kw):
+    def __init__(self, kernel, *, dim=None, loc=0, scale=1, forcebroadcast=False, forcekron=False, derivable=False, **kw):
         """
         
         Initialize the object with callable `kernel`.
@@ -109,6 +124,11 @@ class _KernelBase:
             invoked separately for each dimension, and the result is the
             product. Default False. If `dim` is specified, `forcekron` will
             have no effect.
+        derivable : bool, int or callable
+            Specifies how many times the kernel can be derived, just for
+            error checking purposes. Default is False. True means infinitely
+            many times derivable. If callable, it is called with the same
+            keyword arguments of `kernel`.
         **kw :
             Other keyword arguments are passed to `kernel`: kernel(x, y, **kw).
         
@@ -121,6 +141,19 @@ class _KernelBase:
         assert np.isfinite(loc)
         self._forcebroadcast = bool(forcebroadcast)
         forcekron = bool(forcekron)
+        
+        # Convert derivable to an integer.
+        if callable(derivable):
+            derivable = derivable(**kw)
+        if isinstance(derivable, bool):
+            derivable = sys.maxsize if derivable else 0
+        elif isinstance(derivable, (int, np.integer)):
+            assert derivable >= 0
+        elif derivable:
+            derivable = sys.maxsize
+        else:
+            derivable = 0
+        self._derivable = (derivable, derivable)
         
         transf = lambda x: x
         
@@ -146,10 +179,8 @@ class _KernelBase:
                 x = transf(x)
                 y = transf(y)
                 if x.dtype.names is not None:
-                    return np.prod(np.stack([
-                        kernel(x[f], y[f], **kw)
-                        for f in x.dtype.names
-                    ]), axis=0)
+                    fun = lambda x, y: kernel(x, y, **kw)
+                    return _prod_recurse_dtype(fun, x, y)
                 else:
                     return kernel(x, y, **kw)
         else:
@@ -162,7 +193,7 @@ class _KernelBase:
         y = _asarray(y)
         assert x.dtype == y.dtype
         shape = np.broadcast(_effectivearray(x), _effectivearray(y)).shape
-        if self._forcebroadcast:
+        if self._forcebroadcast: # TODO won't work with StructuredArray
             x, y = np.broadcast_arrays(x, y)
         result = self._kernel(x, y)
         assert isinstance(result, (np.ndarray, np.number))
@@ -193,6 +224,10 @@ class _KernelBase:
         
         if not xderiv and not yderiv:
             return self
+        
+        orders = (xderiv.order, yderiv.order)
+        if any(orders[i] > self._derivable[i] for i in range(2)):
+            raise RuntimeError('derivative orders {} greater than kernel maximum {}'.format(orders, self._derivable))
         
         kernel = self._kernel
         def fun(x, y):
@@ -253,41 +288,46 @@ class _KernelBase:
             return f(*args)
         
         cls = Kernel if xderiv == yderiv else _KernelDeriv
-        return cls(fun, forcebroadcast=True)
+        obj = cls(fun, forcebroadcast=True)
+        obj._derivable = tuple(self._derivable[i] - orders[i] for i in range(2))
+        return obj
 
 class _KernelDeriv(_KernelBase):
     pass
-
+    
 class Kernel(_KernelBase):
     
-    def __add__(self, value):
+    @property
+    def derivable(self):
+        assert self._derivable[0] == self._derivable[1]
+        return self._derivable[0]
+    
+    def _binary(self, value, op):
         if isinstance(value, Kernel):
-            return Kernel(lambda x, y: self._kernel(x, y) + value._kernel(x, y))
+            obj = Kernel(lambda x, y: op(self._kernel(x, y), value._kernel(x, y)))
+            obj._derivable = tuple(np.minimum(self._derivable, value._derivable))
         elif np.isscalar(value):
             assert np.isfinite(value)
-            return Kernel(lambda x, y: self._kernel(x, y) + value)
+            assert value >= 0
+            obj = Kernel(lambda x, y: op(self._kernel(x, y), value))
+            obj._derivable = self._derivable
         else:
-            return NotImplemented
+            obj = NotImplemented
+        return obj
+    
+    def __add__(self, value):
+        return self._binary(value, lambda a, b: a + b)
     
     __radd__ = __add__
     
     def __mul__(self, value):
-        if isinstance(value, Kernel):
-            return Kernel(lambda x, y: self._kernel(x, y) * value._kernel(x, y))
-        elif np.isscalar(value):
-            assert np.isfinite(value)
-            assert value >= 0
-            return Kernel(lambda x, y: value * self._kernel(x, y))
-        else:
-            return NotImplemented
+        return self._binary(value, lambda a, b: a * b)
     
     __rmul__ = __mul__
     
     def __pow__(self, value):
         if np.isscalar(value):
-            assert np.isfinite(value)
-            assert value >= 0
-            return Kernel(lambda x, y: self._kernel(x, y) ** value)
+            return self._binary(value, lambda a, b: a ** b)
         else:
             return NotImplemented
     

@@ -109,7 +109,10 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 #
 # Matrix transformation of inputs.
 #
-# Apply kernels over a subset of the fields.
+# Apply kernels over a subset of the fields, accepting a list for `dim` in
+# Kernel.__init__.
+#
+# Support taking derivatives in arbitrarily nested dtypes.
 #
 # New kernels:
 # is there a smooth version of the wiener process? like, softmin(x, y)?

@@ -8,22 +8,10 @@ __all__ = [
 ]
 
 def _readonlyview(x):
-    if isinstance(x, StructuredArray):
-        return x
-    
-    if builtins.isinstance(x, np.numpy_boxes.ArrayBox):
-        a = x._value
-    else:
-        a = x
-    
-    b = a.view()
-    b.flags['WRITEABLE'] = False
-    
-    if a is x:
-        return b
-    else:
-        x._value = b
-        return x
+    if not builtins.isinstance(x, (StructuredArray, np.numpy_boxes.ArrayBox)):
+        x = x.view()
+        x.flags['WRITEABLE'] = False
+    return x
 
 def _wrapifstructured(x):
     if x.dtype.names is None:

@@ -35,44 +35,64 @@ class KernelTestBase:
     def random_x(self, **kw):
         return np.random.uniform(-5, 5, size=100)
     
-    def checkpos_cov(self, cov):
-        eigv = linalg.eigvalsh(cov)
-        assert np.min(eigv) > -len(cov) * np.finfo(float).eps * np.max(eigv)
-
-    def checkpos_kernel(self, kw):
-        x = self.random_x(**kw)
-        cov = self.kernel_class(**kw)(x[None, :], x[:, None])
-        self.checkpos_cov(cov)
-
+    def random_x_nd(self, ndim, **kw):
+        xs = [self.random_x(**kw) for _ in range(ndim)]
+        x = np.empty(len(xs[0]), dtype=ndim * [('', float)])
+        for i in range(ndim):
+            x[x.dtype.names[i]] = xs[i]
+        return x
+    
     def test_positive(self):
         for kw in self.kwargs_list:
-            self.checkpos_kernel(kw)
-    
-    def check_unit_variance(self, kw):
-        x = self.random_x(**kw)
-        var = self.kernel_class(**kw)(x, x)
-        assert np.allclose(var, 1)
+            x = self.random_x(**kw)
+            cov = self.kernel_class(**kw)(x[None, :], x[:, None])
+            assert np.allclose(cov, cov.T)
+            eigv = linalg.eigvalsh(cov)
+            assert np.min(eigv) > -len(cov) * np.finfo(float).eps * np.max(eigv)
     
     def test_normalized(self):
         if issubclass(self.kernel_class, _Kernel.IsotropicKernel):
             for kw in self.kwargs_list:
-                self.check_unit_variance(kw)
+                x = self.random_x(**kw)
+                var = self.kernel_class(**kw)(x, x)
+                assert np.allclose(var, 1)
     
-    def test_double_diff_scalar(self):
-        blacklist = [
-            _kernels.Categorical,
-            _kernels.Wiener,
-            _kernels.FracBrownian,
-            _kernels.Matern12,
-            _kernels.Matern32,
-            _kernels.Matern,
-            _kernels.White,
-            _kernels.GammaExp,
-            
-        ]
+    def test_double_diff_scalar_first(self):
         for kw in self.kwargs_list:
-            
+            kernel = self.kernel_class(**kw)
+            if kernel.derivable:
+                x = self.random_x(**kw)
+                r1 = kernel.diff(1, 1)(x[None, :], x[:, None])
+                r2 = kernel.diff(1, 0).diff(0, 1)(x[None, :], x[:, None])
+                assert np.allclose(r1, r2)
     
+    def test_double_diff_scalar_second(self):
+        for kw in self.kwargs_list:
+            kernel = self.kernel_class(**kw)
+            if kernel.derivable >= 2:
+                x = self.random_x(**kw)
+                r1 = kernel.diff(2, 2)(x[None, :], x[:, None])
+                r2 = kernel.diff(1, 1).diff(1, 1)(x[None, :], x[:, None])
+                assert np.allclose(r1, r2)
+    
+    def test_double_diff_nd_first(self):
+        for kw in self.kwargs_list:
+            kernel = self.kernel_class(**kw)
+            if kernel.derivable:
+                x = self.random_x_nd(2, **kw)
+                r1 = kernel.diff('f0', 'f0')(x[None, :], x[:, None])
+                r2 = kernel.diff('f0', 0).diff(0, 'f0')(x[None, :], x[:, None])
+                assert np.allclose(r1, r2)
+
+    def test_double_diff_nd_second(self):
+        for kw in self.kwargs_list:
+            kernel = self.kernel_class(**kw)
+            if kernel.derivable >= 2:
+                x = self.random_x_nd(2, **kw)
+                r1 = kernel.diff((2, 'f0'), (2, 'f1'))(x[None, :], x[:, None])
+                r2 = kernel.diff('f0', 'f1').diff('f0', 'f1')(x[None, :], x[:, None])
+                assert np.allclose(r1, r2)
+
     @classmethod
     def make_subclass(cls, kernel_class, kwargs_list=None, random_x_fun=None):
         name = 'Test' + kernel_class.__name__
@@ -92,14 +112,14 @@ def random_nd(size, ndim):
     out['xyz'] = np.random.uniform(-5, 5, size=(size, ndim))
     return out
         
-# Define concrete subclasses of PosCheckBase for all kernels.
-specialized = {
+# Define a concrete subclass of KernelTestBase for each kernel.
+test_kwargs = {
     _kernels.Matern: dict(kwargs_list=[
         dict(nu=0.5), dict(nu=0.6), dict(nu=1.5), dict(nu=2.5)
     ]),
     _kernels.PPKernel: dict(kwargs_list=[
         dict(q=q, D=D) for q in range(4) for D in range(1, 10)
-    ], random_x_fun=lambda **kw: random_nd(100, kw['D'])),
+    ]),
     _kernels.Polynomial: dict(kwargs_list=[
         dict(exponent=p) for p in range(10)
     ]),
@@ -110,7 +130,7 @@ specialized = {
     ], random_x_fun=lambda **kw: np.random.randint(10, size=100))
 }
 for kernel in kernels:
-    factory_kw = specialized.get(kernel, {})
+    factory_kw = test_kwargs.get(kernel, {})
     newclass = KernelTestBase.make_subclass(kernel, **factory_kw)
     exec('{} = newclass'.format(newclass.__name__))
 

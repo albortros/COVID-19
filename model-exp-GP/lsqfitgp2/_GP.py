@@ -526,7 +526,7 @@ class GP:
         if ycovblocks is not None:
             ycov = _block_matrix(ycovblocks)
         elif (fromdata or raw or not keepcorr) and y.dtype == object:
-            ycov = gvar.evalcov(gvar.gvar(y)) ## TODO use evalcov_block?
+            ycov = gvar.evalcov(gvar.gvar(y)) ## TODO use evalcov_block
             if self._checkfinite and not np.all(np.isfinite(ycov)):
                 raise ValueError('covariance matrix of `given` is not finite')
         else:
@@ -548,7 +548,15 @@ class GP:
                 mean = B @ ymean
             else:
                 A = self._solver(Kxx).solve(Kxsx.T).T
-                cov = Kxsxs - A @ (Kxx - ycov) @ A.T
+                if np.isscalar(ycov) and ycov == 0:
+                    cov = Kxsxs - Kxsx @ A.T
+                elif np.isscalar(ycov) or len(ycov.shape) == 1:
+                    ycov_mat = np.reshape(ycov, (1, -1))
+                    cov = Kxsxs + (A * ycov_mat - Kxsx) @ A.T
+                else:
+                    cov = Kxsxs + (A @ ycov - Kxsx) @ A.T
+                # equivalent formula:
+                # cov = Kxsxs - A @ (Kxx - ycov) @ A.T
                 mean = A @ ymean
             
         else: # (keepcorr and not raw)        

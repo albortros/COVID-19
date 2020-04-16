@@ -83,7 +83,11 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # it accepts only non-structured arrays. Or, more flexible: make a class
 # Lattice that is structured-array-like but different shapes for each field,
 # and a field _kronok in Kernel update automatically when doing operations with
-# kernels. Also, take a look at the pymc3 implementation.
+# kernels. Also, take a look at the pymc3 implementation. Can I use the
+# kronecker optimization when the data covariance is non-null? -> Yes with a
+# reasonable approximation of the marginal likelihood, but the data covariance
+# must be diagonal. Other desiderata: separation along arbitrary subsets of
+# the dimensions.
 #
 # Block matrix solving. Example: solve a subproblem with kronecker, another
 # plain.
@@ -93,10 +97,25 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # sparse algorithms (after adding finite support kernels)
 # DiagLowRank for low rank matrix + multiple of the identity (multiple rank-1
 # updates to the Cholesky factor?)
-# option to compute only the diagonal of the output covariance matrix
+#
+# Option to compute only the diagonal of the output covariance matrix, and
+# allow diagonal-only input covariance for data (will be fundamental for
+# kronecker).
+#
+# Accept xarray.DataSet and pandas.DataFrame as inputs. Probably I can't use
+# these as core formats due to autograd.
+#
+# Make everything opt-in except numpy. There's already a numpy submodule for
+# doing this with scipy.linalg (I don't remember the name, it started with 'e').
+# autograd can be handled by try-except ImportError and defining a variable
+# has_autograd. With gvar maybe I can get through quickly if I define
+# gvar.BufferDict = dict and other things NotImplemented. (Low priority).
+#
+# Add tests with data errors in test_pred.py.
 #
 # Decomposition of the posterior covariance matrix, or tool to take samples.
-# Maybe a class for matrices?
+# Maybe a class for matrices? Example: prediction on kronecker data, the
+# covariance matrix may be too large to fit in memory.
 #
 # Check that float32 is respected.
 #
@@ -105,7 +124,8 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # Fourier kernels. Look at Celerite's algorithms.
 #
 # Implement _array.broadcast and _array.broadcast_arrays that work both
-# with np.ndarray and StructuredArray, and use them in _KernelBase.__call__.
+# with np.ndarray and StructuredArray, and use them in _KernelBase.__call__,
+# then make an example script with empbayes_fit on a GP with a derivative.
 #
 # Matrix transformation of inputs.
 #

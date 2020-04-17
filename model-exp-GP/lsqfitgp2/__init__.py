@@ -90,9 +90,11 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # the dimensions.
 #
 # Block matrix solving. Example: solve a subproblem with kronecker, another
-# plain.
+# plain. Cache decompositions of blocks.
 #
-# A way to get the single contribution out of a sum of GPs.
+# A way to get the single contribution out of a sum of GPs. I think it is
+# sufficient to use the usual formula with the full process for Kxx and the
+# component I need for Kxsx and Kxsxs.
 #
 # sparse algorithms (after adding finite support kernels)
 # DiagLowRank for low rank matrix + multiple of the identity (multiple rank-1
@@ -110,8 +112,6 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # autograd can be handled by try-except ImportError and defining a variable
 # has_autograd. With gvar maybe I can get through quickly if I define
 # gvar.BufferDict = dict and other things NotImplemented. (Low priority).
-#
-# Add tests with data errors in test_pred.py.
 #
 # Decomposition of the posterior covariance matrix, or tool to take samples.
 # Maybe a class for matrices? Example: prediction on kronecker data, the

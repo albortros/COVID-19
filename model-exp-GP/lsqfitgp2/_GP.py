@@ -542,6 +542,7 @@ class GP:
             if self._checkfinite and not np.all(np.isfinite(ymean)):
                 raise ValueError('mean of `given` is not finite')
             
+            # TODO: extend quad to matrices and use it for A @ inv(mat) @ A.T
             if fromdata:
                 B = self._solver(Kxx + ycov).solve(Kxsx.T).T
                 cov = Kxsxs - Kxsx @ B.T

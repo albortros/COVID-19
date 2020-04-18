@@ -526,7 +526,12 @@ class GP:
         if ycovblocks is not None:
             ycov = _block_matrix(ycovblocks)
         elif (fromdata or raw or not keepcorr) and y.dtype == object:
-            ycov = gvar.evalcov(gvar.gvar(y)) ## TODO use evalcov_block
+            ycov = gvar.evalcov(gvar.gvar(y))
+            # TODO use evalcov_block? If fromdata=True, it doesn't really
+            # make a difference because I just use ycov in Kxx + ycov. If
+            # fromdata=False, typically ycov will be dense. The only reason
+            # is that maybe gvar.evalcov is not optimized to handle non-dense
+            # cases, but in this case I should modify gvar.evalcov.
             if self._checkfinite and not np.all(np.isfinite(ycov)):
                 raise ValueError('covariance matrix of `given` is not finite')
         else:
@@ -658,6 +663,9 @@ class GP:
             ymean = gvar.mean(y)
         elif y.dtype == object:
             gvary = gvar.gvar(y)
+            # TODO this gvar.gvar(y) is here because gvar.evalcov is picky and
+            # won't accept a non-gvar scalar in the array. I should modify
+            # gvar.evalcov, since gvar.mean and gvar.sdev accept non-gvars.
             ycov = gvar.evalcov(gvary)
             ymean = gvar.mean(gvary)
         else:

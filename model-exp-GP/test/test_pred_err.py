@@ -58,6 +58,6 @@ def {}():
     m1, cov1 = pred({}, seed)
     m2, cov2 = pred({}, seed)
     assert_close(m1, m2)
-    assert_close_cov(cov1, cov2, 2e-2, 2e-5)
+    assert_close_cov(cov1, cov2, 3e-2, 3e-5)
 """.format(name, kw1, kw2)
         exec(fundef)

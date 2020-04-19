@@ -29,6 +29,10 @@ def _concatenate_noop(alist, **kw):
         return np.concatenate(alist, **kw)
 
 def _triu_indices_and_back(n):
+    """
+    Return indices to get the upper triangular part of a matrix, and indices to
+    convert a flat array of upper triangular elements to a symmetric matrix.
+    """
     indices = np.triu_indices(n)
     q = np.empty((n, n), int)
     a = np.arange(len(indices[0]))
@@ -37,11 +41,17 @@ def _triu_indices_and_back(n):
     return indices, q
 
 def _block_matrix(blocks):
+    """
+    Like np.block, but is autograd-friendly and avoids a copy when there is
+    only one block.
+    """
     return _concatenate_noop([_concatenate_noop(row, axis=1) for row in blocks], axis=0)
 
 def _noautograd(x):
     if builtins.isinstance(x, np.numpy_boxes.ArrayBox):
         return x._value
+        # TODO recursive unpack since x._value may be another ArrayBox,
+        # this is needed also in _linalg so maybe implement it there
     else:
         return x
 
@@ -59,6 +69,84 @@ def _asarray(x):
 
 def _isdictlike(x):
     return isinstance(x, (dict, gvar.BufferDict))
+    
+def _broadcast_shapes_2(s1, s2):
+    assert isinstance(s1, tuple)
+    assert isinstance(s2, tuple)
+    if len(s1) < len(s2):
+        s1 = (len(s2) - len(s1)) * (1,) + s1
+    elif len(s2) < len(s1):
+        s2 = (len(s1) - len(s2)) * (1,) + s2
+    out = ()
+    for a, b in zip(s1, s2):
+        if a == b:
+            out += (a,)
+        elif a == 1 or b == 1:
+            out += (a * b,)
+        else:
+            raise ValueError('can not broadcast shape {} with {}'.format(s1, s2))
+    return out
+
+def _broadcast_shapes(shapes):
+    out = ()
+    for shape in shapes:
+        try:
+            out = _broadcast_shapes_2(out, shape)
+        except ValueError:
+            msg = 'can not broadcast shapes '
+            msg += ', '.join(str(s) for s in shapes)
+            raise ValueError(msg)
+    return out
+
+class _Element:
+    """
+    Abstract class for an object holding information associated to a key in a
+    GP object.
+    """
+    def __init__(self):
+        raise NotImplementedError()
+    @property
+    def shape(self):
+        """Output shape"""
+        return NotImplemented
+    # TODO add size property and use it in place of prod(shape)
+
+class _Points(_Element):
+    """Points where the process is evaluated"""
+    def __init__(self, x, deriv):
+        assert _isarraylike(x)
+        assert isinstance(deriv, _Deriv.Deriv)
+        self.x = x
+        self.deriv = deriv
+    @property
+    def shape(self):
+        return self.x.shape
+
+class _Transf(_Element):
+    """Trasformation over other _Element objects"""
+    def __init__(self, mats, elements):
+        assert isinstance(mats, list)
+        assert isinstance(elements, list)
+        assert len(mats) == len(elements)
+        assert all(isinstance(e, _Element) for e in elements)
+        shapes = [
+            m.shape[:-1] + e.shape[1:] if m.shape
+            else e.shape
+            for m, e in zip(mats, elements)
+        ]
+        try:
+            self._shape = _broadcast_shapes(shapes)
+        except ValueError:
+            msg = 'can not broadcast tensors with shapes ['
+            msg += ', '.join(str(t.shape) for t in mats)
+            msg += '] contracted with arrays with shapes ['
+            msg += ', '.join(str(e.shape) for e in elements) + ']'
+            raise ValueError(msg)
+        self.mats = mats
+        self.elements = elements
+    @property
+    def shape(self):
+        return self._shape
 
 class GP:
     """
@@ -73,6 +161,8 @@ class GP:
     -------
     addx :
         Add points where the gaussian process is evaluated.
+    addtransf :
+        Add a linear transformation of the process over some points.
     prior :
         Return a collection of unique `gvar`s representing the prior.
     pred :
@@ -139,8 +229,7 @@ class GP:
         if not isinstance(covfun, _Kernel.Kernel):
             raise TypeError('covariance function must be of class Kernel')
         self._covfun = covfun
-        self._x = dict() # key -> array
-        self._deriv = dict() # key -> Deriv
+        self._elements = dict() # key -> _Element
         self._canaddx = True
         self._checkpositive = bool(checkpos)
         decomp = {
@@ -203,7 +292,7 @@ class GP:
             raise TypeError('x must be array or dict')
         
         for key in x:
-            if key in self._x:
+            if key in self._elements:
                 raise RuntimeError('key {} already in GP'.format(key))
             
             gx = x[key]
@@ -221,6 +310,7 @@ class GP:
 
             # Check that, if it has fields, they are the same fields of
             # previous arrays added.
+            # TODO check field names and shapes recursively
             if hasattr(self, '_dtype'):
                 if self._dtype.names != gx.dtype.names:
                     raise TypeError('`x[{}]` has fields {} but previous array(s) had {}'.format(key, self._dtype.names, gx.dtype.names))
@@ -237,36 +327,120 @@ class GP:
                     if dim not in gx.dtype.names:
                         raise ValueError('derivative field "{}" not in x'.format(dim))
             
-            self._x[key] = gx
-            self._deriv[key] = deriv
+            self._elements[key] = _Points(gx, deriv)
     
-    def _makecovblock(self, xkey, ykey):
-        x = self._x[xkey]
-        y = self._x[ykey]
-        kernel = self._covfun.diff(self._deriv[xkey], self._deriv[ykey])
+    def addtransf(self, keys, tensors, key=None):
+        """
         
-        shape = tuple(np.prod(self._x[key].shape) for key in (xkey, ykey))
-
-        if xkey == ykey and not self._checksym:
-            indices, back = _triu_indices_and_back(shape[0])
-            x = x.reshape(-1)[indices]
-            y = y.reshape(-1)[indices]
-            halfcov = kernel(x, y)
-            cov = halfcov[back]
-        else:
-            x = x.reshape(-1)[:, None]
-            y = y.reshape(-1)[None, :]
-            cov = kernel(x, y)
+        Apply a linear transformation to already specified process points,
+        given as a list of keys, under a new key.
         
+        Parameters
+        ----------
+        keys : list
+            List of keys in the GP to transform.
+        tensors : list
+            List of arrays to matrix-multiply with the process. The results are
+            summed, i.e. the list is contracted over.
+        key :
+            A new key under which the transformation is placed.
+        
+        """
+        # TODO axis parameter like np.tensordot to allow fancy contractions
+        
+        # Check key.
+        if key is None:
+            raise ValueError('key not specified')
+        if key in self._elements:
+            raise RuntimeError('key {} already in GP'.format(key))
+        
+        # Check keys.
+        assert isinstance(keys, list)
+        # I'm obnoxious about checking they are lists because in the future
+        # I may accept directly a key and a hashable iterable can be a key.
+        for k in keys:
+            if k not in self._elements:
+                raise RuntimeError('key {} is not in GP'.format(k))
+        
+        # Check tensors and convert them to numpy arrays.
+        assert isinstance(tensors, list)
+        assert len(tensors) == len(keys)
+        array_tensors = []
+        for k, t in zip(keys, tensors):
+            if not np.isscalar(t) and not _isarraylike_nostructured(t):
+                raise ValueError('tensor for key {} is not scalar, array or list'.format(k))
+            t = np.array(t, copy=False)
+            rshape = self._elements[k].shape
+            if t.shape and t.shape[-1] != rshape[0]:
+                raise RuntimeError('tensor with shape {} can not be matrix multiplied with shape {} of key {}'.format(t.shape, rshape, k))
+            array_tensors.append(t)
+        tensors = array_tensors
+        
+        # Add element, _Transf.__init__ will check the broadcasting.
+        elements = [self._elements[k] for k in keys]
+        transf = _Transf(tensors, elements)
+        self._elements[key] = transf
+    
+    def _checkcovblock(self, xkey, ykey, cov):
         if self._checkfinite and not np.all(np.isfinite(cov)):
             raise RuntimeError('covariance block ({}, {}) is not finite'.format(xkey, ykey))
         if self._checksym and xkey == ykey and not np.allclose(cov, cov.T):
             raise RuntimeError('covariance block ({}, {}) is not symmetric'.format(xkey, ykey))
         
+    def _makecovblock_points(self, xkey, ykey):
+        x = self._elements[xkey]
+        y = self._elements[ykey]
+        assert isinstance(x, _Points)
+        assert isinstance(y, _Points)
+        kernel = self._covfun.diff(x.deriv, y.deriv)
+        
+        if xkey == ykey and not self._checksym:
+            indices, back = _triu_indices_and_back(np.prod(x.shape))
+            x = x.x.reshape(-1)[indices]
+            y = y.x.reshape(-1)[indices]
+            halfcov = kernel(x, y)
+            cov = halfcov[back]
+        else:
+            x = x.x.reshape(-1)[:, None]
+            y = y.x.reshape(-1)[None, :]
+            cov = kernel(x, y)
+        
+        # self._checkcovblock(xkey, ykey, cov)
+        return cov
+    
+    def _makecovblock_transf_point(self, xkey, ykey):
+        x = self._elements[xkey]
+        y = self._elements[ykey]
+        assert isinstance(x, _Transf)
+        assert isinstance(y, _Points)
+        ...
+    
+    def _makecovblock_transfs(self, xkey, ykey):
+        x = self._elements[xkey]
+        y = self._elements[ykey]
+        assert isinstance(x, _Transf)
+        assert isinstance(y, _Transf)
+        ...
+    
+    def _makecovblock(self, xkey, ykey):
+        x = self._elements[xkey]
+        y = self._elements[ykey]
+        
+        if isinstance(x, _Points) and isinstance(y, _Points):
+            cov = self._makecovblock_points(xkey, ykey)
+        elif isinstance(x, _Points) and isinstance(y, _Transf):
+            cov = self._makecovblock_transf_point(ykey, xkey)
+            cov = cov.T
+        elif isinstance(x, _Transf) and isinstance(y, _Points):
+            cov = self._makecovblock_transf_point(xkey, ykey)
+        else:
+            cov = self._makecovblock_transfs(xkey, ykey)
+
+        self._checkcovblock(xkey, ykey, cov)
         return cov
     
     def _covblock(self, row, col):
-        if not self._x:
+        if not self._elements:
             raise RuntimeError('process is empty, add values with `addx`')
 
         if not hasattr(self, '_covblocks'):
@@ -303,18 +477,21 @@ class GP:
         
     @property
     def _prior(self):
+        # TODO I think that gvar internals would let me build the prior
+        # one block at a time although everything is correlated, but I don't
+        # know how to do it.
         if not hasattr(self, '_priordict'):
             if self._checkpositive:
-                fullcov = self._assemblecovblocks(list(self._x))
+                fullcov = self._assemblecovblocks(list(self._elements))
                 self._checkpos(fullcov)
             mean = {
                 key: np.zeros(x.shape)
-                for key, x in self._x.items()
+                for key, x in self._elements.items()
             }
             cov = {
                 (row, col): self._covblock(row, col).reshape(x.shape + y.shape)
-                for row, x in self._x.items()
-                for col, y in self._x.items()
+                for row, x in self._elements.items()
+                for col, y in self._elements.items()
             }
             self._priordict = gvar.gvar(mean, cov)
             self._priordict.buf.flags['WRITEABLE'] = False
@@ -356,7 +533,7 @@ class GP:
         raw = bool(raw)
         
         if key is None:
-            outkeys = list(self._x)
+            outkeys = list(self._elements)
         elif isinstance(key, list):
             outkeys = key
         else:
@@ -380,14 +557,14 @@ class GP:
         
     def _flatgiven(self, given, givencov):
         if _isarraylike_nostructured(given):
-            if len(self._x) == 1:
-                given = {key: given for key in self._x}
+            if len(self._elements) == 1:
+                given = {key: given for key in self._elements}
                 assert len(given) == 1
                 if givencov is not None:
                     assert _isarraylike_nostructured(givencov)
                     givencov = {(key, key): givencov for key in given}
             else:
-                raise ValueError('`given` is an array but x has multiple keys, provide a dictionary')
+                raise ValueError('`given` is an array but GP has multiple keys, provide a dictionary')
             
         elif _isdictlike(given):
             if givencov is not None:
@@ -399,16 +576,16 @@ class GP:
         ylist = []
         keylist = []
         for key, l in given.items():
-            if key not in self._x:
+            if key not in self._elements:
                 raise KeyError(key)
 
             if not _isarraylike_nostructured(l):
                 raise TypeError('element `given[{}]` is not list or array'.format(key))
             
             l = np.array(l, copy=False)
-            shape = self._x[key].shape
+            shape = self._elements[key].shape
             if l.shape != shape:
-                raise ValueError('`given[{}]` has shape {} different from x shape {}'.format(key, l.shape, shape))
+                raise ValueError('`given[{}]` has shape {} different from shape {}'.format(key, l.shape, shape))
             if l.dtype != object and not np.issubdtype(l.dtype, np.number):
                     raise ValueError('`given[{}]` has non-numerical dtype {}'.format(key, l.dtype))
             
@@ -429,7 +606,7 @@ class GP:
         return ylist, keylist, covblocks
     
     def _slices(self, keylist):
-        sizes = [np.prod(self._x[key].shape) for key in keylist]
+        sizes = [np.prod(self._elements[key].shape) for key in keylist]
         stops = np.concatenate([[0], np.cumsum(sizes)])
         return [slice(stops[i - 1], stops[i]) for i in range(1, len(stops))]
     
@@ -505,7 +682,7 @@ class GP:
         
         strip = False
         if key is None:
-            outkeys = list(self._x)
+            outkeys = list(self._elements)
         elif isinstance(key, list):
             outkeys = key
         else:
@@ -576,13 +753,13 @@ class GP:
         
         if raw and not strip:
             meandict = {
-                key: mean[slic].reshape(self._x[key].shape)
+                key: mean[slic].reshape(self._elements[key].shape)
                 for key, slic in zip(outkeys, outslices)
             }
             
             covdict = {
                 (row, col):
-                cov[rowslice, colslice].reshape(self._x[row].shape + self._x[col].shape)
+                cov[rowslice, colslice].reshape(self._elements[row].shape + self._elements[col].shape)
                 for row, rowslice in zip(outkeys, outslices)
                 for col, colslice in zip(outkeys, outslices)
             }
@@ -591,8 +768,8 @@ class GP:
             
         elif raw:
             assert len(outkeys) == 1
-            mean = mean.reshape(self._x[outkeys[0]].shape)
-            cov = cov.reshape(2 * self._x[outkeys[0]].shape)
+            mean = mean.reshape(self._elements[outkeys[0]].shape)
+            cov = cov.reshape(2 * self._elements[outkeys[0]].shape)
             return mean, cov
         
         elif not keepcorr:
@@ -600,12 +777,12 @@ class GP:
         
         if not strip:
             return gvar.BufferDict({
-                key: flatout[slic].reshape(self._x[key].shape)
+                key: flatout[slic].reshape(self._elements[key].shape)
                 for key, slic in zip(outkeys, outslices)
             })
         else:
             assert len(outkeys) == 1
-            return flatout.reshape(self._x[outkeys[0]].shape)
+            return flatout.reshape(self._elements[outkeys[0]].shape)
         
     def predfromfit(self, *args, **kw):
         """

@@ -148,7 +148,7 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # these as core formats due to autograd.
 #
 # Make everything opt-in except numpy. There's already a numpy submodule for
-# doing this with scipy.linalg (I don't remember the name, it started with 'e').
+# doing this with scipy.linalg (numpy.dual).
 # autograd can be handled by try-except ImportError and defining a variable
 # has_autograd. With gvar maybe I can get through quickly if I define
 # gvar.BufferDict = dict and other things NotImplemented. (Low priority).

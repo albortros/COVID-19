@@ -97,30 +97,6 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # optionally a matrix ycov to be added to Kxx. For caching: is there an
 # efficient way to update a Cholesky decomposition if I add a diagonal matrix?
 #
-# A way to get the single contribution out of a sum of GPs. I think it is
-# sufficient to use the usual formula with the full process for Kxx and the
-# component I need for Kxsx and Kxsxs. This is handled as a specific case of
-# the `addtransf` method if I use multidimensional input, see below.
-#
-# New method GP.addtransf to add a finite transformation over one or more keys.
-# Interface: addtransf(keys, mat, key). `key` is the key under which the
-# transformation is placed. `keys` is a key or a list of keys over which the
-# transformation is applied. `mat` is an array or a list of arrays that
-# represents the matrix that transforms the process over the given keys. It
-# is applied tensordot-like to all axes of the array for the keys. The
-# transformed keys can be primary keys or other transforms. This also allows
-# to build vector-valued processes explicitly.
-#
-# Can I also apply non-linear transformations by implicitly taking the
-# derivative? For prediction this means computing the derivative on the
-# predicted mean. This is equivalent to applying a gvar ufunc to the result,
-# really, so it does not make sense to add it to GP. For data it would mean
-# I need the inverse transformation. But again this is equivalent to
-# transforming the data prior to feeding it to the GP, so it is not useful.
-# The useful cases would be non-elementwise transformations that I can not
-# implement, so the conclusion is non-linear fits really need an explicit
-# latent GP like I'm doing now.
-#
 # Sparse algorithms. Make a custom minimal CSR class that allows an autograd
 # box as values buffer with only kernel operations implemented (addition,
 # multiplication, matrix multiplication, power). Make two decompositions

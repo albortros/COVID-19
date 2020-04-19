@@ -109,7 +109,9 @@ class _Element:
     def shape(self):
         """Output shape"""
         return NotImplemented
-    # TODO add size property and use it in place of prod(shape)
+    @property
+    def size(self):
+        return self.shape
 
 class _Points(_Element):
     """Points where the process is evaluated"""
@@ -360,7 +362,7 @@ class GP:
         # I may accept directly a key and a hashable iterable can be a key.
         for k in keys:
             if k not in self._elements:
-                raise RuntimeError('key {} is not in GP'.format(k))
+                raise KeyError(k)
         
         # Check tensors and convert them to numpy arrays.
         assert isinstance(tensors, list)
@@ -368,8 +370,10 @@ class GP:
         array_tensors = []
         for k, t in zip(keys, tensors):
             if not np.isscalar(t) and not _isarraylike_nostructured(t):
-                raise ValueError('tensor for key {} is not scalar, array or list'.format(k))
+                raise TypeError('tensor for key {} is not scalar, array or list'.format(k))
             t = np.array(t, copy=False)
+            if not np.issubdtype(t.dtype, np.number):
+                raise TypeError('tensor for key {} has non-numeric dtype {}'.format(k, t.dtype))
             rshape = self._elements[k].shape
             if t.shape and t.shape[-1] != rshape[0]:
                 raise RuntimeError('tensor with shape {} can not be matrix multiplied with shape {} of key {}'.format(t.shape, rshape, k))
@@ -381,21 +385,13 @@ class GP:
         transf = _Transf(tensors, elements)
         self._elements[key] = transf
     
-    def _checkcovblock(self, xkey, ykey, cov):
-        if self._checkfinite and not np.all(np.isfinite(cov)):
-            raise RuntimeError('covariance block ({}, {}) is not finite'.format(xkey, ykey))
-        if self._checksym and xkey == ykey and not np.allclose(cov, cov.T):
-            raise RuntimeError('covariance block ({}, {}) is not symmetric'.format(xkey, ykey))
-        
-    def _makecovblock_points(self, xkey, ykey):
-        x = self._elements[xkey]
-        y = self._elements[ykey]
+    def _makecovblock_points(self, x, y):
         assert isinstance(x, _Points)
         assert isinstance(y, _Points)
         kernel = self._covfun.diff(x.deriv, y.deriv)
         
-        if xkey == ykey and not self._checksym:
-            indices, back = _triu_indices_and_back(np.prod(x.shape))
+        if x is y and not self._checksym:
+            indices, back = _triu_indices_and_back(x.size)
             x = x.x.reshape(-1)[indices]
             y = y.x.reshape(-1)[indices]
             halfcov = kernel(x, y)
@@ -405,37 +401,47 @@ class GP:
             y = y.x.reshape(-1)[None, :]
             cov = kernel(x, y)
         
-        # self._checkcovblock(xkey, ykey, cov)
         return cov
     
-    def _makecovblock_transf_point(self, xkey, ykey):
-        x = self._elements[xkey]
-        y = self._elements[ykey]
+    def _makecovblock_transf_any(self, x, y):
         assert isinstance(x, _Transf)
-        assert isinstance(y, _Points)
-        ...
-    
-    def _makecovblock_transfs(self, xkey, ykey):
-        x = self._elements[xkey]
-        y = self._elements[ykey]
-        assert isinstance(x, _Transf)
-        assert isinstance(y, _Transf)
-        ...
-    
-    def _makecovblock(self, xkey, ykey):
-        x = self._elements[xkey]
-        y = self._elements[ykey]
-        
+        covsum = None
+        for mat, elem in zip(x.mats, x.elements):
+            cov = self._makecovblock(elem, y)
+            assert cov.shape == (elem.size, y.size)
+            cov = cov.reshape(elem.shape + y.shape)
+            if mat.shape:
+                cov = np.tensordot(mat, cov, axes=1)
+            elif mat.item != 1:
+                cov = mat * cov
+            if covsum is not None:
+                covsum = covsum + cov
+            else:
+                covsum = cov
+        assert covsum.shape == x.shape + y.shape
+        return covsum.reshape(x.size, y.size)
+            
+    def _makecovblock(self, x, y):
         if isinstance(x, _Points) and isinstance(y, _Points):
-            cov = self._makecovblock_points(xkey, ykey)
-        elif isinstance(x, _Points) and isinstance(y, _Transf):
-            cov = self._makecovblock_transf_point(ykey, xkey)
+            cov = self._makecovblock_points(x, y)
+        elif isinstance(x, _Transf):
+            cov = self._makecovblock_transf_any(x, y)
+        elif isinstance(y, _Transf):
+            cov = self._makecovblock_transf_any(y, x)
             cov = cov.T
-        elif isinstance(x, _Transf) and isinstance(y, _Points):
-            cov = self._makecovblock_transf_point(xkey, ykey)
-        else:
-            cov = self._makecovblock_transfs(xkey, ykey)
 
+        return cov
+
+    def _checkcovblock(self, xkey, ykey, cov):
+        if self._checkfinite and not np.all(np.isfinite(cov)):
+            raise RuntimeError('covariance block ({}, {}) is not finite'.format(xkey, ykey))
+        if self._checksym and xkey == ykey and not np.allclose(cov, cov.T):
+            raise RuntimeError('covariance block ({}, {}) is not symmetric'.format(xkey, ykey))
+        
+    def _makecovblock_forkeys(self, xkey, ykey):
+        x = self._elements[xkey]
+        y = self._elements[ykey]
+        cov = self._makecovblock(x, y)
         self._checkcovblock(xkey, ykey, cov)
         return cov
     
@@ -447,11 +453,11 @@ class GP:
             self._covblocks = dict() # (key1, key2) -> matrix
         
         if (row, col) not in self._covblocks:
-            block = self._makecovblock(row, col)
+            block = self._makecovblock_forkeys(row, col)
             _noautograd(block).flags['WRITEABLE'] = False
             if row != col:
                 if self._checksym:
-                    blockT = self._makecovblock(col, row)
+                    blockT = self._makecovblock_forkeys(col, row)
                     if not np.allclose(block.T, blockT):
                         raise RuntimeError('covariance block ({}, {}) is not symmetric'.format(row, col))
                 self._covblocks[col, row] = block.T
@@ -606,7 +612,7 @@ class GP:
         return ylist, keylist, covblocks
     
     def _slices(self, keylist):
-        sizes = [np.prod(self._elements[key].shape) for key in keylist]
+        sizes = [self._elements[key].size for key in keylist]
         stops = np.concatenate([[0], np.cumsum(sizes)])
         return [slice(stops[i - 1], stops[i]) for i in range(1, len(stops))]
     

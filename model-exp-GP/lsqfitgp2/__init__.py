@@ -121,14 +121,19 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # implement, so the conclusion is non-linear fits really need an explicit
 # latent GP like I'm doing now.
 #
-# Sparse algorithms. I think autograd already supports sparse matrices, check
-# autograd support before doing anything. First make a simple implementation
-# that checks for zeros in the matrix built by the kernel, when it works I
-# can think about how to let the kernel know it can return directly a sparse
-# matrix if appropriate.
+# Sparse algorithms. Make a custom minimal CSR class that allows an autograd
+# box as values buffer with only kernel operations implemented (addition,
+# multiplication, matrix multiplication, power). Make two decompositions
+# specifically for sparse matrices, sparselu and sparselowrank. Finite support
+# kernels have a parameter sparse=True to return a sparse matrix. Operations
+# between a sparse and a dense object should raise an error while computing
+# the kernel if the result is dense, but not while making prediction.
+# Alternative: make pydata/sparse work with autograd. I hope I can inject the
+# code into the module so I don't have to rely on a fork. Probably I have to
+# define some missing basic functions and define the vjp of the constructors.
 #
 # DiagLowRank for low rank matrix + multiple of the identity (multiple rank-1
-# updates to the Cholesky factor?)
+# updates to the Cholesky factor? Would it be useful anyway?)
 #
 # Option to compute only the diagonal of the output covariance matrix, and
 # allow diagonal-only input covariance for data (will be fundamental for
@@ -150,6 +155,9 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # Check that float32 is respected.
 #
 # Fourier kernels. Look at Celerite's algorithms.
+#
+# Check that second derivatives work with decompositions (it should currently
+# be broken by the non-recursive unpacking of autograd boxes).
 #
 # Check that the gradient of the marginal likelihood works with derivatives.
 # Implement _array.broadcast and _array.broadcast_arrays that work both

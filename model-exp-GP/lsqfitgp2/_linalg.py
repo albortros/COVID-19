@@ -11,6 +11,8 @@ These classes never check for infs/nans in the matrices.
 
 Classes
 -------
+DecompMeta :
+    Metaclass that adds autograd support.
 Decomposition :
     Abstract base class.
 Diag :
@@ -189,6 +191,7 @@ class Diag(Decomposition):
         return np.sum(np.log(self._w))
     
     def _eps(self, eps):
+        # TODO error checking on `eps`
         w = self._w
         if eps is None:
             eps = len(w) * np.finfo(w.dtype).eps
@@ -224,9 +227,14 @@ class ReduceRank(Diag):
     """
     
     def __init__(self, K, rank=1):
+        # TODO error checking on `rank`
         self._w, self._V = slinalg.eigsh(K, k=rank, which='LM')
 
 def solve_triangular(a, b, lower=False):
+    """
+    Pure python implementation of scipy.linalg.solve_triangular for when
+    a or b are object arrays. b must be 1D or a column vector.
+    """
     x = np.copy(b)
     a = a.reshape(a.shape + x.shape[1:])
     if lower:
@@ -270,12 +278,14 @@ class Chol(Decomposition):
     
     def logdet(self):
         return 2 * np.sum(np.log(np.diag(self._L)))
+    
+    # TODO _eps function here like Diag with error checking
 
 class CholMaxEig(Chol):
     """
     Cholesky decomposition. The matrix is corrected for numerical roundoff
     by adding to the diagonal a small number relative to the maximum eigenvalue.
-    `epsfactor` multiplies this number.
+    `eps` multiplies this number.
     """
     
     def __init__(self, K, eps=None, **kw):
@@ -289,7 +299,7 @@ class CholGersh(Chol):
     """
     Cholesky decomposition. The matrix is corrected for numerical roundoff
     by adding to the diagonal a small number relative to the maximum eigenvalue.
-    `epsfactor` multiplies this number. The maximum eigenvalue is estimated
+    `eps` multiplies this number. The maximum eigenvalue is estimated
     with the Gershgorin theorem.
     """
     

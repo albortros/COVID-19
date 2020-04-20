@@ -124,33 +124,13 @@ class _Points(_Element):
     def shape(self):
         return self.x.shape
 
-# TODO move broadcast check and shape computation to GP.addtransf, add shape
-# parameter to _Transf.__init__, replace `elements` with a list of keys,
-# modify the GP._makecovblock* family of methods to use keys as parameters,
-# and finally cache the covariance matrices of arguments of transformations
-# even when they are not explicitly requested.
 class _Transf(_Element):
     """Trasformation over other _Element objects"""
-    def __init__(self, mats, elements):
-        assert isinstance(mats, list)
-        assert isinstance(elements, list)
-        assert len(mats) == len(elements)
-        assert all(isinstance(e, _Element) for e in elements)
-        shapes = [
-            m.shape[:-1] + e.shape[1:] if m.shape
-            else e.shape
-            for m, e in zip(mats, elements)
-        ]
-        try:
-            self._shape = _broadcast_shapes(shapes)
-        except ValueError:
-            msg = 'can not broadcast tensors with shapes ['
-            msg += ', '.join(str(t.shape) for t in mats)
-            msg += '] contracted with arrays with shapes ['
-            msg += ', '.join(str(e.shape) for e in elements) + ']'
-            raise ValueError(msg)
-        self.mats = mats
-        self.elements = elements
+    def __init__(self, tensors, shape):
+        assert isinstance(tensors, dict)
+        assert isinstance(shape, tuple)
+        self.tensors = tensors # dict key -> array
+        self._shape = shape
     @property
     def shape(self):
         return self._shape
@@ -169,9 +149,9 @@ class GP:
     addx :
         Add points where the gaussian process is evaluated.
     addtransf :
-        Add a linear transformation of the process over some points.
+        Add a linear transformation of the process.
     prior :
-        Return a collection of unique `gvar`s representing the prior.
+        Compute the prior for the process.
     pred :
         Compute the posterior for the process.
     predfromfit, predfromdata :
@@ -317,7 +297,9 @@ class GP:
 
             # Check that, if it has fields, they are the same fields of
             # previous arrays added.
-            # TODO check field names and shapes recursively
+            # TODO check field names and shapes recursively. Other options:
+            # enforce the dtypes to be equal, allow broadcasting in fields,
+            # check dtypes are castable.
             if hasattr(self, '_dtype'):
                 if self._dtype.names != gx.dtype.names:
                     raise TypeError('`x[{}]` has fields {} but previous array(s) had {}'.format(key, self._dtype.names, gx.dtype.names))
@@ -336,44 +318,37 @@ class GP:
             
             self._elements[key] = _Points(gx, deriv)
     
-    def addtransf(self, keys, tensors, key=None):
+    def addtransf(self, tensors, key):
         """
         
-        Apply a linear transformation to already specified process points,
-        given as a list of keys, under a new key.
+        Apply a linear transformation to already specified process points. The
+        result of the transformation is represented by a new key.
         
         Parameters
         ----------
-        keys : list
-            List of keys in the GP to transform.
-        tensors : list
-            List of arrays to matrix-multiply with the process. The results are
-            summed, i.e. the list is contracted over.
+        tensors : dict
+            Dictionary mapping keys of the GP to arrays. Each array is
+            matrix-multiplied with the process array represented by its key.
+            Scalars are just multiplied. Finally, the keys are summed over.
         key :
             A new key under which the transformation is placed.
         
         """
-        # TODO axis parameter like np.tensordot to allow fancy contractions
+        # TODO axes parameter like np.tensordot to allow fancy contractions
         
         # Check key.
         if key is None:
-            raise ValueError('key not specified')
+            raise ValueError('key can not be None')
         if key in self._elements:
             raise RuntimeError('key {} already in GP'.format(key))
         
         # Check keys.
-        assert isinstance(keys, list)
-        # I'm obnoxious about checking they are lists because in the future
-        # I may accept directly a key and a hashable iterable can be a key.
-        for k in keys:
+        for k in tensors:
             if k not in self._elements:
                 raise KeyError(k)
         
         # Check tensors and convert them to numpy arrays.
-        assert isinstance(tensors, list)
-        assert len(tensors) == len(keys)
-        array_tensors = []
-        for k, t in zip(keys, tensors):
+        for k, t in tensors.items():
             if not np.isscalar(t) and not _isarraylike_nostructured(t):
                 raise TypeError('tensor for key {} is not scalar, array or list'.format(k))
             t = np.array(t, copy=False)
@@ -382,15 +357,29 @@ class GP:
             rshape = self._elements[k].shape
             if t.shape and t.shape[-1] != rshape[0]:
                 raise RuntimeError('tensor with shape {} can not be matrix multiplied with shape {} of key {}'.format(t.shape, rshape, k))
-            array_tensors.append(t)
-        tensors = array_tensors
+            tensors[k] = t
         
-        # Add element, _Transf.__init__ will check the broadcasting.
-        elements = [self._elements[k] for k in keys]
-        transf = _Transf(tensors, elements)
-        self._elements[key] = transf
+        # Compute shape.
+        arrays = tensors.values()
+        elements = (self._elements[k] for k in tensors)
+        shapes = [
+            t.shape[:-1] + e.shape[1:] if t.shape else e.shape
+            for t, e in zip(arrays, elements)
+        ]
+        try:
+            shape = _broadcast_shapes(shapes)
+        except ValueError:
+            msg = 'can not broadcast tensors with shapes ['
+            msg += ', '.join(str(t.shape) for t in arrays)
+            msg += '] contracted with arrays with shapes ['
+            msg += ', '.join(str(e.shape) for e in elements) + ']'
+            raise ValueError(msg)
+        
+        self._elements[key] = _Transf(tensors, shape)
     
-    def _makecovblock_points(self, x, y):
+    def _makecovblock_points(self, xkey, ykey):
+        x = self._elements[xkey]
+        y = self._elements[ykey]
         assert isinstance(x, _Points)
         assert isinstance(y, _Points)
         kernel = self._covfun.diff(x.deriv, y.deriv)
@@ -408,17 +397,20 @@ class GP:
         
         return cov
     
-    def _makecovblock_transf_any(self, x, y):
+    def _makecovblock_transf_any(self, xkey, ykey):
+        x = self._elements[xkey]
+        y = self._elements[ykey]
         assert isinstance(x, _Transf)
         covsum = None
-        for mat, elem in zip(x.mats, x.elements):
-            cov = self._makecovblock(elem, y)
+        for key, tensor in x.tensors.items():
+            elem = self._elements[key]
+            cov = self._covblock(key, ykey)
             assert cov.shape == (elem.size, y.size)
             cov = cov.reshape(elem.shape + y.shape)
-            if mat.shape:
-                cov = np.tensordot(mat, cov, axes=1)
-            elif mat.item != 1:
-                cov = mat * cov
+            if tensor.shape:
+                cov = np.tensordot(tensor, cov, axes=1)
+            elif tensor.item != 1:
+                cov = tensor * cov
             if covsum is not None:
                 covsum = covsum + cov
             else:
@@ -426,30 +418,24 @@ class GP:
         assert covsum.shape == x.shape + y.shape
         return covsum.reshape(x.size, y.size)
             
-    def _makecovblock(self, x, y):
+    def _makecovblock(self, xkey, ykey):
+        x = self._elements[xkey]
+        y = self._elements[ykey]
         if isinstance(x, _Points) and isinstance(y, _Points):
-            cov = self._makecovblock_points(x, y)
+            cov = self._makecovblock_points(xkey, ykey)
         elif isinstance(x, _Transf):
-            cov = self._makecovblock_transf_any(x, y)
+            cov = self._makecovblock_transf_any(xkey, ykey)
         elif isinstance(y, _Transf):
-            cov = self._makecovblock_transf_any(y, x)
+            cov = self._makecovblock_transf_any(ykey, xkey)
             cov = cov.T
 
-        return cov
-
-    def _checkcovblock(self, xkey, ykey, cov):
         if self._checkfinite and not np.all(np.isfinite(cov)):
             raise RuntimeError('covariance block ({}, {}) is not finite'.format(xkey, ykey))
         if self._checksym and xkey == ykey and not np.allclose(cov, cov.T):
             raise RuntimeError('covariance block ({}, {}) is not symmetric'.format(xkey, ykey))
-        
-    def _makecovblock_forkeys(self, xkey, ykey):
-        x = self._elements[xkey]
-        y = self._elements[ykey]
-        cov = self._makecovblock(x, y)
-        self._checkcovblock(xkey, ykey, cov)
+
         return cov
-    
+
     def _covblock(self, row, col):
         if not self._elements:
             raise RuntimeError('process is empty, add values with `addx`')
@@ -458,11 +444,11 @@ class GP:
             self._covblocks = dict() # (key1, key2) -> matrix
         
         if (row, col) not in self._covblocks:
-            block = self._makecovblock_forkeys(row, col)
+            block = self._makecovblock(row, col)
             _noautograd(block).flags['WRITEABLE'] = False
             if row != col:
                 if self._checksym:
-                    blockT = self._makecovblock_forkeys(col, row)
+                    blockT = self._makecovblock(col, row)
                     if not np.allclose(block.T, blockT):
                         raise RuntimeError('covariance block ({}, {}) is not symmetric'.format(row, col))
                 self._covblocks[col, row] = block.T

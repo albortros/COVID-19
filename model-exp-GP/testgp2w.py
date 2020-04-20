@@ -24,7 +24,7 @@ gp = lgp.GP(kernel)
 def addcomps(key, time):
     gp.addx(makex(time, 'short'), key + 'short')
     gp.addx(makex(time, 'long'), key + 'long')
-    gp.addtransf([key + 'short', key + 'long'], [0.3, 1], key)
+    gp.addtransf({key + 'short': 0.3, key + 'long': 1}, key)
 
 addcomps('data', time)
 addcomps('pred', time_pred)

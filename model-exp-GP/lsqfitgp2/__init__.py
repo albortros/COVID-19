@@ -139,9 +139,6 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 #
 # Fourier kernels. Look at Celerite's algorithms.
 #
-# Check that second derivatives work with decompositions (it should currently
-# be broken by the non-recursive unpacking of autograd boxes).
-#
 # Check that the gradient of the marginal likelihood works with derivatives.
 # Implement _array.broadcast and _array.broadcast_arrays that work both
 # with np.ndarray and StructuredArray, and use them in _KernelBase.__call__,

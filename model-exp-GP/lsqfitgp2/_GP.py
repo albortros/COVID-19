@@ -47,14 +47,6 @@ def _block_matrix(blocks):
     """
     return _concatenate_noop([_concatenate_noop(row, axis=1) for row in blocks], axis=0)
 
-def _noautograd(x):
-    if builtins.isinstance(x, np.numpy_boxes.ArrayBox):
-        return x._value
-        # TODO recursive unpack since x._value may be another ArrayBox,
-        # this is needed also in _linalg so maybe implement it there
-    else:
-        return x
-
 def _isarraylike_nostructured(x):
     return isinstance(x, (list, np.ndarray))
 
@@ -445,7 +437,7 @@ class GP:
         
         if (row, col) not in self._covblocks:
             block = self._makecovblock(row, col)
-            _noautograd(block).flags['WRITEABLE'] = False
+            _linalg._noautograd(block).flags['WRITEABLE'] = False
             if row != col:
                 if self._checksym:
                     blockT = self._makecovblock(col, row)
@@ -463,7 +455,7 @@ class GP:
         return _block_matrix(blocks)
         
     def _checkpos(self, cov):
-        eigv = linalg.eigvalsh(_noautograd(cov))
+        eigv = linalg.eigvalsh(_linalg._noautograd(cov))
         mineigv = np.min(eigv)
         if mineigv < 0:
             bound = -len(cov) * np.finfo(float).eps * np.max(eigv)

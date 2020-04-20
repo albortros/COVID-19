@@ -32,6 +32,15 @@ CholGersh :
 
 """
 
+def _noautograd(x):
+    """
+    Unpack an autograd numpy array.
+    """
+    if isinstance(x, np.numpy_boxes.ArrayBox):
+        return _noautograd(x._value)
+    else:
+        return x
+
 class DecompMeta(type):
     
     def __new__(cls, name, bases, dct):
@@ -39,10 +48,8 @@ class DecompMeta(type):
         
         old__init__ = subclass.__init__
         def __init__(self, K, **kw):
-            if isinstance(K, np.numpy_boxes.ArrayBox):
-                self._boxedK = K
-                K = K._value
-            old__init__(self, K, **kw)
+            old__init__(self, _noautograd(K), **kw)
+            self._K = K
         subclass.__init__ = __init__
         
         oldsolve = subclass.solve
@@ -55,7 +62,7 @@ class DecompMeta(type):
                 assert b.shape[0] == K.shape[0] == K.shape[1]
                 def vjp(g):
                     assert g.shape[-len(b.shape):] == b.shape
-                    A = self.solve(np.moveaxis(g, -len(b.shape), 0), _K=K)
+                    A = solve_autograd(self, K, np.moveaxis(g, -len(b.shape), 0))
                     B = np.moveaxis(ans, 0, -1)
                     AB = np.tensordot(A, B, len(b.shape) - 1)
                     AB = np.moveaxis(AB, 0, -2)
@@ -67,19 +74,16 @@ class DecompMeta(type):
                 solve_vjp,
                 argnums=[1]
             )
-            def solve(self, b, *, _K=None):
-                if hasattr(self, '_boxedK'):
-                    K = self._boxedK if _K is None else _K
-                    return solve_autograd(self, K, b)
-                else:
-                    return oldsolve(self, b)
+            def solve(self, b):
+                return solve_autograd(self, self._K, b)
             solve._autograd = True
             subclass.solve = solve
         
+        # TODO write vjp optimized for quad instead of relying on solve
         oldquad = subclass.quad
         if not hasattr(oldquad, '_autograd'):
             def quad(self, b):
-                if hasattr(self, '_boxedK'):
+                if isinstance(self._K, np.numpy_boxes.ArrayBox):
                     return b.T @ self.solve(b)
                 else:
                     return oldquad(self, b)
@@ -88,6 +92,9 @@ class DecompMeta(type):
         
         oldlogdet = subclass.logdet
         if not hasattr(oldlogdet, '_autograd'):
+            # TODO I'm actually assuming that also solve has been overwritten,
+            # otherwise solve_autograd is not defined. Maybe _autograd should
+            # be the autograd version of the function instead of just a flag.
             @extend.primitive
             def logdet_autograd(self, K):
                 return oldlogdet(self)
@@ -95,7 +102,7 @@ class DecompMeta(type):
                 assert ans.shape == ()
                 assert K.shape[0] == K.shape[1]
                 def vjp(g):
-                    invK = self.solve(np.eye(len(K)), _K=K)
+                    invK = solve_autograd(self, K, np.eye(len(K)))
                     return g[..., None, None] * invK
                 return vjp
             extend.defvjp(
@@ -103,12 +110,15 @@ class DecompMeta(type):
                 logdet_vjp,
                 argnums=[1]
             )
+            # TODO the vjp is bad because it makes a matrix inversion. I would
+            # like to do forward propagation just for the logdet plus the
+            # preceding step, but I don't think autograd supports this.
             # def logdet_jvp(ans, self, K):
             #     assert ans.shape == ()
             #     assert K.shape[0] == K.shape[1]
             #     def jvp(g):
             #         assert g.shape[:2] == K.shape
-            #         return np.trace(self.solve(g, _K=K))
+            #         return np.trace(solve_autograd(self, K, g))
             #     return jvp
             # extend.defjvp(
             #     logdet_autograd,
@@ -116,10 +126,7 @@ class DecompMeta(type):
             #     argnums=[1]
             # )
             def logdet(self):
-                if hasattr(self, '_boxedK'):
-                    return logdet_autograd(self, self._boxedK)
-                else:
-                    return oldlogdet(self)
+                return logdet_autograd(self, self._K)
             logdet._autograd = True
             subclass.logdet = logdet
         

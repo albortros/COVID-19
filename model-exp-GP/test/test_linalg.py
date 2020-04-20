@@ -172,6 +172,8 @@ class DecompTestBase:
             sol = np.trace(self.solve(K, dK))
             result = fungrad(s, n)
             assert np.allclose(sol, result, rtol=1e-4)
+    
+    # TODO test second derivatives
 
 class TestDiag(DecompTestBase):
     

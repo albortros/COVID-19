@@ -111,7 +111,7 @@ class _Element:
         return NotImplemented
     @property
     def size(self):
-        return self.shape
+        return np.prod(self.shape)
 
 class _Points(_Element):
     """Points where the process is evaluated"""
@@ -124,6 +124,11 @@ class _Points(_Element):
     def shape(self):
         return self.x.shape
 
+# TODO move broadcast check and shape computation to GP.addtransf, add shape
+# parameter to _Transf.__init__, replace `elements` with a list of keys,
+# modify the GP._makecovblock* family of methods to use keys as parameters,
+# and finally cache the covariance matrices of arguments of transformations
+# even when they are not explicitly requested.
 class _Transf(_Element):
     """Trasformation over other _Element objects"""
     def __init__(self, mats, elements):

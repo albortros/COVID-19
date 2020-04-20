@@ -13,7 +13,8 @@ __all__ = [
     'Kernel',
     'IsotropicKernel',
     'kernel',
-    'isotropickernel'
+    'isotropickernel',
+    'Where'
 ]
 
 def _asarray(x):
@@ -306,11 +307,13 @@ class Kernel(_KernelBase):
         if isinstance(value, Kernel):
             obj = Kernel(lambda x, y: op(self._kernel(x, y), value._kernel(x, y)))
             obj._derivable = tuple(np.minimum(self._derivable, value._derivable))
+            obj._forcebroadcast = self._forcebroadcast or value._forcebroadcast
         elif np.isscalar(value):
             assert np.isfinite(value)
             assert value >= 0
             obj = Kernel(lambda x, y: op(self._kernel(x, y), value))
             obj._derivable = self._derivable
+            obj._forcebroadcast = self._forcebroadcast
         else:
             obj = NotImplemented
         return obj
@@ -340,6 +343,9 @@ class IsotropicKernel(Kernel):
     
     """
     
+    # TODO add the `distance` parameter to supply an arbitrary distance, maybe
+    # allow string keywords for premade distances, like euclidean, hamming.
+    
     def __init__(self, kernel, *, input='squared', **kw):
         """
         
@@ -358,7 +364,8 @@ class IsotropicKernel(Kernel):
         squared :
             Pass the squared distance (default).
         soft :
-            Pass the distance, but instead of 0 it yields a very small number.
+            Pass the (non-squared) distance, but zeros are replaced by very
+            small numbers in a smooth way.
         
         """
         allowed_input = ('squared', 'soft')
@@ -376,6 +383,12 @@ class IsotropicKernel(Kernel):
             return kernel(q, **kwargs)
         
         super().__init__(function, **kw)
+    
+    def _binary(self, value, op):
+        obj = super()._binary(value, op)
+        if isinstance(obj, Kernel) and isinstance(value, __class__):
+            obj.__class__ = __class__
+        return obj
     
 def _makekernelsubclass(kernel, superclass, **prekw):
     assert issubclass(superclass, Kernel)
@@ -430,3 +443,68 @@ def isotropickernel(*args, **kw):
     
     """
     return _kerneldecoratorimpl(IsotropicKernel, *args, **kw)
+
+class Where(Kernel):
+    """
+    
+    Kernel that switches between two alternatives based on a condition on the
+    points.
+    
+    """
+    def __init__(self, condfun, kernel1, kernel2, dim=None):
+        """
+        
+        Make a kernel(x, y) that yields:
+        
+          * kernel1(x, y) when condfun(x) and condfun(y) are True
+        
+          * kernel2(x, y) when condfun(x) and condfun(y) are False
+        
+          * 0 when condfun(x) is different from condfun(y)
+        
+        Parameters
+        ----------
+        condfun : callable
+            Function that is applied on an array of points and must return
+            a boolean array with the same shape.
+        kernel1 : Kernel
+            Kernel used where condfun yields True.
+        kernel2 : Kernel
+            Kernel used where condfun yields False.
+        dim : str or None
+            If specified, when the input arrays are structured, `condfun` is
+            applied only to the field `dim`. If the field has a shape, the
+            array passed to `condfun` still has `dim` as explicit field.
+        
+        """
+        assert isinstance(kernel1, Kernel)
+        assert isinstance(kernel2, Kernel)
+        assert callable(condfun)
+        
+        assert isinstance(dim, (str, type(None)))
+        if isinstance(dim, str):
+            def transf(x):
+                if x.dtype.names is None:
+                    raise ValueError('kernel called on non-structured array but condition dim="{}"'.format(dim))
+                elif x.dtype.fields[dim][0].shape:
+                    return x[[dim]]
+                else:
+                    return x[dim]
+            condfun0 = condfun
+            condfun = lambda x: condfun0(transf(x))
+        
+        _kernel1 = kernel1._kernel
+        _kernel2 = kernel2._kernel
+            
+        def kernel(x, y):
+            # TODO this is inefficient, kernels should be computed only in
+            # the relevant places, also a typical case is xcond and ycond all
+            # True/False
+            xcond = condfun(x)
+            ycond = condfun(y)
+            r = np.where(xcond & ycond, _kernel1(x, y), _kernel2(x, y))
+            return np.where(xcond ^ ycond, 0, r)
+        
+        derivable = tuple(np.minimum(kernel1._derivable, kernel2._derivable))
+        forcebroadcast = kernel1._forcebroadcast or kernel2._forcebroadcast
+        super().__init__(kernel, derivable=derivable, forcebroadcast=forcebroadcast)

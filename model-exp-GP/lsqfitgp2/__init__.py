@@ -114,7 +114,9 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # Long-term: move to a variable-oriented approach like gvar instead of the
 # monolithic GP object I'm doing now. It should be doable because what I'm
 # doing now with the keys is quite similar to a set of variables, but I have
-# not clear ideas on the interface.
+# not clear ideas on the interface. It could be based on underlying default
+# GP object, like gvar does with its hidden covariance matrix of all primary
+# gvars.
 #
 # Option to compute only the diagonal of the output covariance matrix, and
 # allow diagonal-only input covariance for data (will be fundamental for

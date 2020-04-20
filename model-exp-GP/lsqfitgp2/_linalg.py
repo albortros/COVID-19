@@ -46,6 +46,9 @@ class DecompMeta(type):
     def __new__(cls, name, bases, dct):
         subclass = super().__new__(cls, name, bases, dct)
         
+        # For __init__ I can't use an _autograd flag like below to avoid double
+        # wrapping because the wrapper is called as super().__init__ in
+        # subclasses, so I assign self._K *after* calling old__init__.
         old__init__ = subclass.__init__
         def __init__(self, K, **kw):
             old__init__(self, _noautograd(K), **kw)
@@ -240,10 +243,14 @@ class ReduceRank(Diag):
 def solve_triangular(a, b, lower=False):
     """
     Pure python implementation of scipy.linalg.solve_triangular for when
-    a or b are object arrays. b must be 1D or a column vector.
+    a or b are object arrays.
     """
+    # TODO maybe commit this to gvar.linalg
+    # TODO can I raise a LinAlgError if a[i,i] is 0, and still return the
+    # result and have it assigned to a variable using try...finally inside this
+    # function?
     x = np.copy(b)
-    a = a.reshape(a.shape + x.shape[1:])
+    a = a.reshape(a.shape + (1,) * len(x.shape[1:]))
     if lower:
         x[0] /= a[0, 0]
         for i in range(1, len(x)):
@@ -257,6 +264,11 @@ def solve_triangular(a, b, lower=False):
     return x
 
 def grad_chol(L):
+    """
+    Inverse of the Jacobian of the cholesky factor respect to the decomposed
+    matrix, reshaped as a 2D matrix. It should actually work for any
+    decomposition of the type A = L @ L.T, whatever is L. (Not tested.)
+    """
     n = len(L)
     I = np.eye(n)
     s1 = I[:, None, :, None] * L[None, :, None, :]

@@ -256,3 +256,18 @@ class TestReduceRank(DecompTestBase):
             sol = np.sum(np.log(np.sort(linalg.eigvalsh(K))[-self._rank:]))
             result = self.decompclass(K).logdet()
             assert np.allclose(sol, result)
+
+def test_solve_triangular():
+    for _ in range(100):
+        n = np.random.randint(1, 30)
+        A = np.random.randn(n, n)
+        m = np.random.randint(3)
+        s = np.random.randint(1, 4, size=m)
+        B = np.random.randn(n, *s)
+        lower = np.random.randint(2)
+        check_solve_triangular(A, B, lower)
+
+def check_solve_triangular(A, B, lower):
+    r1 = linalg.solve_triangular(A, B, lower=lower)
+    r2 = _linalg.solve_triangular(A, B, lower=lower)
+    assert np.allclose(r1, r2)

@@ -219,7 +219,7 @@ class GP:
             'gersh'  : _linalg.CholGersh,
             'maxeigv': _linalg.CholMaxEig
         }[solver]
-        self._solver = lambda K, **kwargs: decomp(K, **kwargs, **kw)
+        self._decompclass = lambda K, **kwargs: decomp(K, **kwargs, **kw)
         self._checkfinite = bool(checkfinite)
         self._checksym = bool(checksym)
         
@@ -454,6 +454,21 @@ class GP:
             colkeys = rowkeys
         blocks = [[self._covblock(row, col) for col in colkeys] for row in rowkeys]
         return _block_matrix(blocks)
+    
+    def _solver(self, keys, ycov=0):
+        """
+        Return a decomposition of the covariance matrix of the keys in `keys`
+        plus the matrix ycov.
+        """
+        # TODO Block matrix solving. Example: solve a subproblem with kronecker,
+        # another plain. Cache decompositions of blocks. Caching is effective
+        # with data if I can reuse the decomposition of Kxx to compute the
+        # decomposition of Kxx + ycov, i.e. it works in all cases if ycov is
+        # scalar, and in some cases if ycov is diagonal. Is there an efficient
+        # way to update a Cholesky decomposition if I add a diagonal matrix?
+        Kxx = self._assemblecovblocks(keys)
+        assert np.allclose(Kxx, Kxx.T) # TODO remove
+        return self._decompclass(Kxx + ycov)
         
     def _checkpos(self, cov):
         eigv = linalg.eigvalsh(_linalg._noautograd(cov))
@@ -689,13 +704,12 @@ class GP:
         ylist, inkeys, ycovblocks = self._flatgiven(given, givencov)
         y = _concatenate_noop(ylist)
         
-        Kxsx = self._assemblecovblocks(outkeys, inkeys)
-        Kxxs = Kxsx.T
-        Kxx = self._assemblecovblocks(inkeys)
+        # I think it is good to have Kxxs row-major and Kxsx column-major
+        Kxxs = self._assemblecovblocks(inkeys, outkeys)
+        Kxsx = Kxxs.T
         
         # TODO remove
-        assert np.allclose(Kxx, Kxx.T)
-        assert np.allclose(Kxsx, self._assemblecovblocks(inkeys, outkeys).T)
+        assert np.allclose(Kxxs, self._assemblecovblocks(outkeys, inkeys).T)
         
         if ycovblocks is not None:
             ycov = _block_matrix(ycovblocks)
@@ -707,7 +721,9 @@ class GP:
             # is that maybe gvar.evalcov is not optimized to handle non-dense
             # cases, but in this case I should modify gvar.evalcov. Case under
             # which it makes a difference even for fromdata=True: I implement
-            # caching of decompositions and ycov is diagonal.
+            # caching of decompositions and ycov is diagonal. Or: ycov is zero,
+            # then evalcov builds a matrix of zeros anyway -> make a method
+            # to replace evalcov.
             if self._checkfinite and not np.all(np.isfinite(ycov)):
                 raise ValueError('covariance matrix of `given` is not finite')
         else:
@@ -724,11 +740,11 @@ class GP:
                 raise ValueError('mean of `given` is not finite')
             
             if fromdata:
-                solver = self._solver(Kxx + ycov)
+                solver = self._solver(inkeys, ycov)
                 cov = Kxsxs - solver.quad(Kxxs)
                 mean = solver.solve(Kxxs).T @ ymean
             else:
-                solver = self._solver(Kxx)
+                solver = self._solver(inkeys)
                 A = solver.solve(Kxxs).T
                 if np.isscalar(ycov) and ycov == 0:
                     cov = Kxsxs - solver.quad(Kxxs)
@@ -746,9 +762,9 @@ class GP:
             ysplist = [self._prior[key].reshape(-1) for key in outkeys]
             yp = _concatenate_noop(yplist)
             ysp = _concatenate_noop(ysplist)
-        
-            mat = Kxx + ycov if fromdata else Kxx
-            flatout = Kxsx @ self._solver(mat).usolve(y - yp) + ysp
+            
+            mat = ycov if fromdata else 0
+            flatout = Kxsx @ self._solver(inkeys, mat).usolve(y - yp) + ysp
         
         if raw and not strip:
             meandict = {
@@ -830,10 +846,6 @@ class GP:
         ylist, inkeys, ycovblocks = self._flatgiven(given, givencov)
         y = _concatenate_noop(ylist)
 
-        Kxx = self._assemblecovblocks(inkeys)
-
-        assert np.allclose(Kxx, Kxx.T) # TODO remove
-        
         if ycovblocks is not None:
             ycov = _block_matrix(ycovblocks)
             ymean = gvar.mean(y)
@@ -853,5 +865,5 @@ class GP:
         if self._checkfinite and not np.all(np.isfinite(ycov)):
             raise ValueError('covariance matrix of `given` is not finite')
         
-        decomp = self._solver(Kxx + ycov)
+        decomp = self._solver(inkeys, ycov)
         return -1/2 * (decomp.quad(ymean) + decomp.logdet() + len(y) * np.log(2 * np.pi))

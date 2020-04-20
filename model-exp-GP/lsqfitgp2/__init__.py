@@ -88,15 +88,6 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # the dimensions, it would be important when combining different keys with
 # addtransf.
 #
-# Block matrix solving. Example: solve a subproblem with kronecker, another
-# plain. Cache decompositions of blocks. Caching is effective with data if
-# I can reuse the decomposition of Kxx to compute the decomposition of
-# Kxx + ycov, i.e. it works in all cases if ycov is scalar, and in some cases
-# if ycov is diagonal. First make an interface where _solver instead of being
-# a variable is a method taking a list of keys over which to compute Kxx and
-# optionally a matrix ycov to be added to Kxx. For caching: is there an
-# efficient way to update a Cholesky decomposition if I add a diagonal matrix?
-#
 # Sparse algorithms. Make a custom minimal CSR class that allows an autograd
 # box as values buffer with only kernel operations implemented (addition,
 # multiplication, matrix multiplication, power). Make two decompositions

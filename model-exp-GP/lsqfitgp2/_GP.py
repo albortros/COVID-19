@@ -61,7 +61,8 @@ def _asarray(x):
 
 def _isdictlike(x):
     return isinstance(x, (dict, gvar.BufferDict))
-    
+
+# TODO move to _array.py
 def _broadcast_shapes_2(s1, s2):
     assert isinstance(s1, tuple)
     assert isinstance(s2, tuple)
@@ -468,7 +469,9 @@ class GP:
     def _prior(self):
         # TODO I think that gvar internals would let me build the prior
         # one block at a time although everything is correlated, but I don't
-        # know how to do it.
+        # know how to do it. In case it is possible, replace this with a
+        # method that gets the prior for a key without necessarily generating
+        # the whole prior. Finally, remove the _canaddx check in GP.addx.
         if not hasattr(self, '_priordict'):
             if self._checkpositive:
                 fullcov = self._assemblecovblocks(list(self._elements))
@@ -595,6 +598,10 @@ class GP:
         return ylist, keylist, covblocks
     
     def _slices(self, keylist):
+        """
+        Return list of slices for the positions of flattened arrays
+        corresponding to keys in `keylist` into their concatenation.
+        """
         sizes = [self._elements[key].size for key in keylist]
         stops = np.concatenate([[0], np.cumsum(sizes)])
         return [slice(stops[i - 1], stops[i]) for i in range(1, len(stops))]
@@ -683,6 +690,7 @@ class GP:
         y = _concatenate_noop(ylist)
         
         Kxsx = self._assemblecovblocks(outkeys, inkeys)
+        Kxxs = Kxsx.T
         Kxx = self._assemblecovblocks(inkeys)
         
         # TODO remove
@@ -697,7 +705,9 @@ class GP:
             # make a difference because I just use ycov in Kxx + ycov. If
             # fromdata=False, typically ycov will be dense. The only reason
             # is that maybe gvar.evalcov is not optimized to handle non-dense
-            # cases, but in this case I should modify gvar.evalcov.
+            # cases, but in this case I should modify gvar.evalcov. Case under
+            # which it makes a difference even for fromdata=True: I implement
+            # caching of decompositions and ycov is diagonal.
             if self._checkfinite and not np.all(np.isfinite(ycov)):
                 raise ValueError('covariance matrix of `given` is not finite')
         else:
@@ -713,20 +723,20 @@ class GP:
             if self._checkfinite and not np.all(np.isfinite(ymean)):
                 raise ValueError('mean of `given` is not finite')
             
-            # TODO: extend quad to matrices and use it for A @ inv(mat) @ A.T
             if fromdata:
-                B = self._solver(Kxx + ycov).solve(Kxsx.T).T
-                cov = Kxsxs - Kxsx @ B.T
-                mean = B @ ymean
+                solver = self._solver(Kxx + ycov)
+                cov = Kxsxs - solver.quad(Kxxs)
+                mean = solver.solve(Kxxs).T @ ymean
             else:
-                A = self._solver(Kxx).solve(Kxsx.T).T
+                solver = self._solver(Kxx)
+                A = solver.solve(Kxxs).T
                 if np.isscalar(ycov) and ycov == 0:
-                    cov = Kxsxs - Kxsx @ A.T
+                    cov = Kxsxs - solver.quad(Kxxs)
                 elif np.isscalar(ycov) or len(ycov.shape) == 1:
                     ycov_mat = np.reshape(ycov, (1, -1))
-                    cov = Kxsxs + (A * ycov_mat - Kxsx) @ A.T
+                    cov = Kxsxs + (A * ycov_mat) @ A.T - solver.quad(Kxxs)
                 else:
-                    cov = Kxsxs + (A @ ycov - Kxsx) @ A.T
+                    cov = Kxsxs + A @ ycov @ A.T - solver.quad(Kxxs)
                 # equivalent formula:
                 # cov = Kxsxs - A @ (Kxx - ycov) @ A.T
                 mean = A @ ymean

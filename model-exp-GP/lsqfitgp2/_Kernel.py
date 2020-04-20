@@ -497,8 +497,8 @@ class Where(Kernel):
         _kernel2 = kernel2._kernel
             
         def kernel(x, y):
-            # TODO this is inefficient, kernels should be computed only in
-            # the relevant places, also a typical case is xcond and ycond all
+            # TODO this is inefficient, kernels should be computed only on
+            # the relevant points, also a typical case is xcond and ycond all
             # True/False
             xcond = condfun(x)
             ycond = condfun(y)
@@ -508,3 +508,9 @@ class Where(Kernel):
         derivable = tuple(np.minimum(kernel1._derivable, kernel2._derivable))
         forcebroadcast = kernel1._forcebroadcast or kernel2._forcebroadcast
         super().__init__(kernel, derivable=derivable, forcebroadcast=forcebroadcast)
+
+# TODO add a kernel Choose to extend Where. Interface: Choose(keyfun, mapping)
+# example where `comp` is an integer field selecting the kernel:
+# Choose(lambda comp: comp, [kernel0, kernel1, kernel2], dim='comp')
+# example where `comp` is a string field, and without using `dim`:
+# Choose(lambda x: x['comp'], {'a': kernela, 'b': kernelb})

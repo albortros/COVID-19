@@ -36,6 +36,7 @@ def _noautograd(x):
     """
     Unpack an autograd numpy array.
     """
+    # TODO remove underscore from name since it is used in _GP.py
     if isinstance(x, np.numpy_boxes.ArrayBox):
         return _noautograd(x._value)
     else:

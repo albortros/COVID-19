@@ -266,16 +266,21 @@ class TestReduceRank(DecompTestBase):
             assert np.allclose(sol, result)
 
 def test_solve_triangular():
-    for _ in range(100):
-        n = np.random.randint(1, 30)
-        A = np.random.randn(n, n)
-        m = np.random.randint(3)
-        s = np.random.randint(1, 4, size=m)
-        B = np.random.randn(n, *s)
-        lower = np.random.randint(2)
-        check_solve_triangular(A, B, lower)
+    for n in range(1, 20):
+        for ndim in range(3):
+            for lower in [True, False]:
+                tri = np.tril if lower else np.triu
+                A = tri(np.random.randn(n, n))
+                shape = np.random.randint(1, 4, size=ndim)
+                B = np.random.randn(n, *shape)
+                check_solve_triangular(A, B, lower)
 
 def check_solve_triangular(A, B, lower):
-    r1 = linalg.solve_triangular(A, B, lower=lower)
-    r2 = _linalg.solve_triangular(A, B, lower=lower)
-    assert np.allclose(r1, r2)
+    # scipy.linalg.solve_triangular is documented to work with b 1- or
+    # 2-dimensional, but it does not raise an error with b n-dimensional and
+    # the result does not satisfy sum_i A[j,i] * x[i,...] = B[j,...].
+    # TODO understand what solve_triangular does and file a bug report to scipy
+    x1 = linalg.solve_triangular(A, B.reshape(B.shape[0], -1), lower=lower).reshape(B.shape)
+    assert np.allclose(np.tensordot(A, x1, 1), B)
+    x2 = _linalg.solve_triangular(A, B, lower=lower)
+    assert np.allclose(x1, x2)

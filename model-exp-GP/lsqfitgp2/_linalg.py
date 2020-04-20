@@ -51,6 +51,9 @@ def asinexact(dtype):
         return np.float64
 
 class DecompMeta(type):
+    """
+    Metaclass for adding autograd support to subclasses of Decomposition.
+    """
     
     def __new__(cls, name, bases, dct):
         subclass = super().__new__(cls, name, bases, dct)
@@ -143,6 +146,8 @@ class DecompMeta(type):
         
         return subclass
 
+# TODO learn how to properly do abstract classes in Python instead of
+# raising NotImplementedError manually
 class Decomposition(metaclass=DecompMeta):
     """
     
@@ -161,20 +166,20 @@ class Decomposition(metaclass=DecompMeta):
         """
         Decompose matrix K.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
         
     def solve(self, b):
         """
         Solve the linear system K @ x = b.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
     
     def usolve(self, ub):
         """
         Solve the linear system K @ x = b where b is possibly an array of
         `gvar`s.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
     
     def quad(self, b):
         """
@@ -186,7 +191,7 @@ class Decomposition(metaclass=DecompMeta):
         """
         Compute log(det(K)).
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
 class Diag(Decomposition):
     """

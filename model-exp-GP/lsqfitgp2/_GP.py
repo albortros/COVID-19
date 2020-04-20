@@ -438,7 +438,7 @@ class GP:
         
         if (row, col) not in self._covblocks:
             block = self._makecovblock(row, col)
-            _linalg._noautograd(block).flags['WRITEABLE'] = False
+            _linalg.noautograd(block).flags['WRITEABLE'] = False
             if row != col:
                 if self._checksym:
                     blockT = self._makecovblock(col, row)
@@ -471,7 +471,7 @@ class GP:
         return self._decompclass(Kxx + ycov)
         
     def _checkpos(self, cov):
-        eigv = linalg.eigvalsh(_linalg._noautograd(cov))
+        eigv = linalg.eigvalsh(_linalg.noautograd(cov))
         mineigv = np.min(eigv)
         if mineigv < 0:
             bound = -len(cov) * np.finfo(float).eps * np.max(eigv)

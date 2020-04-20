@@ -37,7 +37,7 @@ def noautograd(x):
     Unpack an autograd numpy array.
     """
     if isinstance(x, np.numpy_boxes.ArrayBox):
-        return _noautograd(x._value)
+        return noautograd(x._value)
     else:
         return x
 
@@ -51,7 +51,7 @@ class DecompMeta(type):
         # subclasses, so I assign self._K *after* calling old__init__.
         old__init__ = subclass.__init__
         def __init__(self, K, **kw):
-            old__init__(self, _noautograd(K), **kw)
+            old__init__(self, noautograd(K), **kw)
             self._K = K
         subclass.__init__ = __init__
         
@@ -79,7 +79,9 @@ class DecompMeta(type):
             )
             def solve(self, b):
                 return solve_autograd(self, self._K, b)
-            solve._autograd = True
+            # solve_autograd is used by logdet_vjp, so I store it here in case
+            # logdet but not solve need wrapping in a subclass
+            solve._autograd = solve_autograd
             subclass.solve = solve
         
         # TODO write vjp optimized for quad instead of relying on solve
@@ -95,9 +97,6 @@ class DecompMeta(type):
         
         oldlogdet = subclass.logdet
         if not hasattr(oldlogdet, '_autograd'):
-            # TODO I'm actually assuming that also solve has been overwritten,
-            # otherwise solve_autograd is not defined. Maybe _autograd should
-            # be the autograd version of the function instead of just a flag.
             @extend.primitive
             def logdet_autograd(self, K):
                 return oldlogdet(self)
@@ -105,7 +104,7 @@ class DecompMeta(type):
                 assert ans.shape == ()
                 assert K.shape[0] == K.shape[1]
                 def vjp(g):
-                    invK = solve_autograd(self, K, np.eye(len(K)))
+                    invK = self.solve._autograd(self, K, np.eye(len(K)))
                     return g[..., None, None] * invK
                 return vjp
             extend.defvjp(

@@ -41,6 +41,15 @@ def noautograd(x):
     else:
         return x
 
+def asinexact(dtype):
+    """
+    Return dtype if it is inexact, else float64.
+    """
+    if np.issubdtype(dtype, np.inexact):
+        return dtype
+    else:
+        return np.float64
+
 class DecompMeta(type):
     
     def __new__(cls, name, bases, dct):
@@ -200,10 +209,10 @@ class Diag(Decomposition):
         return np.sum(np.log(self._w))
     
     def _eps(self, eps):
-        # TODO error checking on `eps`
         w = self._w
         if eps is None:
-            eps = len(w) * np.finfo(w.dtype).eps
+            eps = len(w) * np.finfo(asinexact(w.dtype)).eps
+        assert np.isscalar(eps) and 0 <= eps < 1
         return eps * np.max(w)
 
 class EigCutFullRank(Diag):
@@ -236,7 +245,7 @@ class ReduceRank(Diag):
     """
     
     def __init__(self, K, rank=1):
-        # TODO error checking on `rank`
+        assert isinstance(rank, (int, np.integer)) and rank >= 1
         self._w, self._V = slinalg.eigsh(K, k=rank, which='LM')
 
 def solve_triangular(a, b, lower=False):
@@ -297,7 +306,11 @@ class Chol(Decomposition):
     def logdet(self):
         return 2 * np.sum(np.log(np.diag(self._L)))
     
-    # TODO _eps function here like Diag with error checking
+    def _eps(self, eps, K, maxeigv):
+        if eps is None:
+            eps = len(K) * np.finfo(asinexact(K.dtype)).eps
+        assert np.isscalar(eps) and 0 <= eps < 1
+        return eps * maxeigv
 
 class CholMaxEig(Chol):
     """
@@ -308,9 +321,8 @@ class CholMaxEig(Chol):
     
     def __init__(self, K, eps=None, **kw):
         w = slinalg.eigsh(K, k=1, which='LM', return_eigenvectors=False)
-        if not eps:
-            eps = len(K) * np.finfo(K.dtype).eps
-        super().__init__(K + np.diag(np.full(len(K), eps * w[0])), **kw)
+        eps = self._eps(eps, K, w[0])
+        super().__init__(K + np.diag(np.full(len(K), eps)), **kw)
 
 
 class CholGersh(Chol):
@@ -323,9 +335,8 @@ class CholGersh(Chol):
     
     def __init__(self, K, eps=None, **kw):
         maxeigv = _gershgorin_eigval_bound(K)
-        if not eps:
-            eps = len(K) * np.finfo(K.dtype).eps
-        super().__init__(K + np.diag(np.full(len(K), eps * maxeigv)), **kw)
+        eps = self._eps(eps, K, maxeigv)
+        super().__init__(K + np.diag(np.full(len(K), eps)), **kw)
 
 def _gershgorin_eigval_bound(K):
     return np.max(np.sum(np.abs(K), axis=1))

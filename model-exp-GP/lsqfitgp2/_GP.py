@@ -222,7 +222,8 @@ class GP:
         self._decompclass = lambda K, **kwargs: decomp(K, **kwargs, **kw)
         self._checkfinite = bool(checkfinite)
         self._checksym = bool(checksym)
-        
+    
+    # TODO after I implement block solving, add per-key solver option
     def addx(self, x, key=None, deriv=0):
         """
         
@@ -256,6 +257,7 @@ class GP:
         """
         if not self._canaddx:
             raise RuntimeError('can not add x any more to this process')
+            # TODO remove if I implement the lazy gvar prior
         
         deriv = _Deriv.Deriv(deriv)
         

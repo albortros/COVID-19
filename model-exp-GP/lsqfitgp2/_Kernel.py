@@ -96,7 +96,7 @@ class _KernelBase:
     
     """
     
-    def __init__(self, kernel, *, dim=None, loc=0, scale=1, forcebroadcast=False, forcekron=False, derivable=False, **kw):
+    def __init__(self, kernel, *, dim=None, loc=None, scale=None, forcebroadcast=False, forcekron=False, derivable=False, **kw):
         """
         
         Initialize the object with callable `kernel`.
@@ -143,11 +143,6 @@ class _KernelBase:
         # syntax (still not done).
         
         assert isinstance(dim, (str, type(None)))
-        assert np.isscalar(scale)
-        assert np.isfinite(scale)
-        assert scale > 0
-        assert np.isscalar(loc)
-        assert np.isfinite(loc)
         self._forcebroadcast = bool(forcebroadcast)
         forcekron = bool(forcekron)
         
@@ -175,11 +170,16 @@ class _KernelBase:
                 else:
                     return x[dim]
         
-        if loc != 0:
+        if loc is not None:
+            assert np.isscalar(loc)
+            assert np.isfinite(loc)
             transf1 = transf
             transf = lambda x: _transf_recurse_dtype(lambda x: x - loc, transf1(x))
         
-        if scale != 1:
+        if scale is not None:
+            assert np.isscalar(scale)
+            assert np.isfinite(scale)
+            assert scale > 0
             transf2 = transf
             transf = lambda x: _transf_recurse_dtype(lambda x: x / scale, transf2(x))
         
@@ -354,7 +354,7 @@ class IsotropicKernel(Kernel):
     # TODO add the `distance` parameter to supply an arbitrary distance, maybe
     # allow string keywords for premade distances, like euclidean, hamming.
     
-    def __init__(self, kernel, *, input='squared', **kw):
+    def __init__(self, kernel, *, input='squared', scale=None, **kw):
         """
         
         Parameters
@@ -364,6 +364,8 @@ class IsotropicKernel(Kernel):
             between x and y, plus optionally keyword arguments.
         input : str
             See "input options" below.
+        scale : scalar
+            The distance is divided by `scale`.
         **kw :
             Other keyword arguments are passed to the `Kernel` init.
         
@@ -380,8 +382,15 @@ class IsotropicKernel(Kernel):
         if not (input in allowed_input):
             raise ValueError('input option `{}` not valid, must be one of {}'.format(input, allowed_input))
         
+        if scale is not None:
+            assert np.isscalar(scale)
+            assert np.isfinite(scale)
+            assert scale > 0
+        
         def function(x, y, **kwargs):
             q = _sum_recurse_dtype(lambda x, y: (x - y) ** 2, x, y)
+            if scale is not None:
+                q = q / scale ** 2
             if input == 'soft':
                 if np.issubdtype(x.dtype, np.inexact):
                     eps = np.finfo(x.dtype).eps

@@ -62,35 +62,6 @@ def _asarray(x):
 def _isdictlike(x):
     return isinstance(x, (dict, gvar.BufferDict))
 
-# TODO move to _array.py
-def _broadcast_shapes_2(s1, s2):
-    assert isinstance(s1, tuple)
-    assert isinstance(s2, tuple)
-    if len(s1) < len(s2):
-        s1 = (len(s2) - len(s1)) * (1,) + s1
-    elif len(s2) < len(s1):
-        s2 = (len(s1) - len(s2)) * (1,) + s2
-    out = ()
-    for a, b in zip(s1, s2):
-        if a == b:
-            out += (a,)
-        elif a == 1 or b == 1:
-            out += (a * b,)
-        else:
-            raise ValueError('can not broadcast shape {} with {}'.format(s1, s2))
-    return out
-
-def _broadcast_shapes(shapes):
-    out = ()
-    for shape in shapes:
-        try:
-            out = _broadcast_shapes_2(out, shape)
-        except ValueError:
-            msg = 'can not broadcast shapes '
-            msg += ', '.join(str(s) for s in shapes)
-            raise ValueError(msg)
-    return out
-
 class _Element:
     """
     Abstract class for an object holding information associated to a key in a
@@ -362,7 +333,7 @@ class GP:
             for t, e in zip(arrays, elements)
         ]
         try:
-            shape = _broadcast_shapes(shapes)
+            shape = _array.broadcast_shapes(shapes)
         except ValueError:
             msg = 'can not broadcast tensors with shapes ['
             msg += ', '.join(str(t.shape) for t in arrays)

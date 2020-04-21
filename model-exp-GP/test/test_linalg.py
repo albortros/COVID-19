@@ -271,6 +271,8 @@ def test_solve_triangular():
             for lower in [True, False]:
                 tri = np.tril if lower else np.triu
                 A = tri(np.random.randn(n, n))
+                diag = np.sqrt(np.sum(np.random.randn(n, 2) ** 2, axis=-1) / 2)
+                A[np.diag_indices(n)] = diag
                 shape = np.random.randint(1, 4, size=ndim)
                 B = np.random.randn(n, *shape)
                 check_solve_triangular(A, B, lower)

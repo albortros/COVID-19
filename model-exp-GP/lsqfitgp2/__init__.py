@@ -109,6 +109,9 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # GP object, like gvar does with its hidden covariance matrix of all primary
 # gvars.
 #
+# Invent a simpler alternative to Where/Choose and GP.addtransf for the case
+# of adding various kernels and getting the separate prediction for each one.
+#
 # Option to compute only the diagonal of the output covariance matrix, and
 # allow diagonal-only input covariance for data (will be fundamental for
 # kronecker). For the output it already works implicitly when using gvars.
@@ -134,11 +137,6 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # Implement _array.broadcast and _array.broadcast_arrays that work both
 # with np.ndarray and StructuredArray, and use them in _KernelBase.__call__,
 # then make an example script with empbayes_fit on a GP with a derivative.
-#
-# Matrix transformation of inputs. Should work with arbitrarily nested dtypes.
-#
-# Apply kernels over a subset of the fields, accepting a list for `dim` in
-# Kernel.__init__.
 #
 # Support taking derivatives in arbitrarily nested dtypes.
 #

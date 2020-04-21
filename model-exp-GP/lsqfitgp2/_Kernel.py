@@ -134,6 +134,16 @@ class _KernelBase:
             Other keyword arguments are passed to `kernel`: kernel(x, y, **kw).
         
         """
+        # TODO linear transformation of input that works with arbitrarily
+        # nested dtypes. Use an array/dictionary of arrays/dictionaries etc.
+        # to represent a matrix. Dictionaries implicitly allow the
+        # matrix to be sparse over fields. The transformation is applied prior
+        # to selecting a field with `dim`.
+        
+        # TODO allow dim to select arbitrarily nested fields, and also sets of
+        # fields and slices of array fields. It shall be similar to the Deriv
+        # syntax (still not done).
+        
         assert isinstance(dim, (str, type(None)))
         assert np.isscalar(scale)
         assert np.isfinite(scale)

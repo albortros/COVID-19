@@ -14,7 +14,7 @@ __all__ = [
     'IsotropicKernel',
     'kernel',
     'isotropickernel',
-    'Where'
+    'where'
 ]
 
 def _asarray(x):
@@ -23,24 +23,21 @@ def _asarray(x):
     else:
         return np.array(x, copy=False)
 
-def _effectivearray(x):
-    if isinstance(x, _array.StructuredArray):
-        return x[x.dtype.names[0]]
+def _asfloat(x):
+    if not np.issubdtype(x.dtype, np.floating):
+        return np.array(x, dtype=float, subok=True)
     else:
         return x
 
-def _asfloat(x):
-    return np.array(x, copy=False, dtype=float)
-
-def _reduce_recurse_dtype(fun, *args, initial=None, reductor=None, npreductor=None):
+def _reduce_recurse_dtype(fun, *args, reductor=None, npreductor=None):
     x = args[0]
     if x.dtype.names is None:
         return fun(*args)
     else:
-        acc = initial
+        acc = None
         for name in x.dtype.names:
             recargs = (arg[name] for arg in args)
-            reckw = dict(initial=initial, reductor=reductor, npreductor=npreductor)
+            reckw = dict(reductor=reductor, npreductor=npreductor)
             result = _reduce_recurse_dtype(fun, *recargs, **reckw)
             
             dtype = x.dtype.fields[name][0]
@@ -48,20 +45,21 @@ def _reduce_recurse_dtype(fun, *args, initial=None, reductor=None, npreductor=No
                 axis = tuple(range(-len(dtype.shape), 0))
                 result = npreductor(result, axis=axis)
             
-            acc = reductor(acc, result)
-        # assert acc.shape == np.broadcast(*args).shape
-        # np.broadcast does not work with StructuredArray of course!
+            if acc is None:
+                acc = result
+            else:
+                acc = reductor(acc, result)
+        
+        assert acc.shape == _array.broadcast(*args).shape
         return acc
 
 def _sum_recurse_dtype(fun, *args):
-    reductor = lambda a, b: a + b
-    npreductor = np.sum
-    return _reduce_recurse_dtype(fun, *args, initial=0, reductor=reductor, npreductor=npreductor)
+    plus = lambda a, b: a + b
+    return _reduce_recurse_dtype(fun, *args, reductor=plus, npreductor=np.sum)
 
 def _prod_recurse_dtype(fun, *args):
-    reductor = lambda a, b: a * b
-    npreductor = np.prod
-    return _reduce_recurse_dtype(fun, *args, initial=0, reductor=reductor, npreductor=npreductor)
+    times = lambda a, b: a * b
+    return _reduce_recurse_dtype(fun, *args, reductor=times, npreductor=np.prod)
 
 def _transf_recurse_dtype(transf, x):
     if x.dtype.names is None:
@@ -203,9 +201,9 @@ class _KernelBase:
         x = _asarray(x)
         y = _asarray(y)
         assert x.dtype == y.dtype
-        shape = np.broadcast(_effectivearray(x), _effectivearray(y)).shape
-        if self._forcebroadcast: # TODO won't work with StructuredArray
-            x, y = np.broadcast_arrays(x, y)
+        shape = _array.broadcast(x, y).shape
+        if self._forcebroadcast:
+            x, y = _array.broadcast_arrays(x, y)
         result = self._kernel(x, y)
         assert isinstance(result, (np.ndarray, np.number))
         assert np.issubdtype(result.dtype, np.number)
@@ -315,13 +313,13 @@ class Kernel(_KernelBase):
     
     def _binary(self, value, op):
         if isinstance(value, Kernel):
-            obj = Kernel(lambda x, y: op(self._kernel(x, y), value._kernel(x, y)))
+            obj = Kernel(op(self._kernel, value._kernel))
             obj._derivable = tuple(np.minimum(self._derivable, value._derivable))
             obj._forcebroadcast = self._forcebroadcast or value._forcebroadcast
         elif np.isscalar(value):
             assert np.isfinite(value)
             assert value >= 0
-            obj = Kernel(lambda x, y: op(self._kernel(x, y), value))
+            obj = Kernel(op(self._kernel, lambda x, y: value))
             obj._derivable = self._derivable
             obj._forcebroadcast = self._forcebroadcast
         else:
@@ -329,18 +327,18 @@ class Kernel(_KernelBase):
         return obj
     
     def __add__(self, value):
-        return self._binary(value, lambda a, b: a + b)
+        return self._binary(value, lambda k, q: lambda x, y: k(x, y) + q(x, y))
     
     __radd__ = __add__
     
     def __mul__(self, value):
-        return self._binary(value, lambda a, b: a * b)
+        return self._binary(value, lambda k, q: lambda x, y: k(x, y) * q(x, y))
     
     __rmul__ = __mul__
     
     def __pow__(self, value):
         if np.isscalar(value):
-            return self._binary(value, lambda a, b: a ** b)
+            return self._binary(value, lambda k, q: lambda x, y: k(x, y) ** q(x, y))
         else:
             return NotImplemented
     
@@ -454,73 +452,70 @@ def isotropickernel(*args, **kw):
     """
     return _kerneldecoratorimpl(IsotropicKernel, *args, **kw)
 
-class Where(Kernel):
+def where(condfun, kernel1, kernel2, dim=None):
     """
     
-    Kernel that switches between two alternatives based on a condition on the
-    points.
+    Make a kernel(x, y) that yields:
+    
+      * kernel1(x, y) when condfun(x) and condfun(y) are True
+    
+      * kernel2(x, y) when condfun(x) and condfun(y) are False
+    
+      * 0 when condfun(x) is different from condfun(y)
+    
+    Parameters
+    ----------
+    condfun : callable
+        Function that is applied on an array of points and must return
+        a boolean array with the same shape.
+    kernel1 : Kernel
+        Kernel used where condfun yields True.
+    kernel2 : Kernel
+        Kernel used where condfun yields False.
+    dim : str or None
+        If specified, when the input arrays are structured, `condfun` is
+        applied only to the field `dim`. If the field has a shape, the
+        array passed to `condfun` still has `dim` as explicit field.
+    
+    Returns
+    -------
+    kernel: Kernel
+        If both kernel1 and kernel2 are IsotropicKernel, the class is
+        IsotropicKernel.
     
     """
-    def __init__(self, condfun, kernel1, kernel2, dim=None):
-        """
-        
-        Make a kernel(x, y) that yields:
-        
-          * kernel1(x, y) when condfun(x) and condfun(y) are True
-        
-          * kernel2(x, y) when condfun(x) and condfun(y) are False
-        
-          * 0 when condfun(x) is different from condfun(y)
-        
-        Parameters
-        ----------
-        condfun : callable
-            Function that is applied on an array of points and must return
-            a boolean array with the same shape.
-        kernel1 : Kernel
-            Kernel used where condfun yields True.
-        kernel2 : Kernel
-            Kernel used where condfun yields False.
-        dim : str or None
-            If specified, when the input arrays are structured, `condfun` is
-            applied only to the field `dim`. If the field has a shape, the
-            array passed to `condfun` still has `dim` as explicit field.
-        
-        """
-        assert isinstance(kernel1, Kernel)
-        assert isinstance(kernel2, Kernel)
-        assert callable(condfun)
-        
-        assert isinstance(dim, (str, type(None)))
-        if isinstance(dim, str):
-            def transf(x):
-                if x.dtype.names is None:
-                    raise ValueError('kernel called on non-structured array but condition dim="{}"'.format(dim))
-                elif x.dtype.fields[dim][0].shape:
-                    return x[[dim]]
-                else:
-                    return x[dim]
-            condfun0 = condfun
-            condfun = lambda x: condfun0(transf(x))
-        
-        _kernel1 = kernel1._kernel
-        _kernel2 = kernel2._kernel
-            
+    assert isinstance(kernel1, Kernel)
+    assert isinstance(kernel2, Kernel)
+    assert callable(condfun)
+    
+    assert isinstance(dim, (str, type(None)))
+    if isinstance(dim, str):
+        def transf(x):
+            if x.dtype.names is None:
+                raise ValueError('kernel called on non-structured array but condition dim="{}"'.format(dim))
+            elif x.dtype.fields[dim][0].shape:
+                return x[[dim]]
+            else:
+                return x[dim]
+        condfun0 = condfun
+        condfun = lambda x: condfun0(transf(x))
+    
+    def kernel_op(k1, k2):
         def kernel(x, y):
             # TODO this is inefficient, kernels should be computed only on
-            # the relevant points, also a typical case is xcond and ycond all
-            # True/False
+            # the relevant points, also a typical case is xcond and ycond
+            # all True/False -> all zeros, use sparse matrices?
             xcond = condfun(x)
             ycond = condfun(y)
-            r = np.where(xcond & ycond, _kernel1(x, y), _kernel2(x, y))
+            r = np.where(xcond & ycond, k1(x, y), k2(x, y))
             return np.where(xcond ^ ycond, 0, r)
-        
-        derivable = tuple(np.minimum(kernel1._derivable, kernel2._derivable))
-        forcebroadcast = kernel1._forcebroadcast or kernel2._forcebroadcast
-        super().__init__(kernel, derivable=derivable, forcebroadcast=forcebroadcast)
+        return kernel
+    
+    return kernel1._binary(kernel2, kernel_op)
 
-# TODO add a kernel Choose to extend Where. Interface: Choose(keyfun, mapping)
+# TODO add a function `choose` to extend `where`. Interface:
+# choose(keyfun, mapping)
 # example where `comp` is an integer field selecting the kernel:
-# Choose(lambda comp: comp, [kernel0, kernel1, kernel2], dim='comp')
+# choose(lambda comp: comp, [kernel0, kernel1, kernel2, ...], dim='comp')
 # example where `comp` is a string field, and without using `dim`:
-# Choose(lambda x: x['comp'], {'a': kernela, 'b': kernelb})
+# choose(lambda x: x['comp'], {'a': kernela, 'b': kernelb})

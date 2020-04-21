@@ -18,7 +18,7 @@ def makex(time, comp):
 
 kshort = lgp.ExpQuad(scale=1, dim='time')
 klong = lgp.ExpQuad(scale=10, dim='time')
-kernel = lgp.Where(lambda comp: comp == 'short', kshort, klong, dim='comp')
+kernel = lgp.where(lambda comp: comp == 'short', kshort, klong, dim='comp')
 gp = lgp.GP(kernel)
 
 def addcomps(key, time):

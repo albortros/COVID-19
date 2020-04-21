@@ -134,9 +134,7 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # Fourier kernels. Look at Celerite's algorithms.
 #
 # Check that the gradient of the marginal likelihood works with derivatives.
-# Implement _array.broadcast and _array.broadcast_arrays that work both
-# with np.ndarray and StructuredArray, and use them in _KernelBase.__call__,
-# then make an example script with empbayes_fit on a GP with a derivative.
+# Make an example script with empbayes_fit on a GP with a derivative.
 #
 # Support taking derivatives in arbitrarily nested dtypes.
 #

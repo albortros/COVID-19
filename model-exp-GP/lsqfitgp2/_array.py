@@ -50,6 +50,32 @@ def broadcast_shapes(shapes):
             raise ValueError(msg)
     return out
 
+class broadcast:
+    """
+    Version of np.broadcast that works with StructuredArray.
+    """
+    
+    def __init__(self, *arrays):
+        shapes = [a.shape for a in arrays]
+        self.shape = broadcast_shapes(shapes)
+
+def broadcast_to(x, shape, **kw):
+    """
+    Version of np.broadcast_to that works with StructuredArray.
+    """
+    if isinstance(x, StructuredArray):
+        return x.broadcast_to(shape, **kw)
+    else:
+        return np.broadcast_to(x, shape, **kw)
+
+def broadcast_arrays(*arrays, **kw):
+    """
+    Version of np.broadcast_arrays that works with StructuredArray.
+    """
+    shapes = [a.shape for a in arrays]
+    shape = broadcast_shapes(shapes)
+    return tuple(broadcast_to(a, shape, **kw) for a in arrays)
+
 class StructuredArray:
     """
     Autograd-friendly imitation of a numpy structured array. It behaves like
@@ -100,7 +126,7 @@ class StructuredArray:
     
     def __setitem__(self, key, val):
         assert key in self.dtype.names
-        assert isinstance(val, np.ndarray)
+        assert isinstance(val, (np.ndarray, StructuredArray))
         prev = self._dict[key]
         # TODO support casting and broadcasting
         assert prev.dtype == val.dtype
@@ -112,6 +138,14 @@ class StructuredArray:
             shape = shape[0]
         d = {
             name: x.reshape(shape + self.dtype.fields[name][0].shape)
+            for name, x in self._dict.items()
+        }
+        return type(self)._fromarrayanddict(self, d)
+    
+    def broadcast_to(self, shape, **kw):
+        _broadcast_shapes_2(self.shape, shape) # raises if not broadcastable
+        d = {
+            name: broadcast_to(x, shape + self.dtype.fields[name][0].shape, **kw)
             for name, x in self._dict.items()
         }
         return type(self)._fromarrayanddict(self, d)

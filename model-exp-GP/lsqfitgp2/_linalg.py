@@ -32,6 +32,12 @@ CholGersh :
 
 """
 
+# TODO check solve and quad work with >2D b. Probably I need to reshape
+# b to 2D, do the calculation and then reshape back. When it works, write
+# clearly the contraction convention in the docstrings.
+
+# TODO add an optional argument c to quad to compute b.T @ inv(K) @ c.
+
 def noautograd(x):
     """
     Unpack an autograd numpy array.
@@ -344,4 +350,66 @@ class CholGersh(Chol):
         super().__init__(K + np.diag(np.full(len(K), eps)), **kw)
 
 def _gershgorin_eigval_bound(K):
+    """
+    Upper bound on the largest magnitude eigenvalue of the matrix.
+    """
     return np.max(np.sum(np.abs(K), axis=1))
+
+# TODO test this.
+class BlockDecomp:
+    """
+    Decomposition of a 2x2 symmetric block matrix using decompositions of the
+    diagonal blocks.
+    
+    Reference: Gaussian Processes for Machine Learning, A.3, p. 201.
+    """
+    
+    def __init__(self, P, Q, S, P_decomp, S_decomp):
+        """
+        The matrix to decompose is
+        
+        A = [[P,   Q]
+             [Q.T, S]]
+        
+        P_decomp and S_decomp must be subclasses of Decomposition suitable
+        to decompose P and S. P_decomp is applied to P, while S_decomp is
+        applied to (S - Q.T P^-1 Q). The decompositions are then available as
+        members invP and tildeS respectively.
+        """
+        self.Q = Q
+        self.invP = P_decomp(P)
+        self.tildeS = S_decomp(S - self.invP.quad(Q))
+    
+    def solve(self, b):
+        """
+        Solve the linear system A @ z = b, where
+        
+        b = [f, g],
+        
+        z = [x, y].
+        
+        Returns x, y.
+        """
+        invP = self.invP
+        tildeS = self.tildeS
+        Q = self.Q
+        f = b[:len(Q)]
+        g = b[len(Q):]
+        tildeSQTinvPf = tildeS.solve(Q.T @ invP.solve(f))
+        tildeSg = tildeS.solve(g)
+        x = invP.solve(f + Q @ tildeSQTinvPf - Q @ tildeSg)
+        y = -tildeSQTinvPf + tildeSg
+        return x, y
+    
+    def quad(self, b):
+        """
+        Compute b.T @ inv(A) @ b, where b = [f, g].
+        """
+        invP = self.invP
+        tildeS = self.tildeS
+        Q = self.Q
+        f = b[:len(Q)]
+        g = b[len(Q):]
+        QTinvPf = Q.T @ invP.solve(f)
+        fTinvPQtildeSg = QTinvPf.T @ tildeS.solve(g)
+        return invP.quad(f) + tildeS.quad(QTinvPf) - fTinvPQtildeSg - fTinvPQtildeSg.T + tildeS.quad(g)

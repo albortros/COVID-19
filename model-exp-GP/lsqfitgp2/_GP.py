@@ -47,6 +47,7 @@ def _block_matrix(blocks):
     only one block.
     """
     return _concatenate_noop([_concatenate_noop(row, axis=1) for row in blocks], axis=0)
+    # TODO make a bug report to autograd because np.block does not work
 
 def _isarraylike_nostructured(x):
     return isinstance(x, (list, np.ndarray))
@@ -59,9 +60,31 @@ def _asarray(x):
         return x
     else:
         return np.array(x, copy=False)
+        # TODO won't work with object array-like due to autograd's array bug
 
 def _isdictlike(x):
     return isinstance(x, (dict, gvar.BufferDict))
+
+def _compatible_dtypes(d1, d2):
+    """
+    Function to check x arrays datatypes passed to GP.addx. If the dtype is
+    structured, it checks the structure of the fields is the same, but allows
+    casting of concrete dtypes (like, in one array a field can be int, in
+    another float, as long as the field name and position is the same).
+    Currently not used.
+    """
+    if d1.names != d2.names or d1.shape != d2.shape:
+        return False
+    if d1.names is not None:
+        for name in d1.names:
+            if not _compatible_dtypes(d1.fields[name][0], d2.fields[name][0]):
+                return False
+    else:
+        try:
+            np.result_type(d1, d2)
+        except TypeError:
+            return False
+    return True
 
 class _Element:
     """
@@ -247,29 +270,31 @@ class GP:
         
         for key in x:
             if key in self._elements:
-                raise RuntimeError('key {} already in GP'.format(key))
+                raise RuntimeError('key {} already in GP'.format(repr(key)))
             
             gx = x[key]
             
             # Convert to numpy array or StructuredArray.
             if not _isarraylike(gx):
-                raise TypeError('`x[{}]` is not array or list'.format(key))
+                raise TypeError('x[{}] is not array or list'.format(repr(key)))
             gx = _asarray(gx)
 
-            # Check it is not empty or 0d.
+            # Check it is not empty.
             if not gx.size:
-                raise ValueError('`x[{}]` is empty'.format(key))
-            if len(gx.shape) == 0:
-                raise ValueError('`x[{}]` is 0d'.format(key))
+                raise ValueError('x[{}] is empty'.format(repr(key)))
 
-            # Check that, if it has fields, they are the same fields of
-            # previous arrays added.
-            # TODO check field names and shapes recursively. Other options:
-            # enforce the dtypes to be equal, allow broadcasting in fields,
-            # check dtypes are castable.
+            # Check dtype is compatible with previous arrays.
+            # TODO since we never concatenate arrays we could allow a less
+            # strict compatibility. In principle we could allow really anything
+            # as long as the kernel eats it, but this probably would let bugs
+            # through without being really ever useful. What would make sense
+            # is checking the dtype structure matches recursively and check
+            # concrete dtypes of fields can be casted.
             if hasattr(self, '_dtype'):
-                if self._dtype.names != gx.dtype.names:
-                    raise TypeError('x[{}] has fields {} but previous array(s) had {}'.format(repr(key), gx.dtype.names, self._dtype.names))
+                try:
+                    self._dtype = np.result_type(self._dtype, gx.dtype)
+                except TypeError:
+                    raise TypeError('x[{}].dtype = {} which is not compatible with {}'.format(repr(key), repr(gx.dtype), repr(self._dtype)))
             else:
                 self._dtype = gx.dtype
 
@@ -281,7 +306,7 @@ class GP:
             else:
                 for dim in deriv:
                     if dim not in gx.dtype.names:
-                        raise ValueError('derivative field "{}" not in x'.format(dim))
+                        raise ValueError('derivative field {} not in x'.format(repr(dim)))
             
             self._elements[key] = _Points(gx, deriv)
     

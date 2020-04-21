@@ -512,8 +512,7 @@ def where(condfun, kernel1, kernel2, dim=None):
     def kernel_op(k1, k2):
         def kernel(x, y):
             # TODO this is inefficient, kernels should be computed only on
-            # the relevant points, also a typical case is xcond and ycond
-            # all True/False -> all zeros, use sparse matrices?
+            # the relevant points
             xcond = condfun(x)
             ycond = condfun(y)
             r = np.where(xcond & ycond, k1(x, y), k2(x, y))
@@ -528,3 +527,4 @@ def where(condfun, kernel1, kernel2, dim=None):
 # choose(lambda comp: comp, [kernel0, kernel1, kernel2, ...], dim='comp')
 # example where `comp` is a string field, and without using `dim`:
 # choose(lambda x: x['comp'], {'a': kernela, 'b': kernelb})
+# define Kernel._nary and make _binary just a wrapper

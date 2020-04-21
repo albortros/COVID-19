@@ -141,4 +141,4 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # probably half-use the least squares derivative estimation on the residuals
 # term and a normal hessian on the logdet term.
 #
-# Accept scalar x in GP.
+# Test recursive dtype support.

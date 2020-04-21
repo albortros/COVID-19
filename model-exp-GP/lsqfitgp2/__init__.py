@@ -133,9 +133,6 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 #
 # Fourier kernels. Look at Celerite's algorithms.
 #
-# Check that the gradient of the marginal likelihood works with derivatives.
-# Make an example script with empbayes_fit on a GP with a derivative.
-#
 # Support taking derivatives in arbitrarily nested dtypes.
 #
 # Is there a smooth version of the Wiener process? like, softmin(x, y)?
@@ -143,3 +140,5 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # Experiment on using second order corrections in empbayes_fit. I can
 # probably half-use the least squares derivative estimation on the residuals
 # term and a normal hessian on the logdet term.
+#
+# Accept scalar x in GP.

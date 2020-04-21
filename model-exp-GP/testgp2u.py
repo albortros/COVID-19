@@ -3,25 +3,40 @@ from matplotlib import pyplot as plt
 import numpy as np
 import gvar
 
+data_deriv = 1
+
 time = np.linspace(-5, 5, 10)
 x = np.empty(len(time), dtype=[
     ('time', float),
     ('label', int)
 ])
 x['time'] = time
-x['label'] = 0
+x['label'] = data_deriv
 
 data_error = 0.05
 data_mean = np.cos(time)
 data_mean += data_error * np.random.randn(*data_mean.shape)
 data = gvar.gvar(data_mean, np.full_like(data_mean, data_error))
 
-label_scale = 0.8
+label_scale = 5
 corr = lgp.ExpQuad(scale=label_scale)(0, 1)
 print(f'corr = {corr:.3g}')
 
-gp = lgp.GP(lgp.ExpQuad(scale=3, dim='time') * lgp.ExpQuad(scale=label_scale, dim='label'))
-gp.addx(x, 'A')
+def makegp(params):
+    kernel_time = lgp.ExpQuad(scale=params['time_scale'], dim='time')
+    kernel_label = lgp.ExpQuad(scale=label_scale, dim='label')
+    gp = lgp.GP(kernel_time * kernel_label)
+    gp.addx(x, 'data', deriv=(data_deriv, 'time'))
+    gp.addx(np.array([(0, 0)], dtype=x.dtype), 'fixed_point')
+    return gp
+
+prior = {
+    'log(time_scale)': gvar.log(gvar.gvar(3, 2))
+}
+datadict = {'data': data, 'fixed_point': [gvar.gvar(0, 1e2)]}
+params = lgp.empbayes_fit(prior, makegp, datadict)
+print('time_scale:', params['time_scale'])
+gp = makegp(gvar.mean(params))
 
 time_pred = np.linspace(-10, 10, 100)
 xpred = np.empty((2, len(time_pred)), dtype=x.dtype)
@@ -31,7 +46,7 @@ xpred['label'][1] = 1
 gp.addx(xpred[0], 0)
 gp.addx(xpred[1], 1, deriv=(1, 'time'))
 
-pred = gp.predfromdata({'A': data}, [0, 1])
+pred = gp.predfromdata(datadict, [0, 1])
 
 fig = plt.figure('testgp2u')
 fig.clf()
@@ -48,7 +63,7 @@ for _, sample in zip(range(3), gvar.raniter(pred)):
     for deriv in pred:
         ax.plot(time_pred, sample[deriv], color=colors[deriv])
 
-ax.errorbar(time, gvar.mean(data), yerr=gvar.sdev(data), fmt='.', color=colors[0], alpha=1)
+ax.errorbar(time, gvar.mean(data), yerr=gvar.sdev(data), fmt='.', color=colors[data_deriv], alpha=1, label='data')
 
 ax.legend(loc='best')
 ax.set_xlabel('time')

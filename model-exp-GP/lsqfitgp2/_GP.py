@@ -8,6 +8,7 @@ import gvar
 from autograd import numpy as np
 from autograd.scipy import linalg
 from autograd.builtins import isinstance
+import numpy # to bypass autograd
 
 from . import _Kernel
 from . import _linalg
@@ -268,7 +269,7 @@ class GP:
             # check dtypes are castable.
             if hasattr(self, '_dtype'):
                 if self._dtype.names != gx.dtype.names:
-                    raise TypeError('`x[{}]` has fields {} but previous array(s) had {}'.format(key, self._dtype.names, gx.dtype.names))
+                    raise TypeError('x[{}] has fields {} but previous array(s) had {}'.format(repr(key), gx.dtype.names, self._dtype.names))
             else:
                 self._dtype = gx.dtype
 
@@ -560,14 +561,17 @@ class GP:
                 raise KeyError(key)
 
             if not _isarraylike_nostructured(l):
-                raise TypeError('element `given[{}]` is not list or array'.format(key))
+                raise TypeError('element given[{}] is not list or array'.format(repr(key)))
             
-            l = np.array(l, copy=False)
+            l = numpy.array(l, copy=False)
+            # TODO I use numpy instead of np == autograd.numpy because np.array
+            # has this bug:
+            # array([object()]) -> array([array([object()])])
             shape = self._elements[key].shape
             if l.shape != shape:
-                raise ValueError('`given[{}]` has shape {} different from shape {}'.format(key, l.shape, shape))
+                raise ValueError('given[{}] has shape {} different from shape {}'.format(repr(key), l.shape, shape))
             if l.dtype != object and not np.issubdtype(l.dtype, np.number):
-                    raise ValueError('`given[{}]` has non-numerical dtype {}'.format(key, l.dtype))
+                    raise ValueError('given[{}] has non-numerical dtype {}'.format(repr(key), l.dtype))
             
             ylist.append(l.reshape(-1))
             keylist.append(key)

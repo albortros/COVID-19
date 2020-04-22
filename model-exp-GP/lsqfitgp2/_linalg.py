@@ -29,12 +29,15 @@ CholMaxEig :
     Cholesky regularized using the maximum eigenvalue.
 CholGersh :
     Cholesky regularized using an estimate of the maximum eigenvalue.
+BlockDecomp :
+    Decompose a block matrix.
 
 """
 
 # TODO check solve and quad work with >2D b. Probably I need to reshape
 # b to 2D, do the calculation and then reshape back. When it works, write
-# clearly the contraction convention in the docstrings.
+# clearly the contraction convention in the docstrings. (Low priority, I never
+# use this in the GP code.)
 
 # TODO add an optional argument c to quad to compute b.T @ inv(K) @ c.
 
@@ -364,52 +367,58 @@ class BlockDecomp:
     Reference: Gaussian Processes for Machine Learning, A.3, p. 201.
     """
     
-    def __init__(self, P, Q, S, P_decomp, S_decomp):
+    # This is not a subclass of Decomposition because the __init__
+    # signature is different.
+    
+    def __init__(self, P_decomp, S, Q, S_decomp_class):
         """
-        The matrix to decompose is
+        The matrix to be decomposed is
         
         A = [[P,   Q]
              [Q.T, S]]
         
-        P_decomp and S_decomp must be subclasses of Decomposition suitable
-        to decompose P and S. P_decomp is applied to P, while S_decomp is
-        applied to (S - Q.T P^-1 Q). The decompositions are then available as
-        members invP and tildeS respectively.
+        Parameters
+        ----------
+        P_decomp : Decomposition
+            An instantiated decomposition of P.
+        S, Q : matrices
+            The other blocks.
+        S_decomp_class : DecompMeta
+            A subclass of Decomposition used to decompose S - Q.T P^-1 Q.
         """
-        self.Q = Q
-        self.invP = P_decomp(P)
-        self.tildeS = S_decomp(S - self.invP.quad(Q))
+        self._Q = Q
+        self._invP = P_decomp
+        self._tildeS = S_decomp_class(S - P_decomp.quad(Q))
     
     def solve(self, b):
-        """
-        Solve the linear system A @ z = b, where
-        
-        b = [f, g],
-        
-        z = [x, y].
-        
-        Returns x, y.
-        """
-        invP = self.invP
-        tildeS = self.tildeS
-        Q = self.Q
+        invP = self._invP
+        tildeS = self._tildeS
+        Q = self._Q
         f = b[:len(Q)]
         g = b[len(Q):]
-        tildeSQTinvPf = tildeS.solve(Q.T @ invP.solve(f))
-        tildeSg = tildeS.solve(g)
-        x = invP.solve(f + Q @ tildeSQTinvPf - Q @ tildeSg)
-        y = -tildeSQTinvPf + tildeSg
-        return x, y
+        y = tildeS.solve(g - Q.T @ invP.solve(f)) # TODO invP.quad(Q, f)
+        x = invP.solve(f - Q @ y)
+        return np.concatenate([x, y])
+    
+    def usolve(self, b):
+        invP = self._invP
+        tildeS = self._tildeS
+        Q = self._Q
+        f = b[:len(Q)]
+        g = b[len(Q):]
+        y = tildeS.usolve(g - Q.T @ invP.usolve(f))
+        x = invP.usolve(f - Q @ y)
+        return np.concatenate([x, y])
     
     def quad(self, b):
-        """
-        Compute b.T @ inv(A) @ b, where b = [f, g].
-        """
-        invP = self.invP
-        tildeS = self.tildeS
-        Q = self.Q
+        invP = self._invP
+        tildeS = self._tildeS
+        Q = self._Q
         f = b[:len(Q)]
         g = b[len(Q):]
-        QTinvPf = Q.T @ invP.solve(f)
-        fTinvPQtildeSg = QTinvPf.T @ tildeS.solve(g)
+        QTinvPf = Q.T @ invP.solve(f) # TODO invP.quad(Q, f)
+        fTinvPQtildeSg = QTinvPf.T @ tildeS.solve(g) # tildeS.quad(QTinvPf, g)
         return invP.quad(f) + tildeS.quad(QTinvPf) - fTinvPQtildeSg - fTinvPQtildeSg.T + tildeS.quad(g)
+
+    def logdet(self):
+        return self._invP.logdet() + self._tildeS.logdet()

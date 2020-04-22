@@ -86,7 +86,10 @@ Reference: Rasmussen et al. (2006), "Gaussian Processes for Machine Learning".
 # reasonable approximation of the marginal likelihood, but the data covariance
 # must be diagonal. Other desiderata: separation along arbitrary subsets of
 # the dimensions, it would be important when combining different keys with
-# addtransf.
+# addtransf (I don't remember why). Can I implement a "kronecker" numpy array
+# using the numpy internal interfaces so that I can let it roam around without
+# changing the code and use autograd? Something like pydata/sparse (if that
+# works).
 #
 # Sparse algorithms. Make a custom minimal CSR class that allows an autograd
 # box as values buffer with only kernel operations implemented (addition,
